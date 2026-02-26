@@ -35,7 +35,10 @@ def run_neo_from_boozer(
     max_n_mode = control.max_n_mode if control.max_n_mode > 0 else int(np.max(np.abs(booz.ixn)))
 
     if control.fluxs_arr:
-        surf_indices = [i - 1 for i in control.fluxs_arr]
+        if booz.rmnc.shape[0] == len(control.fluxs_arr):
+            surf_indices = list(range(booz.rmnc.shape[0]))
+        else:
+            surf_indices = [i - 1 for i in control.fluxs_arr]
     else:
         surf_indices = list(range(booz.rmnc.shape[0]))
 

@@ -141,20 +141,22 @@ def _process_trapped(
 ) -> Tuple[RhsState, Array, Array, Array, Array, Array]:
     mask2 = state.isw == 2
     m_cl = jnp.clip(state.ipa, 1, multra).astype(state.ipa.dtype)
-    m_idx = m_cl - 1
-    safe_pi = jnp.where(mask2, p_i, 1.0)
-    add_on = jnp.where(mask2, (p_h * p_h) / safe_pi * iswst, 0.0)
-    bigint = bigint + jax.ops.segment_sum(add_on, m_idx, multra)
 
-    mask_adimax = mask2 & (state.ipa == 1)
-    idx = jnp.max(
-        jnp.where(
-            mask_adimax,
-            jnp.arange(p_i.shape[0], dtype=state.ipa.dtype),
-            jnp.array(-1, dtype=state.ipa.dtype),
-        )
-    )
-    adimax = jnp.where(idx >= 0, p_i[idx], adimax)
+    def body(i, carry):
+        bigint_acc, adimax_acc = carry
+
+        def add_fn(carry):
+            bigint_acc, adimax_acc = carry
+            safe_pi = jnp.where(p_i[i] == 0, jnp.array(1.0, dtype=p_i.dtype), p_i[i])
+            add_on = (p_h[i] * p_h[i]) / safe_pi * iswst[i]
+            idx = m_cl[i] - 1
+            bigint_acc = bigint_acc.at[idx].add(add_on)
+            adimax_acc = jnp.where(state.ipa[i] == 1, p_i[i], adimax_acc)
+            return bigint_acc, adimax_acc
+
+        return jax.lax.cond(mask2[i], add_fn, lambda c: c, carry)
+
+    bigint, adimax = jax.lax.fori_loop(0, p_i.shape[0], body, (bigint, adimax))
 
     iswst = jnp.where(mask2, 1, iswst)
     p_h = jnp.where(mask2, 0.0, p_h)
@@ -457,6 +459,10 @@ def flint_bo(
         "barept": barept,
         "drdpsi": drdpsi,
         "yps": yps,
+        "y2": y2,
+        "y3": y3,
+        "y4": y4,
+        "y3npart": y3npart,
         "nintfp": nintfp,
         "hit_rat": hit_rat,
         "nfp_rat": nfp_rat,
@@ -471,7 +477,7 @@ def flint_bo_jax(
     nfp: int,
     rt0: float,
 ):
-    """JAX-friendly integration loop (no rational-surface correction)."""
+    """JAX-friendly integration loop with rational-surface correction."""
     npart = params.npart
     multra = params.multra
     ndim = NPQ + 2 * npart
@@ -501,7 +507,8 @@ def flint_bo_jax(
 
     y = jnp.zeros(ndim)
     y = y.at[0].set(surface.theta_bmax)
-    phi = surface.phi_bmax
+    phi0 = surface.phi_bmax
+    phi = phi0
 
     state = RhsState(
         isw=jnp.zeros(npart, dtype=jnp.int32),
@@ -795,6 +802,114 @@ def flint_bo_jax(
     y4 = y[3]
     y3npart = y[NPQ + npart - 1]
 
+    def rational_correction(_):
+        def reset_accumulators(_):
+            zero_bigint = jnp.zeros_like(bigint)
+            return zero_bigint, jnp.array(0.0), jnp.array(0.0), jnp.array(0.0), jnp.array(0.0), jnp.array(0.0)
+
+        def keep_accumulators(_):
+            return bigint, aditot, y2, y3, y4, y3npart
+
+        bigint0, aditot0, y20, y30, y40, y3npart0 = jax.lax.cond(
+            exist_first_ratfl == 0, reset_accumulators, keep_accumulators, operand=None
+        )
+
+        nfl_count = jnp.maximum(nfl_rat + 1 - exist_first_ratfl, 0).astype(jnp.int32)
+
+        def nfl_cond(carry):
+            idx, *_ = carry
+            return idx < nfl_count
+
+        def nfl_body(carry):
+            idx, bigint_acc, aditot_acc, y2_acc, y3_acc, y4_acc, y3npart_acc = carry
+            nfl = idx + exist_first_ratfl
+
+            phi_local = phi0
+            y_local = jnp.zeros(ndim)
+            y_local = y_local.at[0].set(theta0 + nfl * delta_theta_rat)
+
+            state_local = RhsState(
+                isw=jnp.zeros(npart, dtype=jnp.int32),
+                ipa=jnp.zeros(npart, dtype=jnp.int32),
+                icount=jnp.zeros(npart, dtype=jnp.int32),
+                ipmax=jnp.array(0, dtype=jnp.int32),
+                pard0=jnp.array(0.0),
+            )
+
+            iswst_local = jnp.zeros(npart, dtype=jnp.int32)
+            bigint_s = jnp.zeros(multra)
+            adimax_s = jnp.array(0.0)
+            aditot_s = jnp.array(0.0)
+
+            def n_cond(ncarry):
+                n_idx, *_ = ncarry
+                return n_idx < nfp_rat
+
+            def n_body(ncarry):
+                n_idx, phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s = ncarry
+
+                _bmod, _gval, _geodcu, pard0, _qval = neo_eval(
+                    y_l[0],
+                    phi_l,
+                    env.splines["b_spl"],
+                    env.splines["g_spl"],
+                    env.splines["k_spl"],
+                    env.splines["p_spl"],
+                    env.splines.get("q_spl"),
+                    env.grid,
+                )
+                state_l = RhsState(state_l.isw, state_l.ipa, state_l.icount, state_l.ipmax, pard0)
+
+                phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s = integrate_period(
+                    (phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s)
+                )
+
+                return (n_idx + 1, phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s)
+
+            n_init = (
+                jnp.array(0, dtype=jnp.int32),
+                phi_local,
+                y_local,
+                state_local,
+                iswst_local,
+                bigint_s,
+                adimax_s,
+                aditot_s,
+            )
+            n_final = jax.lax.while_loop(n_cond, n_body, n_init)
+            _, phi_local, y_local, state_local, iswst_local, bigint_s, adimax_s, aditot_s = n_final
+
+            y2_s = y_local[1]
+            y3_s = y_local[2]
+            y4_s = y_local[3]
+            y3npart_s = y_local[NPQ + npart - 1]
+
+            return (
+                idx + 1,
+                bigint_acc + bigint_s,
+                aditot_acc + aditot_s,
+                y2_acc + y2_s,
+                y3_acc + y3_s,
+                y4_acc + y4_s,
+                y3npart_acc + y3npart_s,
+            )
+
+        nfl_init = (jnp.array(0, dtype=jnp.int32), bigint0, aditot0, y20, y30, y40, y3npart0)
+        nfl_final = jax.lax.while_loop(nfl_cond, nfl_body, nfl_init)
+        _, bigint_out, aditot_out, y2_out, y3_out, y4_out, y3npart_out = nfl_final
+
+        return bigint_out, aditot_out, y2_out, y3_out, y4_out, y3npart_out
+
+    def rational_skip(_):
+        return bigint, aditot, y2, y3, y4, y3npart
+
+    do_rational = (hit_rat == 1) & (nfp_rat > 0)
+    bigint, aditot, y2, y3, y4, y3npart = jax.lax.cond(
+        do_rational, rational_correction, rational_skip, operand=None
+    )
+
+    nintfp = jnp.where(hit_rat == 1, nfp_rat * (nfl_rat + 1), n)
+
     epspar = jnp.zeros(multra)
     epstot = jnp.array(0.0)
     for m_cl in range(1, multra + 1):
@@ -817,7 +932,11 @@ def flint_bo_jax(
         "barept": barept,
         "drdpsi": drdpsi,
         "yps": yps,
-        "nintfp": n,
+        "y2": y2,
+        "y3": y3,
+        "y4": y4,
+        "y3npart": y3npart,
+        "nintfp": nintfp,
         "hit_rat": hit_rat,
         "nfp_rat": nfp_rat,
         "nfl_rat": nfl_rat,
