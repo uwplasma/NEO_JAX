@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Tuple
 
 import jax
+import numpy as np
 
 Array = jax.Array
 
@@ -57,12 +58,22 @@ class VmecData:
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
 class BoozerData:
-    """Container for booz_xform_jax outputs."""
+    """Boozer-coordinate data needed by NEO."""
 
-    data: Any
+    rmnc: Array | np.ndarray
+    zmns: Array | np.ndarray
+    lmns: Array | np.ndarray
+    bmnc: Array | np.ndarray
+    ixm: Array | np.ndarray
+    ixn: Array | np.ndarray
+    es: Array | np.ndarray
+    iota: Array | np.ndarray
+    curr_pol: Array | np.ndarray
+    curr_tor: Array | np.ndarray
+    nfp: int
 
     def tree_flatten(self):
-        return _split_static(self, static_fields=())
+        return _split_static(self, static_fields=("nfp",))
 
     @classmethod
     def tree_unflatten(cls, aux, children):

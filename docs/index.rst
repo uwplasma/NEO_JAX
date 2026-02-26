@@ -1,9 +1,8 @@
-NEO_JAX Documentation
-=====================
+NEO_JAX
+=======
 
-NEO_JAX is a JAX port of the STELLOPT NEO code for computing effective epsilon
-and related neoclassical transport diagnostics, with an end-to-end differentiable
-pipeline through VMEC and Boozer transforms.
+NEO_JAX is a JAX port of the STELLOPT NEO code for computing effective helical
+ripple and related neoclassical transport diagnostics in Boozer coordinates.
 
 .. toctree::
    :maxdepth: 2
@@ -13,13 +12,13 @@ pipeline through VMEC and Boozer transforms.
    installation
    quickstart
    cli
-   api
-   fortran_map
+   vmec_boozer
    theory
    numerics
-   vmec_boozer
    differentiability
-   validation
    tutorials_orbits
    tutorials_ncsx
+   validation
+   fortran_map
+   api
    references
