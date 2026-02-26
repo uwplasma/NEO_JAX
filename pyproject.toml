@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neo-jax"
+version = "0.1.0"
+description = "JAX port of the STELLOPT NEO code"
+readme = "README.md"
+requires-python = ">=3.10"
+
+# Dependencies are minimal at this stage; GPU support is handled by the user's JAX install.
+dependencies = [
+  "jax>=0.4.28",
+  "jaxlib>=0.4.28",
+  "numpy>=1.24",
+  "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7",
+  "pytest-cov>=4",
+  "ruff>=0.4",
+  "black>=24",
+  "mypy>=1.8",
+]
+docs = [
+  "sphinx>=7",
+  "furo>=2024.1",
+  "sphinxcontrib-bibtex>=2.6",
+  "sphinx-copybutton>=0.5",
+  "sphinx-design>=0.6",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100

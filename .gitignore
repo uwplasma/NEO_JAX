@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.egg-info/
+.eggs/
+.build/
+.dist/
+.dist-info/
+.venv/
+.venv*/
+
+# JAX/XLA
+.cache/
+.xla/
+
+# Sphinx
+/docs/_build/
+
+# OS
+.DS_Store
