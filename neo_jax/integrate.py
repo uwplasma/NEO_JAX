@@ -253,25 +253,24 @@ def flint_bo(
             p_i = y[NPQ : NPQ + npart]
             p_h = y[NPQ + npart : NPQ + 2 * npart]
 
-            for i in range(npart):
-                if int(state.isw[i]) == 2:
-                    m_cl = int(state.ipa[i])
-                    if m_cl < 1:
-                        m_cl = 1
-                    if m_cl > multra:
-                        m_cl = multra
-                    if int(state.ipa[i]) == 1:
-                        adimax = p_i[i]
-                    add_on = p_h[i] * p_h[i] / p_i[i] * iswst[i]
-                    bigint = bigint.at[m_cl - 1].add(add_on)
+            mask2 = state.isw == 2
+            m_cl = jnp.clip(state.ipa, 1, multra)
+            m_idx = m_cl - 1
+            safe_pi = jnp.where(mask2, p_i, 1.0)
+            add_on = jnp.where(mask2, (p_h * p_h) / safe_pi * iswst, 0.0)
+            bigint = bigint + jax.ops.segment_sum(add_on, m_idx, multra)
 
-                    iswst = iswst.at[i].set(1)
-                    p_h = p_h.at[i].set(0.0)
-                    p_i = p_i.at[i].set(0.0)
-                    isw = state.isw.at[i].set(0)
-                    icount = state.icount.at[i].set(0)
-                    ipa = state.ipa.at[i].set(0)
-                    state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
+            mask_adimax = mask2 & (state.ipa == 1)
+            idx = jnp.max(jnp.where(mask_adimax, jnp.arange(npart), -1))
+            adimax = jnp.where(idx >= 0, p_i[idx], adimax)
+
+            iswst = jnp.where(mask2, 1, iswst)
+            p_h = jnp.where(mask2, 0.0, p_h)
+            p_i = jnp.where(mask2, 0.0, p_i)
+            isw = jnp.where(mask2, 0, state.isw)
+            icount = jnp.where(mask2, 0, state.icount)
+            ipa = jnp.where(mask2, 0, state.ipa)
+            state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
 
             y = y.at[NPQ : NPQ + npart].set(p_i)
             y = y.at[NPQ + npart : NPQ + 2 * npart].set(p_h)
@@ -382,24 +381,24 @@ def flint_bo(
                     p_i = y[NPQ : NPQ + npart]
                     p_h = y[NPQ + npart : NPQ + 2 * npart]
 
-                    for i in range(npart):
-                        if int(state.isw[i]) == 2:
-                            m_cl = int(state.ipa[i])
-                            if m_cl < 1:
-                                m_cl = 1
-                            if m_cl > multra:
-                                m_cl = multra
-                            if int(state.ipa[i]) == 1:
-                                adimax_s = p_i[i]
-                            add_on = p_h[i] * p_h[i] / p_i[i] * iswst[i]
-                            bigint_s = bigint_s.at[m_cl - 1].add(add_on)
-                            iswst = iswst.at[i].set(1)
-                            p_h = p_h.at[i].set(0.0)
-                            p_i = p_i.at[i].set(0.0)
-                            isw = state.isw.at[i].set(0)
-                            icount = state.icount.at[i].set(0)
-                            ipa = state.ipa.at[i].set(0)
-                            state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
+                    mask2 = state.isw == 2
+                    m_cl = jnp.clip(state.ipa, 1, multra)
+                    m_idx = m_cl - 1
+                    safe_pi = jnp.where(mask2, p_i, 1.0)
+                    add_on = jnp.where(mask2, (p_h * p_h) / safe_pi * iswst, 0.0)
+                    bigint_s = bigint_s + jax.ops.segment_sum(add_on, m_idx, multra)
+
+                    mask_adimax = mask2 & (state.ipa == 1)
+                    idx = jnp.max(jnp.where(mask_adimax, jnp.arange(npart), -1))
+                    adimax_s = jnp.where(idx >= 0, p_i[idx], adimax_s)
+
+                    iswst = jnp.where(mask2, 1, iswst)
+                    p_h = jnp.where(mask2, 0.0, p_h)
+                    p_i = jnp.where(mask2, 0.0, p_i)
+                    isw = jnp.where(mask2, 0, state.isw)
+                    icount = jnp.where(mask2, 0, state.icount)
+                    ipa = jnp.where(mask2, 0, state.ipa)
+                    state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
 
                     y = y.at[NPQ : NPQ + npart].set(p_i)
                     y = y.at[NPQ + npart : NPQ + 2 * npart].set(p_h)
