@@ -33,7 +33,7 @@ Surface Initialization
 Integration
 -----------
 - `flint_bo.f90` -> `neo_jax.integrate.flint_bo`
-- `rk4d_bo1.f90` -> `neo_jax.integrate.rk4`
+- `rk4d_bo1.f90` -> `neo_jax.integrate.rk4_step`
 - `rhs_bo1.f90` -> `neo_jax.integrate.rhs_bo1`
 
 Splines
