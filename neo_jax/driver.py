@@ -2,31 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import numpy as np
 import jax.numpy as jnp
 
 from .control import ControlParams
+from .data_models import BoozerData
 from .grids import prepare_grids
-from .integrate import FlintParams, RhsEnv, flint_bo
+from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
+from .io import read_boozmn
 from .surface import init_surface
-
-
-@dataclass(frozen=True)
-class BoozerData:
-    rmnc: np.ndarray
-    zmns: np.ndarray
-    lmns: np.ndarray
-    bmnc: np.ndarray
-    ixm: np.ndarray
-    ixn: np.ndarray
-    es: np.ndarray
-    iota: np.ndarray
-    curr_pol: np.ndarray
-    curr_tor: np.ndarray
-    nfp: int
 
 
 def compute_reference(booz: BoozerData) -> Dict[str, float]:
@@ -36,7 +22,13 @@ def compute_reference(booz: BoozerData) -> Dict[str, float]:
     return {"rt0": rt0, "bmref_g": bmref_g}
 
 
-def run_neo_from_boozer(booz: BoozerData, control: ControlParams) -> List[Dict[str, float]]:
+def run_neo_from_boozer(
+    booz: BoozerData,
+    control: ControlParams,
+    *,
+    use_jax: bool = False,
+    progress: bool = False,
+) -> List[Dict[str, float]]:
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
 
     max_m_mode = control.max_m_mode if control.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
@@ -66,6 +58,8 @@ def run_neo_from_boozer(booz: BoozerData, control: ControlParams) -> List[Dict[s
     reff = 0.0
 
     for local_idx, surf_idx in enumerate(surf_indices):
+        if progress:
+            print(f"NEO_JAX: surface {local_idx + 1}/{len(surf_indices)} (index {surf_idx + 1})")
         coeffs = {
             "rmnc": jnp.asarray(booz.rmnc[surf_idx]),
             "zmns": jnp.asarray(booz.zmns[surf_idx]),
@@ -98,7 +92,10 @@ def run_neo_from_boozer(booz: BoozerData, control: ControlParams) -> List[Dict[s
             curr_tor=jnp.asarray(booz.curr_tor[surf_idx]),
         )
 
-        out = flint_bo(surface, params, env, nfp=booz.nfp, rt0=rt0)
+        if use_jax:
+            out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0)
+        else:
+            out = flint_bo(surface, params, env, nfp=booz.nfp, rt0=rt0)
 
         if control.ref_swi == 1:
             b_ref = bmref_g
@@ -120,7 +117,7 @@ def run_neo_from_boozer(booz: BoozerData, control: ControlParams) -> List[Dict[s
             dpsi = psi - booz.es[surf_indices[local_idx - 1]]
         reff = reff + float(out["drdpsi"] * dpsi)
 
-        results.append(
+        result = (
             {
                 "flux_index": control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1,
                 "epstot": epstot,
@@ -129,7 +126,36 @@ def run_neo_from_boozer(booz: BoozerData, control: ControlParams) -> List[Dict[s
                 "b_ref": b_ref,
                 "r_ref": r_ref,
                 "epspar": epspar,
+                "ctrone": float(out.get("ctrone", 0.0)),
+                "ctrtot": float(out.get("ctrtot", 0.0)),
+                "bareph": float(out.get("bareph", 0.0)),
+                "barept": float(out.get("barept", 0.0)),
+                "yps": float(out.get("yps", 0.0)),
+                "diagnostics": out,
             }
         )
+        results.append(result)
+        if progress:
+            print(
+                f"NEO_JAX: epstot={result['epstot']:.6e} reff={result['reff']:.6e} iota={result['iota']:.6e}"
+            )
 
     return results
+
+
+def run_neo_from_boozmn(
+    boozmn_path: str,
+    control: ControlParams,
+    *,
+    use_jax: bool = False,
+    progress: bool = False,
+    extension: str | None = None,
+) -> List[Dict[str, float]]:
+    booz = read_boozmn(
+        boozmn_path,
+        max_m_mode=control.max_m_mode,
+        max_n_mode=control.max_n_mode,
+        fluxs_arr=control.fluxs_arr,
+        extension=extension,
+    )
+    return run_neo_from_boozer(booz, control, use_jax=use_jax, progress=progress)

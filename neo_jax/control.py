@@ -40,28 +40,29 @@ class ControlParams:
     write_cur_inte: int
 
 
-def _clean_lines(path: Path) -> List[str]:
+def _read_lines(path: Path) -> List[str]:
     lines: List[str] = []
     for raw in path.read_text().splitlines():
-        line = raw.split("!")[0].strip()
+        line = raw.strip()
         if line:
             lines.append(line)
     return lines
 
 
-def read_control(path: str | Path) -> ControlParams:
-    lines = _clean_lines(Path(path))
+def _parse_lines(lines: List[str]) -> ControlParams:
     idx = 0
 
-    in_file = lines[idx]; idx += 1
-    out_file = lines[idx]; idx += 1
-    no_fluxs = int(lines[idx]); idx += 1
+    in_file = lines[idx]
+    idx += 1
+    out_file = lines[idx]
+    idx += 1
+    no_fluxs = int(lines[idx])
+    idx += 1
 
     fluxs_arr: Optional[List[int]]
     if no_fluxs <= 0:
-        # Consume a dummy line, mirroring Fortran behavior
-        _ = lines[idx]
-        idx += 1
+        if idx < len(lines):
+            idx += 1
         fluxs_arr = None
     else:
         fluxs_arr = [int(v) for v in lines[idx].split()]
@@ -89,7 +90,6 @@ def read_control(path: str | Path) -> ControlParams:
     write_integrate = int(lines[idx]); idx += 1
     write_diagnostic = int(lines[idx]); idx += 1
 
-    # Three dummy lines
     idx += 3
 
     calc_cur = int(lines[idx]); idx += 1
@@ -129,3 +129,15 @@ def read_control(path: str | Path) -> ControlParams:
         alpha_cur=alpha_cur,
         write_cur_inte=write_cur_inte,
     )
+
+
+def read_control(path: str | Path) -> ControlParams:
+    lines = _read_lines(Path(path))
+    last_err: Exception | None = None
+    for offset in range(0, 6):
+        try:
+            return _parse_lines(lines[offset:])
+        except (ValueError, IndexError) as exc:
+            last_err = exc
+            continue
+    raise ValueError(f"Failed to parse control file {path}") from last_err
