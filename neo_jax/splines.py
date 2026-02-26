@@ -354,3 +354,111 @@ def eva2d_sd(spl: Array, ix: int, iy: int, dx: float, dy: float) -> Array:
             spval = spval.at[2].add(spl[i, j, ix, iy] * muli * mulj)
 
     return spval
+
+
+def poi2d_jax(
+    hx: float,
+    hy: float,
+    mx: int,
+    my: int,
+    xmin: float,
+    xmax: float,
+    ymin: float,
+    ymax: float,
+    x: Array,
+    y: Array,
+):
+    """JAX-friendly pointer calculation for spline evaluation."""
+    ierr = jnp.int32(0)
+
+    dxx = x - xmin
+    if mx == 0:
+        ierr = jnp.where(dxx < 0.0, jnp.int32(1), ierr)
+        ierr = jnp.where(x > xmax, jnp.int32(2), ierr)
+    else:
+        dxmax = xmax - xmin
+        nwrap = jnp.floor(jnp.abs(dxx / dxmax))
+        dxx = jnp.where(dxx < 0.0, dxx + (1.0 + nwrap) * dxmax, dxx)
+        dxx = jnp.where(dxx > dxmax, dxx - nwrap * dxmax, dxx)
+
+    x1 = dxx / hx
+    ix = jnp.floor(x1).astype(jnp.int32)
+    dx = hx * (x1 - ix)
+
+    dyy = y - ymin
+    if my == 0:
+        ierr = jnp.where(dyy < 0.0, jnp.int32(3), ierr)
+        ierr = jnp.where(y > ymax, jnp.int32(4), ierr)
+    else:
+        dymax = ymax - ymin
+        nwrap = jnp.floor(jnp.abs(dyy / dymax))
+        dyy = jnp.where(dyy < 0.0, dyy + (1.0 + nwrap) * dymax, dyy)
+        dyy = jnp.where(dyy > dymax, dyy - nwrap * dymax, dyy)
+
+    y1 = dyy / hy
+    iy = jnp.floor(y1).astype(jnp.int32)
+    dy = hy * (y1 - iy)
+
+    return ix, iy, dx, dy, ierr
+
+
+def eva2d_jax(spl: Array, ix: Array, iy: Array, dx: Array, dy: Array) -> Array:
+    """JAX-friendly spline evaluation."""
+    coeff = jnp.take(spl, ix, axis=2)
+    coeff = jnp.take(coeff, iy, axis=2)
+    a = coeff[0, :] + dx * (coeff[1, :] + dx * (coeff[2, :] + dx * coeff[3, :]))
+    spval = a[0] + dy * (a[1] + dy * (a[2] + dy * a[3]))
+    return spval
+
+
+def eva2d_fd_jax(spl: Array, ix: Array, iy: Array, dx: Array, dy: Array) -> Array:
+    """JAX-friendly first derivatives of spline."""
+    coeff = jnp.take(spl, ix, axis=2)
+    coeff = jnp.take(coeff, iy, axis=2)
+
+    # df/dx
+    sp0 = 0.0
+    for i in range(1, 4):
+        muli = (1.0 if i == 1 else dx ** (i - 1)) * i
+        for j in range(4):
+            mulj = 1.0 if j == 0 else dy ** j
+            sp0 = sp0 + coeff[i, j] * muli * mulj
+
+    # df/dy
+    sp1 = 0.0
+    for i in range(4):
+        muli = 1.0 if i == 0 else dx ** i
+        for j in range(1, 4):
+            mulj = (1.0 if j == 1 else dy ** (j - 1)) * j
+            sp1 = sp1 + coeff[i, j] * muli * mulj
+
+    return jnp.array([sp0, sp1], dtype=spl.dtype)
+
+
+def eva2d_sd_jax(spl: Array, ix: Array, iy: Array, dx: Array, dy: Array) -> Array:
+    """JAX-friendly second derivatives of spline."""
+    coeff = jnp.take(spl, ix, axis=2)
+    coeff = jnp.take(coeff, iy, axis=2)
+
+    sp0 = 0.0
+    for i in range(2, 4):
+        muli = (1.0 if i == 2 else dx ** (i - 2)) * i * (i - 1)
+        for j in range(4):
+            mulj = 1.0 if j == 0 else dy ** j
+            sp0 = sp0 + coeff[i, j] * muli * mulj
+
+    sp1 = 0.0
+    for i in range(1, 4):
+        muli = (1.0 if i == 1 else dx ** (i - 1)) * i
+        for j in range(1, 4):
+            mulj = (1.0 if j == 1 else dy ** (j - 1)) * j
+            sp1 = sp1 + coeff[i, j] * muli * mulj
+
+    sp2 = 0.0
+    for i in range(4):
+        muli = 1.0 if i == 0 else dx ** i
+        for j in range(2, 4):
+            mulj = (1.0 if j == 2 else dy ** (j - 2)) * j * (j - 1)
+            sp2 = sp2 + coeff[i, j] * muli * mulj
+
+    return jnp.array([sp0, sp1, sp2], dtype=spl.dtype)
