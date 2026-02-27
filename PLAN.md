@@ -6,10 +6,13 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
 - Core NEO_JAX port complete with JAX scan backend, rational-surface correction, and parity on ORBITS_FAST, NCSX (fast + full gated), and LandremanPaul2021_QA_lowres.
 - Streamed Fourier summation mode added for memory reduction; vectorized mode retained for speed.
 - JAX scan body fused (neo_eval + RK4 + trapped update).
-- User-friendly API added: `NeoConfig`, `run_boozmn`, `run_boozer`, `run_booz_xform`, `NeoResults`.
-- Examples updated with full API usage, plotting, and autodiff demos.
+- User-friendly API added: `NeoConfig`, `run_neo`, `run_boozmn`, `run_boozer`, `run_booz_xform`, `NeoResults`, `build_surface_problem`.
+- Surface selection supports normalized toroidal flux `s` (floats in [0, 1]) and index-based selections.
+- Radial coordinates exposed (`s`, `sqrt_s`, `r_eff`) and plotting supports each as x-axis.
+- Examples updated with full API usage, plotting, and SciPy least-squares autodiff demo over `Rmajor`.
 - Documentation expanded: API guide, performance page, tutorials, validation.
 - Parity fixtures tracked in `tests/fixtures/` with CI-ready fast cases.
+- Packaging fixed for editable installs (explicit package list); docs build fixes applied (intersphinx, title underline).
 
 ## Immediate Next Steps (vmec_jax → booz_xform_jax → neo_jax)
 1. **JAX-native Boozer adapter**:

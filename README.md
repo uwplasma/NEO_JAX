@@ -17,17 +17,17 @@ neo-jax ORBITS --boozmn tests/fixtures/orbits/boozmn_ORBITS.nc --verbose
 If you prefer not to install, run from the repo root with:
 
 ```bash
-PYTHONPATH=. python examples/ncsx_jit_run.py
+PYTHONPATH=. python examples/ncsx_epsilon_effective_plot.py
 ```
 
 ## Simple Python API
 
 ```python
-from neo_jax import NeoConfig, run_boozmn
+from neo_jax import NeoConfig, run_neo
 
 # Surfaces may be specified by index or by s in [0, 1].
 config = NeoConfig(surfaces=[0.15, 0.35, 0.6, 0.85], theta_n=64, phi_n=64)
-results = run_boozmn("boozmn.nc", config=config)
+results = run_neo("boozmn.nc", config=config)
 
 # Access by name
 print(results.epsilon_effective)
@@ -43,7 +43,7 @@ See `docs/index.rst` for the table of contents.
 ## Examples
 
 - `examples/ncsx_epsilon_effective_plot.py`: compute and plot epsilon effective vs `s`.
-- `examples/ncsx_autodiff_rt0_optimization.py`: autodiff optimization demo over `rt0`.
+- `examples/ncsx_autodiff_Rmajor_optimization.py`: autodiff optimization demo over `Rmajor`.
 
 ## NCSX Parity Snapshot
 

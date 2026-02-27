@@ -152,6 +152,44 @@ def run_booz_xform(
     return run_boozer(booz_data, config=cfg, use_jax=use_jax, progress=progress)
 
 
+def run_neo(
+    source: BoozerData | str | Path | object,
+    *,
+    config: NeoConfig | None = None,
+    surfaces: Sequence[int | float] | None = None,
+    use_jax: bool = True,
+    progress: bool | None = None,
+    max_m_mode: int | None = None,
+    max_n_mode: int | None = None,
+) -> NeoResults:
+    """Run NEO_JAX from a boozmn path, BoozerData, or booz_xform_jax-like object."""
+    if isinstance(source, (str, Path)):
+        return run_boozmn(
+            source,
+            config=config,
+            surfaces=surfaces,
+            use_jax=use_jax,
+            progress=progress,
+        )
+    if isinstance(source, BoozerData):
+        return run_boozer(
+            source,
+            config=config,
+            surfaces=surfaces,
+            use_jax=use_jax,
+            progress=progress,
+        )
+    return run_booz_xform(
+        source,
+        config=config,
+        surfaces=surfaces,
+        use_jax=use_jax,
+        progress=progress,
+        max_m_mode=max_m_mode,
+        max_n_mode=max_n_mode,
+    )
+
+
 def load_boozmn(
     boozmn_path: str | Path,
     *,

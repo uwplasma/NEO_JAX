@@ -165,7 +165,7 @@ def read_boozmn(
 
     pack_index = {int(surf): idx for idx, surf in enumerate(jlist)}
 
-    if fluxs_arr:
+    if fluxs_arr is not None:
         surfaces = list(fluxs_arr)
     else:
         surfaces = list(jlist)

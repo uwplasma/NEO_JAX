@@ -31,7 +31,7 @@ The implementation lives in ``neo_jax.integrate.flint_bo_jax`` and replaces the
 previous ``rk4_step`` + ``_process_trapped`` call boundary for the JIT path.
 
 XLA Memory Hotspots (ORBITS_FAST)
---------------------------------
+---------------------------------
 
 XLA memory reports for the ORBITS_FAST profile show the largest allocations in
 ``jit_flint_bo_jax`` are the spline coefficient arrays:
@@ -56,4 +56,3 @@ Use ``benchmarks/profile_run.py`` to generate traces and XLA dumps:
        --xla-dump-dir profiles/xla_orbits_fast_streamed
 
 Open the trace directory with TensorBoard to inspect kernel-level hotspots.
-

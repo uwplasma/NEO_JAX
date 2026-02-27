@@ -30,8 +30,8 @@ html_static_path = ["_static"]
 bibtex_bibfiles = ["refs.bib"]
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", {}),
-    "numpy": ("https://numpy.org/doc/stable", {}),
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable", None),
 }
 
 # MathJax config can be extended later for macros.

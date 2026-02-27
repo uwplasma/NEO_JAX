@@ -3,8 +3,9 @@ from pathlib import Path
 import numpy as np
 
 from neo_jax import NeoConfig
-from neo_jax.api import load_boozmn, run_booz_xform, run_boozer, run_boozmn
+from neo_jax.api import load_boozmn, run_booz_xform, run_neo
 from neo_jax.results import NeoResults
+from neo_jax import build_surface_problem
 
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -15,11 +16,11 @@ def _orbits_fast_paths():
     return boozmn
 
 
-def test_run_boozmn_basic():
+def test_run_neo_boozmn_basic():
     boozmn = _orbits_fast_paths()
     # Surfaces specified by s in [0,1] should map to nearest jlist indices.
     config = NeoConfig(surfaces=[0.5, 0.75], theta_n=25, phi_n=25)
-    results = run_boozmn(boozmn, config=config, use_jax=True)
+    results = run_neo(boozmn, config=config, use_jax=True)
 
     assert isinstance(results, NeoResults)
     assert len(results) == 2
@@ -30,13 +31,13 @@ def test_run_boozmn_basic():
     assert results[1].flux_index == 96
 
 
-def test_run_boozer_matches_boozmn():
+def test_run_neo_boozer_matches_boozmn():
     boozmn = _orbits_fast_paths()
     config = NeoConfig(surfaces=[64, 96], theta_n=25, phi_n=25)
 
     booz = load_boozmn(boozmn, surfaces=config.surfaces)
-    res_boozmn = run_boozmn(boozmn, config=config, use_jax=True)
-    res_boozer = run_boozer(booz, config=config, use_jax=True)
+    res_boozmn = run_neo(boozmn, config=config, use_jax=True)
+    res_boozer = run_neo(booz, config=config, use_jax=True)
 
     assert np.allclose(res_boozer.epsilon_effective, res_boozmn.epsilon_effective, rtol=1e-6, atol=1e-10)
 
@@ -72,10 +73,20 @@ def test_run_booz_xform_dict():
 def test_results_alias_access():
     boozmn = _orbits_fast_paths()
     config = NeoConfig(surfaces=[64], theta_n=25, phi_n=25)
-    results = run_boozmn(boozmn, config=config, use_jax=True)
+    results = run_neo(boozmn, config=config, use_jax=True)
 
     assert results[0]["epstot"] == results[0].epsilon_effective
     assert np.isclose(results["epstot"][0], results.epsilon_effective[0])
     assert np.isclose(results["s"][0], results.s[0])
     assert np.isclose(results["sqrt_s"][0], results.sqrt_s[0])
     assert np.isclose(results["r_eff"][0], results.r_eff[0])
+
+
+def test_build_surface_problem_maps_s():
+    boozmn = _orbits_fast_paths()
+    booz = load_boozmn(boozmn)
+    config = NeoConfig(surfaces=[0.5], theta_n=25, phi_n=25)
+    problem = build_surface_problem(booz, config, surface=0.5)
+
+    assert 0 <= problem.surface_index < len(booz.es)
+    assert problem.Rmajor > 0.0
