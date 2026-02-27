@@ -14,13 +14,19 @@ Key design choices include:
 Limitations and roadmap
 -----------------------
 
-The current JAX backend does not yet implement the rational-surface correction
-logic found in the reference Fortran code. When high fidelity near rational
-surfaces is required, use the Python-loop backend (``flint_bo``) or ensure
-``calc_nstep_max`` is set to disable the correction.
+The JAX backend includes the rational-surface correction logic matching the
+reference Fortran implementation. For end-to-end differentiation, keep
+diagnostic file dumps disabled (they trigger host callbacks).
 
 For performance-critical workflows, we recommend:
 
 - JIT-compiling the scan backend over batches of surfaces.
 - Using 64-bit precision when matching Fortran outputs.
 - Keeping diagnostic prints off during JIT execution.
+
+JAX-native Boozer transforms
+----------------------------
+
+For a fully differentiable pipeline, pair NEO_JAX with the functional API
+in ``booz_xform_jax.jax_api``. This avoids Python loops over surfaces and keeps
+all arrays on-device for JIT and ``jax.grad``.

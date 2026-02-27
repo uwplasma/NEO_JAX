@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from neo_jax import NeoConfig
+from neo_jax.io import booz_xform_to_boozerdata
 from neo_jax.api import load_boozmn, run_booz_xform, run_neo
 from neo_jax.results import NeoResults
 from neo_jax import build_surface_problem
@@ -68,6 +69,36 @@ def test_run_booz_xform_dict():
 
     assert len(res_booz_xform) == 2
     assert res_booz_xform.epsilon_effective.shape == (2,)
+
+
+def test_booz_xform_to_boozerdata_jax():
+    boozmn = _orbits_fast_paths()
+    import netCDF4
+    import jax
+    import jax.numpy as jnp
+
+    def _to_jnp(var):
+        arr = var[:]
+        if isinstance(arr, np.ma.MaskedArray):
+            arr = arr.filled()
+        return jnp.asarray(arr)
+
+    with netCDF4.Dataset(boozmn) as ds:
+        booz = {
+            "nfp_b": _to_jnp(ds.variables["nfp_b"]),
+            "ixm_b": _to_jnp(ds.variables["ixm_b"]),
+            "ixn_b": _to_jnp(ds.variables["ixn_b"]),
+            "iota_b": _to_jnp(ds.variables["iota_b"]),
+            "buco_b": _to_jnp(ds.variables["buco_b"]),
+            "bvco_b": _to_jnp(ds.variables["bvco_b"]),
+            "rmnc_b": _to_jnp(ds.variables["rmnc_b"]),
+            "zmns_b": _to_jnp(ds.variables["zmns_b"]),
+            "pmns_b": _to_jnp(ds.variables["pmns_b"]),
+            "bmnc_b": _to_jnp(ds.variables["bmnc_b"]),
+        }
+
+    data = booz_xform_to_boozerdata(booz, use_jax=True)
+    assert isinstance(data.rmnc, jax.Array)
 
 
 def test_results_alias_access():
