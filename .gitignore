@@ -24,3 +24,4 @@ __pycache__/
 
 # OS
 .DS_Store
+examples/ncsx_eps_eff_vs_s.png
