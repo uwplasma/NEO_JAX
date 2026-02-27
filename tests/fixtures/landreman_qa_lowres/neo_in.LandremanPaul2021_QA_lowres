@@ -1,0 +1,36 @@
+! NEO control file (auto-generated)
+! LandremanPaul2021_QA_lowres fixture
+! line3
+boozmn
+neo_out.LandremanPaul2021_QA_lowres
+2
+38 50
+25
+25
+0
+0
+40
+2
+0.02
+50
+20
+200
+500
+0
+1
+0
+0
+2
+1
+1
+0
+0
+0
+0
+0
+0
+0
+neo_cur.LandremanPaul2021_QA_lowres
+200
+2
+0

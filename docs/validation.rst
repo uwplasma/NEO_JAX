@@ -13,6 +13,7 @@ Current reference cases include:
 
 - ``ORBITS`` (tests/fixtures/orbits)
 - ``NCSX`` tutorial example (tests/fixtures/ncsx)
+- ``LandremanPaul2021_QA_lowres`` (tests/fixtures/landreman_qa_lowres)
 
 Fast vs. full ORBITS parity:
 
