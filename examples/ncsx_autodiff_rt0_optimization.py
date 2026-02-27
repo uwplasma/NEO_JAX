@@ -1,4 +1,4 @@
-"""Autodiff optimization example for NEO_JAX."""
+"""Autodiff optimization demo: adjust rt0 to reduce epsilon effective."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def main() -> None:
     boozmn_path = repo_root / "tests" / "fixtures" / "ncsx" / "boozmn_ncsx_c09r00_free.nc"
 
     # Baseline run with the high-level API
-    config = NeoConfig(surfaces=[19], theta_n=64, phi_n=64)
+    config = NeoConfig(surfaces=[0.35], theta_n=64, phi_n=64)
     baseline = run_boozmn(boozmn_path, config=config, use_jax=True)
     print("baseline epsilon_effective:", baseline.epsilon_effective)
 
@@ -27,7 +27,10 @@ def main() -> None:
     booz = load_boozmn(boozmn_path)
     grid = prepare_grids(64, 64, booz.nfp)
 
-    surf_idx = config.surfaces[0] - 1
+    # Map s -> surface index using the same logic as run_boozmn
+    surface_index = baseline[0].flux_index
+    surf_idx = surface_index - 1
+
     coeffs = {
         "rmnc": jnp.asarray(booz.rmnc[surf_idx]),
         "zmns": jnp.asarray(booz.zmns[surf_idx]),
@@ -71,6 +74,9 @@ def main() -> None:
         calc_nstep_max=0,
     )
 
+    # Demonstration parameter: scale rt0 (major radius) to reduce epsilon effective.
+    # This is a toy example to show end-to-end autodiff; real optimizations should
+    # target VMEC boundary coefficients.
     ref = compute_reference(booz)
     rt0_base = jnp.asarray(ref["rt0"])
 

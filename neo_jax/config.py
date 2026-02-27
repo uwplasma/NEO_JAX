@@ -12,7 +12,9 @@ from .control import ControlParams
 class NeoConfig:
     """High-level configuration for NEO_JAX runs.
 
-    All surface indices are 1-based (NEO convention).
+    Surface selections may be specified as:
+    - Integers (1-based NEO surface indices), or
+    - Floats in [0, 1], interpreted as normalized toroidal flux ``s``.
     """
 
     surfaces: Sequence[int] | None = None

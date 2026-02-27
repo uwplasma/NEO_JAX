@@ -222,7 +222,7 @@ def run_neo_from_boozer(
     )
 
     results: List[NeoSurfaceResult] = []
-    reff = 0.0
+    r_eff = 0.0
 
     write_diagnostic = bool(control.write_diagnostic) or _env_flag("NEO_JAX_WRITE_DIAGNOSTIC")
     write_trap_debug = write_diagnostic or _env_flag("NEO_JAX_WRITE_TRAP_DEBUG")
@@ -366,18 +366,18 @@ def run_neo_from_boozer(
         epstot = float(out["epstot"] * scale)
         epspar = np.asarray(out["epspar"]) * scale
 
-        psi = booz.es[surf_idx]
+        s = float(booz.es[surf_idx])
         if local_idx == 0:
-            dpsi = psi
+            dpsi = s
         else:
-            dpsi = psi - booz.es[surf_indices[local_idx - 1]]
-        reff = reff + float(out["drdpsi"] * dpsi)
+            dpsi = s - float(booz.es[surf_indices[local_idx - 1]])
+        r_eff = r_eff + float(out["drdpsi"] * dpsi)
 
         flux_index = control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1
         result = NeoSurfaceResult(
             flux_index=flux_index,
-            psi=float(psi),
-            reff=reff,
+            s=s,
+            r_eff=r_eff,
             iota=float(booz.iota[surf_idx]),
             b_ref=b_ref,
             r_ref=r_ref,

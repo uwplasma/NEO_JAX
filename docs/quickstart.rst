@@ -11,7 +11,8 @@ high-level config.
 
    from neo_jax import NeoConfig, run_boozmn
 
-   config = NeoConfig(surfaces=[19, 39, 59, 79], theta_n=64, phi_n=64)
+   # Surfaces may be specified by index or by s in [0, 1].
+   config = NeoConfig(surfaces=[0.15, 0.35, 0.6, 0.85], theta_n=64, phi_n=64)
    results = run_boozmn("boozmn.nc", config=config)
 
    # Access by name (aliases supported)
@@ -29,9 +30,9 @@ Examples
 
 Two executable examples are included in ``examples/``:
 
-- ``examples/ncsx_jit_run.py``: run a JIT-compiled NCSX solve on a single surface.
-- ``examples/ncsx_autodiff_opt.py``: minimize a scalar loss using autodiff through
-  ``flint_bo_jax``.
+- ``examples/ncsx_epsilon_effective_plot.py``: compute and plot epsilon effective vs ``s``.
+- ``examples/ncsx_autodiff_rt0_optimization.py``: autodiff demo that adjusts ``rt0`` to
+  reduce epsilon effective (toy example).
 
 JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------

@@ -31,6 +31,23 @@ over multiple starting poloidal angles, using ``no_bins`` to ensure coverage of
 poloidal bins. This logic is reproduced in the Python backend and will be added
 to the JAX scan backend.
 
+Radial coordinates
+------------------
+
+NEO_JAX reports multiple radial coordinates derived from the Boozer flux grid:
+
+- ``s``: normalized toroidal flux, defined on the Boozer surfaces as
+  ``s = (j - 1.5) / (ns_b - 1)`` for surface index ``j`` (NEO convention).
+- ``sqrt_s``: square root of ``s``, often used as a proxy for minor radius.
+- ``r_eff``: effective radius computed by integrating the NEO quantity
+  ``dr/dψ`` across the flux grid:
+
+.. math::
+
+   r_\mathrm{eff}(s_k) = \sum_{i=1}^{k} \left( \frac{dr}{d\psi} \right)_i \Delta s_i
+
+This mirrors the reference NEO accumulation in the Fortran code.
+
 Diagnostics and output
 ----------------------
 
