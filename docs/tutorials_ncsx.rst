@@ -21,3 +21,5 @@ Notes
   runs.
 - The original tutorial output can be used as a reference for validating
   ``epstot`` across flux surfaces.
+- For a JIT-based run and autodiff demo, see ``examples/ncsx_jit_run.py`` and
+  ``examples/ncsx_autodiff_opt.py``.
