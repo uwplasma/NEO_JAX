@@ -372,28 +372,40 @@ def poi2d_jax(
     ierr = jnp.int32(0)
 
     dxx = x - xmin
-    if mx == 0:
-        ierr = jnp.where(dxx < 0.0, jnp.int32(1), ierr)
-        ierr = jnp.where(x > xmax, jnp.int32(2), ierr)
-    else:
+    def handle_x_nonperiodic(_):
+        ierr_local = ierr
+        ierr_local = jnp.where(dxx < 0.0, jnp.int32(1), ierr_local)
+        ierr_local = jnp.where(x > xmax, jnp.int32(2), ierr_local)
+        return dxx, ierr_local
+
+    def handle_x_periodic(_):
         dxmax = xmax - xmin
         nwrap = jnp.floor(jnp.abs(dxx / dxmax))
-        dxx = jnp.where(dxx < 0.0, dxx + (1.0 + nwrap) * dxmax, dxx)
-        dxx = jnp.where(dxx > dxmax, dxx - nwrap * dxmax, dxx)
+        dxx_wrapped = jnp.where(dxx < 0.0, dxx + (1.0 + nwrap) * dxmax, dxx)
+        dxx_wrapped = jnp.where(dxx_wrapped > dxmax, dxx_wrapped - nwrap * dxmax, dxx_wrapped)
+        return dxx_wrapped, ierr
+
+    dxx, ierr = jax.lax.cond(mx == 0, handle_x_nonperiodic, handle_x_periodic, operand=None)
 
     x1 = dxx / hx
     ix = jnp.floor(x1).astype(jnp.int32)
     dx = hx * (x1 - ix)
 
     dyy = y - ymin
-    if my == 0:
-        ierr = jnp.where(dyy < 0.0, jnp.int32(3), ierr)
-        ierr = jnp.where(y > ymax, jnp.int32(4), ierr)
-    else:
+    def handle_y_nonperiodic(_):
+        ierr_local = ierr
+        ierr_local = jnp.where(dyy < 0.0, jnp.int32(3), ierr_local)
+        ierr_local = jnp.where(y > ymax, jnp.int32(4), ierr_local)
+        return dyy, ierr_local
+
+    def handle_y_periodic(_):
         dymax = ymax - ymin
         nwrap = jnp.floor(jnp.abs(dyy / dymax))
-        dyy = jnp.where(dyy < 0.0, dyy + (1.0 + nwrap) * dymax, dyy)
-        dyy = jnp.where(dyy > dymax, dyy - nwrap * dymax, dyy)
+        dyy_wrapped = jnp.where(dyy < 0.0, dyy + (1.0 + nwrap) * dymax, dyy)
+        dyy_wrapped = jnp.where(dyy_wrapped > dymax, dyy_wrapped - nwrap * dymax, dyy_wrapped)
+        return dyy_wrapped, ierr
+
+    dyy, ierr = jax.lax.cond(my == 0, handle_y_nonperiodic, handle_y_periodic, operand=None)
 
     y1 = dyy / hy
     iy = jnp.floor(y1).astype(jnp.int32)

@@ -1,0 +1,36 @@
+! NEO control file (auto-generated)
+! ORBITS fast fixture
+! line3
+boozmn
+neo_out.ORBITS_FAST
+2
+64 96
+25
+25
+0
+0
+40
+2
+0.02
+50
+20
+200
+500
+0
+1
+0
+0
+2
+1
+1
+0
+1
+0
+0
+0
+0
+0
+neo_cur.ORBITS_FAST
+200
+2
+0

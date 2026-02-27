@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+import os
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 
 from .control import ControlParams
@@ -20,6 +22,167 @@ def compute_reference(booz: BoozerData) -> Dict[str, float]:
     rt0 = float(booz.rmnc[0, m0_idx])
     bmref_g = float(booz.bmnc[0, m0_idx])
     return {"rt0": rt0, "bmref_g": bmref_g}
+
+
+def _env_flag(name: str) -> bool:
+    value = os.getenv(name, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _write_diagnostic_files(
+    *,
+    events: Sequence[Tuple[int, int, int, float]],
+    meta: Dict[str, float],
+    psi_ind: int,
+    path_prefix: str = "",
+) -> None:
+    diag_path = f"{path_prefix}diagnostic.dat"
+    with open(diag_path, "w", encoding="utf-8") as handle:
+        for i_idx, icount, ipa, add_on in events:
+            handle.write(f"{i_idx:8d} {icount:8d} {ipa:8d} {add_on:20.10e}\n")
+
+    add_path = f"{path_prefix}diagnostic_add.dat"
+    with open(add_path, "w", encoding="utf-8") as handle:
+        handle.write(
+            f"{psi_ind:8d} {int(meta['istepc']):8d} {int(meta['npart']):8d} {int(meta['max_class']):8d}"
+            f" {float(meta['b_min']):20.10e} {float(meta['b_max']):20.10e} {float(meta['bmref']):20.10e}"
+            f" {float(meta['coeps']):20.10e} {float(meta['y2']):20.10e} {float(meta['y3']):20.10e}\n"
+        )
+
+
+def _write_diagnostic_bigint(
+    *,
+    bigint: Sequence[float],
+    multra: int,
+    hit_rat: int,
+    nintfp: int,
+    y2: float,
+    y3: float,
+    coeps: float,
+    psi_ind: int,
+    path_prefix: str = "",
+) -> None:
+    diag_path = f"{path_prefix}diagnostic_bigint.dat"
+    with open(diag_path, "a", encoding="utf-8") as handle:
+        handle.write(
+            f"{psi_ind:8d} {int(multra):8d} {int(hit_rat):8d} {int(nintfp):8d}"
+            f" {float(y2):20.10e} {float(y3):20.10e} {float(coeps):20.10e}"
+        )
+        for val in bigint:
+            handle.write(f" {float(val):20.10e}")
+        handle.write("\n")
+
+
+class DiagnosticLogger:
+    def __init__(self, *, path_prefix: str = "") -> None:
+        self.path_prefix = path_prefix
+        self.diagnostic_path = f"{path_prefix}diagnostic.dat"
+        self.trap_path = f"{path_prefix}diagnostic_first_trap.dat"
+        self.istepc = 0
+        self.max_class = 0
+        self.first_trap_written = False
+        self.snapshot_written = False
+        with open(self.diagnostic_path, "w", encoding="utf-8") as handle:
+            handle.write("")
+
+    def callback(self, event_mask, icount, ipa, add_on) -> None:
+        mask = np.asarray(event_mask)
+        if not mask.any():
+            return
+        icount_np = np.asarray(icount)
+        ipa_np = np.asarray(ipa)
+        add_on_np = np.asarray(add_on)
+        idxs = np.nonzero(mask)[0]
+        with open(self.diagnostic_path, "a", encoding="utf-8") as handle:
+            for idx in idxs:
+                self.istepc += 1
+                ipa_val = int(ipa_np[idx])
+                self.max_class = max(self.max_class, ipa_val)
+                handle.write(
+                    f"{int(idx + 1):8d} {int(icount_np[idx]):8d} {ipa_val:8d} {float(add_on_np[idx]):20.10e}\n"
+                )
+
+    def write_add(self, *, psi_ind: int, npart: int, meta: Dict[str, float]) -> None:
+        add_path = f"{self.path_prefix}diagnostic_add.dat"
+        with open(add_path, "w", encoding="utf-8") as handle:
+            handle.write(
+                f"{psi_ind:8d} {int(self.istepc):8d} {int(npart):8d} {int(self.max_class):8d}"
+                f" {float(meta['b_min']):20.10e} {float(meta['b_max']):20.10e} {float(meta['bmref']):20.10e}"
+                f" {float(meta['coeps']):20.10e} {float(meta['y2']):20.10e} {float(meta['y3']):20.10e}\n"
+            )
+
+    def write_bigint(
+        self,
+        *,
+        psi_ind: int,
+        multra: int,
+        hit_rat: int,
+        nintfp: int,
+        y2: float,
+        y3: float,
+        coeps: float,
+        bigint: Sequence[float],
+    ) -> None:
+        _write_diagnostic_bigint(
+            bigint=bigint,
+            multra=multra,
+            hit_rat=hit_rat,
+            nintfp=nintfp,
+            y2=y2,
+            y3=y3,
+            coeps=coeps,
+            psi_ind=psi_ind,
+            path_prefix=self.path_prefix,
+        )
+
+    def trap_callback(self, event_mask, isw, iswst, p_i, p_h, icount, ipa, phi, j, step_index) -> None:
+        if self.first_trap_written:
+            return
+        mask = np.asarray(event_mask)
+        if not mask.any():
+            return
+        idxs = np.nonzero(mask)[0]
+        first_idx = int(idxs[0])
+        isw_np = np.asarray(isw)
+        iswst_np = np.asarray(iswst)
+        p_i_np = np.asarray(p_i)
+        p_h_np = np.asarray(p_h)
+        icount_np = np.asarray(icount)
+        ipa_np = np.asarray(ipa)
+        with open(self.trap_path, "w", encoding="utf-8") as handle:
+            handle.write(f"# first_event_index={first_idx + 1}\n")
+            handle.write(f"# phi={float(phi):.16e} n={int(step_index)} j1={int(j)}\n")
+            handle.write("# columns: idx isw iswst icount ipa p_i p_h event_mask\n")
+            for ii in range(p_i_np.shape[0]):
+                handle.write(
+                    f"{ii + 1:8d} {int(isw_np[ii]):8d} {int(iswst_np[ii]):8d}"
+                    f" {int(icount_np[ii]):8d} {int(ipa_np[ii]):8d}"
+                    f" {float(p_i_np[ii]):20.10e} {float(p_h_np[ii]):20.10e}"
+                    f" {int(mask[ii]):8d}\n"
+                )
+        self.first_trap_written = True
+
+    def snapshot_callback(self, isw, iswst, p_i, p_h, icount, ipa, phi, j, step_index) -> None:
+        if self.snapshot_written:
+            return
+        isw_np = np.asarray(isw)
+        iswst_np = np.asarray(iswst)
+        p_i_np = np.asarray(p_i)
+        p_h_np = np.asarray(p_h)
+        icount_np = np.asarray(icount)
+        ipa_np = np.asarray(ipa)
+        event_mask = (isw_np == 2) & (iswst_np == 1)
+        with open(self.trap_path.replace("diagnostic_first_trap", "diagnostic_snapshot"), "w", encoding="utf-8") as handle:
+            handle.write(f"# phi={float(phi):.16e} n={int(step_index)} j1={int(j)}\n")
+            handle.write("# columns: idx isw iswst icount ipa p_i p_h event_mask\n")
+            for ii in range(p_i_np.shape[0]):
+                handle.write(
+                    f"{ii + 1:8d} {int(isw_np[ii]):8d} {int(iswst_np[ii]):8d}"
+                    f" {int(icount_np[ii]):8d} {int(ipa_np[ii]):8d}"
+                    f" {float(p_i_np[ii]):20.10e} {float(p_h_np[ii]):20.10e}"
+                    f" {int(event_mask[ii]):8d}\n"
+                )
+        self.snapshot_written = True
 
 
 def run_neo_from_boozer(
@@ -60,6 +223,24 @@ def run_neo_from_boozer(
     results: List[Dict[str, float]] = []
     reff = 0.0
 
+    write_diagnostic = bool(control.write_diagnostic) or _env_flag("NEO_JAX_WRITE_DIAGNOSTIC")
+    write_trap_debug = write_diagnostic or _env_flag("NEO_JAX_WRITE_TRAP_DEBUG")
+    diag_backend = os.getenv("NEO_JAX_DIAGNOSTIC_BACKEND", "python").strip().lower()
+    disable_jit = _env_flag("NEO_JAX_DISABLE_JIT")
+    force_psi1 = _env_flag("NEO_JAX_DIAGNOSTIC_FORCE_PSI1")
+    snapshot_n = os.getenv("NEO_JAX_SNAPSHOT_N")
+    snapshot_j1 = os.getenv("NEO_JAX_SNAPSHOT_J1")
+    diagnostic_snapshot = None
+    if snapshot_n and snapshot_j1:
+        try:
+            diagnostic_snapshot = (int(snapshot_n), int(snapshot_j1))
+        except ValueError:
+            diagnostic_snapshot = None
+
+    flint_bo_jax_fn = flint_bo_jax
+    if use_jax and not write_diagnostic and not disable_jit:
+        flint_bo_jax_fn = jax.jit(flint_bo_jax, static_argnames=("params",))
+
     for local_idx, surf_idx in enumerate(surf_indices):
         if progress:
             print(f"NEO_JAX: surface {local_idx + 1}/{len(surf_indices)} (index {surf_idx + 1})")
@@ -96,9 +277,80 @@ def run_neo_from_boozer(
         )
 
         if use_jax:
-            out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0)
+            if write_diagnostic and diag_backend == "jax":
+                if progress:
+                    print("NEO_JAX: write_diagnostic enabled; using JAX backend with diagnostic callback")
+                logger = DiagnosticLogger()
+                out = flint_bo_jax(
+                    surface,
+                    params,
+                    env,
+                    nfp=booz.nfp,
+                    rt0=rt0,
+                    diagnostic_callback=logger.callback,
+                    diagnostic_trap_callback=logger.trap_callback if write_trap_debug else None,
+                    diagnostic_snapshot=(
+                        (diagnostic_snapshot[0] - 1, diagnostic_snapshot[1] - 1)
+                        if diagnostic_snapshot
+                        else None
+                    ),
+                    diagnostic_snapshot_callback=logger.snapshot_callback if diagnostic_snapshot else None,
+                )
+                jnp.asarray(out["y2"]).block_until_ready()
+                jnp.asarray(out["bigint"]).block_until_ready()
+                etamin = float(surface.b_min / surface.bmref)
+                etamax = float(surface.b_max / surface.bmref)
+                heta = (etamax - etamin) / (params.npart - 1)
+                coeps = float(np.pi * rt0 * rt0 * heta / (8.0 * np.sqrt(2.0)))
+                psi_ind_diag = int(control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1)
+                if force_psi1 and (control.fluxs_arr is not None and len(control.fluxs_arr) == 1):
+                    psi_ind_diag = 1
+                logger.write_add(
+                    psi_ind=psi_ind_diag,
+                    npart=params.npart,
+                    meta={
+                        "b_min": float(surface.b_min),
+                        "b_max": float(surface.b_max),
+                        "bmref": float(surface.bmref),
+                        "coeps": coeps,
+                        "y2": float(out["y2"]),
+                        "y3": float(out["y3"]),
+                    },
+                )
+                logger.write_bigint(
+                    psi_ind=psi_ind_diag,
+                    multra=params.multra,
+                    hit_rat=int(out["hit_rat"]),
+                    nintfp=int(out["nintfp"]),
+                    y2=float(out["y2"]),
+                    y3=float(out["y3"]),
+                    coeps=coeps,
+                    bigint=np.asarray(out["bigint"]),
+                )
+            else:
+                if write_diagnostic and progress:
+                    print("NEO_JAX: write_diagnostic enabled; using Python-loop backend to emit diagnostic.dat")
+                out = flint_bo(
+                    surface,
+                    params,
+                    env,
+                    nfp=booz.nfp,
+                    rt0=rt0,
+                    diagnostic=write_diagnostic,
+                    diagnostic_trap=write_trap_debug,
+                    diagnostic_snapshot=diagnostic_snapshot,
+                ) if write_diagnostic else flint_bo_jax_fn(surface, params, env, nfp=booz.nfp, rt0=rt0)
         else:
-            out = flint_bo(surface, params, env, nfp=booz.nfp, rt0=rt0)
+            out = flint_bo(
+                surface,
+                params,
+                env,
+                nfp=booz.nfp,
+                rt0=rt0,
+                diagnostic=write_diagnostic,
+                diagnostic_trap=write_trap_debug,
+                diagnostic_snapshot=diagnostic_snapshot,
+            )
 
         if control.ref_swi == 1:
             b_ref = bmref_g
@@ -120,9 +372,10 @@ def run_neo_from_boozer(
             dpsi = psi - booz.es[surf_indices[local_idx - 1]]
         reff = reff + float(out["drdpsi"] * dpsi)
 
+        flux_index = control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1
         result = (
             {
-                "flux_index": control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1,
+                "flux_index": flux_index,
                 "epstot": epstot,
                 "reff": reff,
                 "iota": float(booz.iota[surf_idx]),
@@ -137,6 +390,32 @@ def run_neo_from_boozer(
                 "diagnostics": out,
             }
         )
+
+        if write_diagnostic:
+            diagnostic_events = out.pop("diagnostic_events", None)
+            diagnostic_meta = out.pop("diagnostic_meta", None)
+            psi_ind_diag = int(flux_index)
+            if force_psi1 and (control.fluxs_arr is not None and len(control.fluxs_arr) == 1):
+                psi_ind_diag = 1
+            if diagnostic_events is not None and diagnostic_meta is not None:
+                _write_diagnostic_files(
+                    events=diagnostic_events,
+                    meta=diagnostic_meta,
+                    psi_ind=psi_ind_diag,
+                )
+                _write_diagnostic_bigint(
+                    bigint=np.asarray(out["bigint"]),
+                    multra=params.multra,
+                    hit_rat=int(out["hit_rat"]),
+                    nintfp=int(out["nintfp"]),
+                    y2=float(out["y2"]),
+                    y3=float(out["y3"]),
+                    coeps=float(diagnostic_meta["coeps"]),
+                    psi_ind=psi_ind_diag,
+                )
+                if progress:
+                    print("NEO_JAX: wrote diagnostic.dat, diagnostic_add.dat, diagnostic_bigint.dat")
+
         results.append(result)
         if progress:
             print(

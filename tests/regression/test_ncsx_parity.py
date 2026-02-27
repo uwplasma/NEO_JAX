@@ -37,9 +37,9 @@ def test_ncsx_parity_jax():
     r_ref = np.array([r["r_ref"] for r in results], dtype=float)
 
     assert np.array_equal(out_flux, flux_idx)
-    # NCSX is sensitive to trapped-orbit accumulation; allow a slightly looser
-    # tolerance while we continue tuning full parity.
-    assert np.allclose(epstot, epstot_ref, rtol=2e-2, atol=1e-9)
+    # NCSX is sensitive to trapped-orbit accumulation; keep tolerances tight
+    # enough to catch regressions while allowing remaining rounding differences.
+    assert np.allclose(epstot, epstot_ref, rtol=1e-3, atol=1e-9)
     assert np.allclose(reff, reff_ref, rtol=1e-6, atol=1e-9)
     assert np.allclose(iota, iota_ref, rtol=1e-6, atol=1e-9)
     assert np.allclose(b_ref, b_ref_ref, rtol=1e-6, atol=1e-9)

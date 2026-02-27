@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple
 
+import numpy as np
+
 import jax
 import jax.numpy as jnp
 
@@ -205,6 +207,12 @@ def flint_bo(
     env: RhsEnv,
     nfp: int,
     rt0: float,
+    *,
+    diagnostic: bool = False,
+    diagnostic_trap: bool = False,
+    diagnostic_trap_path: str = "diagnostic_first_trap.dat",
+    diagnostic_snapshot: tuple[int, int] | None = None,
+    diagnostic_snapshot_path: str = "diagnostic_snapshot.dat",
 ):
     """Python-loop port of flint_bo.f90 (not yet JIT-optimized)."""
     npart = params.npart
@@ -287,6 +295,11 @@ def flint_bo(
     m_iota = 1
     iota_bar_fp = 0.0
 
+    diagnostic_events = [] if diagnostic else None
+    max_class = 0
+    trap_written = False
+    snapshot_written = False
+
     # Main loop
     for n in range(1, params.nstep_max + 1):
         for _j1 in range(1, params.nstep_per + 1):
@@ -295,6 +308,64 @@ def flint_bo(
             # Process trapped particle contributions
             p_i = y[NPQ : NPQ + npart]
             p_h = y[NPQ + npart : NPQ + 2 * npart]
+
+            if diagnostic:
+                mask2 = np.asarray(state.isw == 2)
+                if mask2.any():
+                    iswst_np = np.asarray(iswst)
+                    event_mask = mask2 & (iswst_np == 1)
+                    if event_mask.any():
+                        icount_np = np.asarray(state.icount)
+                        ipa_np = np.asarray(state.ipa)
+                        p_i_np = np.asarray(p_i)
+                        p_h_np = np.asarray(p_h)
+                        safe_pi = np.where(p_i_np == 0, 1.0, p_i_np)
+                        add_on_np = (p_h_np * p_h_np) / safe_pi * iswst_np
+                        idxs = np.nonzero(event_mask)[0]
+                        for idx in idxs:
+                            diagnostic_events.append(
+                                (int(idx + 1), int(icount_np[idx]), int(ipa_np[idx]), float(add_on_np[idx]))
+                            )
+                        max_class = max(max_class, int(np.max(ipa_np[event_mask])))
+                        if diagnostic_trap and not trap_written:
+                            first_idx = int(idxs[0])
+                            with open(diagnostic_trap_path, "w", encoding="utf-8") as handle:
+                                handle.write(f"# first_event_index={first_idx + 1}\n")
+                                handle.write(f"# phi={float(phi):.16e} n={n} j1={_j1}\n")
+                                handle.write(
+                                    "# columns: idx isw iswst icount ipa p_i p_h event_mask\n"
+                                )
+                                isw_np = np.asarray(state.isw)
+                                for ii in range(p_i_np.shape[0]):
+                                    handle.write(
+                                        f"{ii + 1:8d} {int(isw_np[ii]):8d} {int(iswst_np[ii]):8d}"
+                                        f" {int(icount_np[ii]):8d} {int(ipa_np[ii]):8d}"
+                                        f" {float(p_i_np[ii]):20.10e} {float(p_h_np[ii]):20.10e}"
+                                        f" {int(event_mask[ii]):8d}\n"
+                                    )
+                            trap_written = True
+            if diagnostic_snapshot and not snapshot_written:
+                snap_n, snap_j1 = diagnostic_snapshot
+                if n == snap_n and _j1 == snap_j1:
+                    mask2 = np.asarray(state.isw == 2)
+                    iswst_np = np.asarray(iswst)
+                    event_mask = mask2 & (iswst_np == 1)
+                    icount_np = np.asarray(state.icount)
+                    ipa_np = np.asarray(state.ipa)
+                    p_i_np = np.asarray(p_i)
+                    p_h_np = np.asarray(p_h)
+                    isw_np = np.asarray(state.isw)
+                    with open(diagnostic_snapshot_path, "w", encoding="utf-8") as handle:
+                        handle.write(f"# phi={float(phi):.16e} n={n} j1={_j1}\n")
+                        handle.write("# columns: idx isw iswst icount ipa p_i p_h event_mask\n")
+                        for ii in range(p_i_np.shape[0]):
+                            handle.write(
+                                f"{ii + 1:8d} {int(isw_np[ii]):8d} {int(iswst_np[ii]):8d}"
+                                f" {int(icount_np[ii]):8d} {int(ipa_np[ii]):8d}"
+                                f" {float(p_i_np[ii]):20.10e} {float(p_h_np[ii]):20.10e}"
+                                f" {int(event_mask[ii]):8d}\n"
+                            )
+                    snapshot_written = True
 
             state, iswst, p_i, p_h, bigint, adimax = _process_trapped(
                 state, iswst, p_i, p_h, bigint, adimax, multra
@@ -450,7 +521,7 @@ def flint_bo(
     drdpsi = y2 / y3
     yps = y4 * j_iota_i
 
-    return {
+    out = {
         "epspar": epspar,
         "epstot": epstot,
         "ctrone": ctrone,
@@ -463,11 +534,27 @@ def flint_bo(
         "y3": y3,
         "y4": y4,
         "y3npart": y3npart,
+        "bigint": bigint,
         "nintfp": nintfp,
         "hit_rat": hit_rat,
         "nfp_rat": nfp_rat,
         "nfl_rat": nfl_rat,
     }
+    if diagnostic and diagnostic_events is not None:
+        out["diagnostic_events"] = diagnostic_events
+        out["diagnostic_meta"] = {
+            "istepc": len(diagnostic_events),
+            "max_class": max_class,
+            "b_min": float(surface.b_min),
+            "b_max": float(surface.b_max),
+            "bmref": float(surface.bmref),
+            "coeps": float(coeps),
+            "y2": float(y2),
+            "y3": float(y3),
+            "npart": int(npart),
+        }
+
+    return out
 
 
 def flint_bo_jax(
@@ -476,6 +563,11 @@ def flint_bo_jax(
     env: RhsEnv,
     nfp: int,
     rt0: float,
+    *,
+    diagnostic_callback=None,
+    diagnostic_trap_callback=None,
+    diagnostic_snapshot: tuple[int, int] | None = None,
+    diagnostic_snapshot_callback=None,
 ):
     """JAX-friendly integration loop with rational-surface correction."""
     npart = params.npart
@@ -553,7 +645,14 @@ def flint_bo_jax(
     stop = jnp.array(False)
     n = jnp.array(0, dtype=jnp.int32)
 
-    def integrate_period(carry):
+    if diagnostic_snapshot is None:
+        snap_n = None
+        snap_j = None
+    else:
+        snap_n = jnp.array(diagnostic_snapshot[0], dtype=jnp.int32)
+        snap_j = jnp.array(diagnostic_snapshot[1], dtype=jnp.int32)
+
+    def integrate_period(carry, emit_diag: bool, step_index):
         phi, y, state, iswst, bigint, adimax, aditot = carry
 
         def inner_step(j, inner):
@@ -561,6 +660,58 @@ def flint_bo_jax(
             phi, y, state = rk4_step(phi, y, state, env, hphi)
             p_i = y[NPQ : NPQ + npart]
             p_h = y[NPQ + npart : NPQ + 2 * npart]
+            if diagnostic_callback is not None and emit_diag:
+                mask2 = state.isw == 2
+                event_mask = mask2 & (iswst == 1)
+                safe_pi = jnp.where(p_i == 0, jnp.array(1.0, dtype=p_i.dtype), p_i)
+                add_on = (p_h * p_h) / safe_pi * iswst
+
+                def _emit(_):
+                    jax.debug.callback(diagnostic_callback, event_mask, state.icount, state.ipa, add_on, ordered=True)
+                    return None
+
+                _ = jax.lax.cond(jnp.any(event_mask), _emit, lambda _: None, operand=None)
+            if diagnostic_trap_callback is not None and emit_diag:
+                mask2 = state.isw == 2
+                event_mask = mask2 & (iswst == 1)
+
+                def _emit_trap(_):
+                    jax.debug.callback(
+                        diagnostic_trap_callback,
+                        event_mask,
+                        state.isw,
+                        iswst,
+                        p_i,
+                        p_h,
+                        state.icount,
+                        state.ipa,
+                        phi,
+                        j,
+                        step_index,
+                        ordered=True,
+                    )
+                    return None
+
+                _ = jax.lax.cond(jnp.any(event_mask), _emit_trap, lambda _: None, operand=None)
+            if diagnostic_snapshot_callback is not None and emit_diag and snap_n is not None and snap_j is not None:
+                def _emit_snap(_):
+                    jax.debug.callback(
+                        diagnostic_snapshot_callback,
+                        state.isw,
+                        iswst,
+                        p_i,
+                        p_h,
+                        state.icount,
+                        state.ipa,
+                        phi,
+                        j,
+                        step_index,
+                        ordered=True,
+                    )
+                    return None
+
+                snap_cond = (step_index == snap_n) & (j == snap_j)
+                _ = jax.lax.cond(snap_cond, _emit_snap, lambda _: None, operand=None)
             state, iswst, p_i, p_h, bigint, adimax = _process_trapped(
                 state, iswst, p_i, p_h, bigint, adimax, multra
             )
@@ -693,7 +844,9 @@ def flint_bo_jax(
             ) = _carry
 
             phi, y, state, iswst, bigint, adimax, aditot = integrate_period(
-                (phi, y, state, iswst, bigint, adimax, aditot)
+                (phi, y, state, iswst, bigint, adimax, aditot),
+                True,
+                n,
             )
             n_new = n + 1
             theta = y[0]
@@ -861,7 +1014,9 @@ def flint_bo_jax(
                 state_l = RhsState(state_l.isw, state_l.ipa, state_l.icount, state_l.ipmax, pard0)
 
                 phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s = integrate_period(
-                    (phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s)
+                    (phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s),
+                    False,
+                    n_idx,
                 )
 
                 return (n_idx + 1, phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s)
@@ -908,7 +1063,7 @@ def flint_bo_jax(
         do_rational, rational_correction, rational_skip, operand=None
     )
 
-    nintfp = jnp.where(hit_rat == 1, nfp_rat * (nfl_rat + 1), n)
+    nintfp = n
 
     epspar = jnp.zeros(multra)
     epstot = jnp.array(0.0)
@@ -936,6 +1091,7 @@ def flint_bo_jax(
         "y3": y3,
         "y4": y4,
         "y3npart": y3npart,
+        "bigint": bigint,
         "nintfp": nintfp,
         "hit_rat": hit_rat,
         "nfp_rat": nfp_rat,
