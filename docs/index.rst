@@ -11,6 +11,7 @@ ripple and related neoclassical transport diagnostics in Boozer coordinates.
    overview
    installation
    quickstart
+   user_api
    cli
    vmec_boozer
    theory
