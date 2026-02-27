@@ -30,6 +30,17 @@ supporting vector access by name:
 
 Aliases are supported for common names (``epstot`` → ``epsilon_effective``).
 
+Radial coordinates
+------------------
+
+NEO_JAX reports multiple radial coordinates:
+
+- ``s``: normalized toroidal flux (``0 ≤ s ≤ 1``). This is the default x-axis
+  for plots and can be used to select surfaces.
+- ``sqrt_s``: square root of ``s`` (often used as a proxy for minor radius).
+- ``r_eff``: effective radius computed by integrating the NEO quantity
+  ``dr/dψ`` over the flux grid. See :doc:`numerics` for details.
+
 Running on Boozer objects
 -------------------------
 
@@ -52,5 +63,17 @@ A helper is provided to plot epsilon effective vs radius:
 
    from neo_jax import plot_epsilon_effective
 
-   fig, ax = plot_epsilon_effective(results)
+   fig, ax = plot_epsilon_effective(results, x="s")
    fig.savefig("eps_eff.png", dpi=150)
+
+Surface selection by ``s``
+--------------------------
+
+Surface selections may be specified by index or by normalized toroidal flux
+``s`` (floats between 0 and 1). When floats are provided, NEO_JAX maps them to
+the nearest available surface in the Boozer grid.
+
+.. code-block:: python
+
+   config = NeoConfig(surfaces=[0.2, 0.5, 0.8])
+   results = run_boozmn("boozmn.nc", config=config)

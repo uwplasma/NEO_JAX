@@ -11,10 +11,11 @@ import numpy as np
 _ALIAS_MAP = {
     "flux_index": "flux_index",
     "surface_index": "flux_index",
-    "psi": "psi",
-    "s": "psi",
-    "reff": "reff",
-    "r_eff": "reff",
+    "psi": "s",
+    "s": "s",
+    "sqrt_s": "sqrt_s",
+    "reff": "r_eff",
+    "r_eff": "r_eff",
     "iota": "iota",
     "b_ref": "b_ref",
     "bref": "b_ref",
@@ -39,8 +40,8 @@ class NeoSurfaceResult:
     """Results for a single flux surface."""
 
     flux_index: int
-    psi: float
-    reff: float
+    s: float
+    r_eff: float
     iota: float
     b_ref: float
     r_ref: float
@@ -56,6 +57,18 @@ class NeoSurfaceResult:
     @property
     def epstot(self) -> float:
         return self.epsilon_effective
+
+    @property
+    def sqrt_s(self) -> float:
+        return float(np.sqrt(max(self.s, 0.0)))
+
+    @property
+    def reff(self) -> float:
+        return self.r_eff
+
+    @property
+    def psi(self) -> float:
+        return self.s
 
     @property
     def epspar(self) -> np.ndarray:
@@ -76,8 +89,11 @@ class NeoSurfaceResult:
     def to_dict(self) -> dict:
         return {
             "flux_index": self.flux_index,
-            "psi": self.psi,
-            "reff": self.reff,
+            "s": self.s,
+            "psi": self.s,
+            "sqrt_s": self.sqrt_s,
+            "r_eff": self.r_eff,
+            "reff": self.r_eff,
             "iota": self.iota,
             "b_ref": self.b_ref,
             "r_ref": self.r_ref,
@@ -120,6 +136,8 @@ class NeoResults(Sequence[NeoSurfaceResult]):
             raise KeyError(key)
         if mapped == "epsilon_effective_by_class":
             return np.stack([res.epsilon_effective_by_class for res in self._results])
+        if mapped == "sqrt_s":
+            return np.sqrt(np.array([res.s for res in self._results]))
         if mapped == "diagnostics":
             return [res.diagnostics for res in self._results]
         return np.array([getattr(res, mapped) for res in self._results])

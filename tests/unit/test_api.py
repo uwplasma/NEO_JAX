@@ -17,13 +17,17 @@ def _orbits_fast_paths():
 
 def test_run_boozmn_basic():
     boozmn = _orbits_fast_paths()
-    config = NeoConfig(surfaces=[64, 96], theta_n=25, phi_n=25)
+    # Surfaces specified by s in [0,1] should map to nearest jlist indices.
+    config = NeoConfig(surfaces=[0.5, 0.75], theta_n=25, phi_n=25)
     results = run_boozmn(boozmn, config=config, use_jax=True)
 
     assert isinstance(results, NeoResults)
     assert len(results) == 2
     assert results.epsilon_effective.shape == (2,)
     assert results[0].epsilon_effective_by_class.ndim == 1
+    # ORBITS_FAST jlist maps s≈0.5->64 and s≈0.75->96.
+    assert results[0].flux_index == 64
+    assert results[1].flux_index == 96
 
 
 def test_run_boozer_matches_boozmn():
@@ -72,3 +76,6 @@ def test_results_alias_access():
 
     assert results[0]["epstot"] == results[0].epsilon_effective
     assert np.isclose(results["epstot"][0], results.epsilon_effective[0])
+    assert np.isclose(results["s"][0], results.s[0])
+    assert np.isclose(results["sqrt_s"][0], results.sqrt_s[0])
+    assert np.isclose(results["r_eff"][0], results.r_eff[0])

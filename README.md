@@ -25,7 +25,8 @@ PYTHONPATH=. python examples/ncsx_jit_run.py
 ```python
 from neo_jax import NeoConfig, run_boozmn
 
-config = NeoConfig(surfaces=[19, 39, 59, 79], theta_n=64, phi_n=64)
+# Surfaces may be specified by index or by s in [0, 1].
+config = NeoConfig(surfaces=[0.15, 0.35, 0.6, 0.85], theta_n=64, phi_n=64)
 results = run_boozmn("boozmn.nc", config=config)
 
 # Access by name
@@ -41,8 +42,8 @@ See `docs/index.rst` for the table of contents.
 
 ## Examples
 
-- `examples/ncsx_jit_run.py`: JIT-compiled single-surface NCSX run.
-- `examples/ncsx_autodiff_opt.py`: autodiff optimization demo over `rt0`.
+- `examples/ncsx_epsilon_effective_plot.py`: compute and plot epsilon effective vs `s`.
+- `examples/ncsx_autodiff_rt0_optimization.py`: autodiff optimization demo over `rt0`.
 
 ## NCSX Parity Snapshot
 

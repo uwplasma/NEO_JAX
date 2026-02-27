@@ -86,6 +86,19 @@ def resolve_boozmn_path(base: str | Path, extension: str | None = None) -> Path:
     raise FileNotFoundError(f"Boozmn file not found: {base}")
 
 
+def read_boozmn_metadata(path: str | Path) -> dict:
+    """Read minimal metadata (ns_b, jlist) from a boozmn file."""
+    _require_netcdf4()
+    booz_path = resolve_boozmn_path(path, None)
+    with netCDF4.Dataset(booz_path) as ds:  # type: ignore[union-attr]
+        ns_b = int(ds.variables["ns_b"][:])
+        if "jlist" in ds.variables:
+            jlist = np.array(ds.variables["jlist"][:], dtype=int).tolist()
+        else:
+            jlist = list(range(1, ns_b + 1))
+    return {"ns_b": ns_b, "jlist": jlist}
+
+
 def _transpose_if_needed(arr: np.ndarray, pack_len: int) -> np.ndarray:
     if arr.shape[0] == pack_len:
         return arr

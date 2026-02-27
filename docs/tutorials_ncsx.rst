@@ -21,7 +21,7 @@ Notes
   runs.
 - The original tutorial output can be used as a reference for validating
   ``epstot`` across flux surfaces.
-- For a JIT-based run and autodiff demo, see ``examples/ncsx_jit_run.py`` and
-  ``examples/ncsx_autodiff_opt.py``.
+- For a plotting run and autodiff demo, see ``examples/ncsx_epsilon_effective_plot.py``
+  and ``examples/ncsx_autodiff_rt0_optimization.py``.
 - The fast parity fixture uses ``neo_in.ncsx_c09r00_free_fast`` (4 surfaces,
   64x64 grid).
