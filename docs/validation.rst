@@ -20,8 +20,10 @@ Fast vs. full ORBITS parity:
 - The default regression test uses the reduced ``ORBITS_FAST`` fixture
   (2 surfaces, 25x25 grid) for quick CI runs.
 - Set ``NEO_JAX_ORBITS_FULL=1`` to run the full ORBITS parity test overnight.
-- The NCSX parity regression is gated behind ``NEO_JAX_RUN_SLOW=1`` to avoid
-  running the slow-path integrator in standard CI.
+- ``neo_in.ncsx_c09r00_free_fast`` provides a reduced NCSX parity test that runs
+  by default in CI (4 surfaces, 64x64 grid).
+- The full NCSX parity regression remains gated behind ``NEO_JAX_RUN_SLOW=1`` to
+  avoid running the slow-path integrator in standard CI.
 
 Planned metrics:
 

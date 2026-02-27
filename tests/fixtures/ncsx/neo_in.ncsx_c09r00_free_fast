@@ -1,0 +1,36 @@
+! NEO control file (auto-generated)
+! NCSX fast parity fixture
+! line3
+boozmn
+neo_out.ncsx_c09r00_free_fast
+4
+19 39 59 79
+64
+64
+0
+0
+75
+1
+0.01
+100
+75
+500
+2000
+0
+1
+0
+0
+2
+0
+0
+0
+0
+0
+0
+0
+0
+0
+neo_cur
+0
+0
+0
