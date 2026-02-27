@@ -7,6 +7,30 @@ Driver
 .. automodule:: neo_jax.driver
    :members:
 
+High-level API
+--------------
+
+.. automodule:: neo_jax.api
+   :members:
+
+Configuration
+-------------
+
+.. automodule:: neo_jax.config
+   :members:
+
+Results
+-------
+
+.. automodule:: neo_jax.results
+   :members:
+
+Plotting
+--------
+
+.. automodule:: neo_jax.plotting
+   :members:
+
 I/O
 ---
 

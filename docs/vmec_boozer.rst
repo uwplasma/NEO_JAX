@@ -55,4 +55,5 @@ When using this pipeline, ensure the following:
 
 NEO_JAX provides :func:`neo_jax.io.booz_xform_to_boozerdata` to convert arrays
 from a booz_xform-style object into the ``BoozerData`` container used by the
-solver.
+solver, and :func:`neo_jax.run_booz_xform` to run the solver directly on that
+object with a high-level configuration.
