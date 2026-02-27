@@ -655,9 +655,97 @@ def flint_bo_jax(
     def integrate_period(carry, emit_diag: bool, step_index):
         phi, y, state, iswst, bigint, adimax, aditot = carry
 
+        def rhs_inline(phi_local: Array, y_local: Array, state_local: RhsState) -> Tuple[Array, RhsState]:
+            """Inline RHS evaluation to help XLA fuse neo_eval + RK4."""
+            theta = y_local[0]
+
+            bmod, gval, geodcu, pardeb, _qval = neo_eval(
+                theta,
+                phi_local,
+                env.splines["b_spl"],
+                env.splines["g_spl"],
+                env.splines["k_spl"],
+                env.splines["p_spl"],
+                env.splines.get("q_spl"),
+                env.grid,
+            )
+
+            bmodm2 = 1.0 / (bmod * bmod)
+            bmodm3 = bmodm2 / bmod
+            bra = bmod / env.bmod0
+
+            ipass = jnp.where(
+                (pardeb * state_local.pard0 <= 0) & (pardeb > 0), 1, 0
+            ).astype(state_local.isw.dtype)
+            ipmax = jnp.where(
+                (state_local.ipmax == 0) & (pardeb * state_local.pard0 <= 0) & (pardeb < 0),
+                1,
+                state_local.ipmax,
+            ).astype(state_local.isw.dtype)
+
+            pard0 = pardeb
+
+            dery = jnp.zeros_like(y_local)
+            dery = dery.at[0].set(env.iota)
+            dery = dery.at[1].set(bmodm2)
+            dery = dery.at[2].set(bmodm2 * gval)
+            dery = dery.at[3].set(geodcu * bmodm3)
+
+            subsq = 1.0 - bra / env.eta
+            mask = subsq > 0
+
+            sqeta = jnp.sqrt(env.eta)
+            safe_subsq = jnp.where(mask, subsq, 0.0)
+            sq = jnp.sqrt(safe_subsq) * bmodm2
+            p_i = jnp.where(mask, sq, 0.0)
+            p_h = jnp.where(mask, sq * (4.0 / bra - 1.0 / env.eta) * geodcu / sqeta, 0.0)
+
+            one_i = jnp.array(1, dtype=state_local.isw.dtype)
+            two_i = jnp.array(2, dtype=state_local.isw.dtype)
+            zero_i = jnp.array(0, dtype=state_local.isw.dtype)
+            isw = jnp.where(
+                mask,
+                one_i,
+                jnp.where(
+                    state_local.isw == 1,
+                    two_i,
+                    jnp.where(state_local.isw == 2, two_i, zero_i),
+                ),
+            )
+            icount = state_local.icount + mask.astype(state_local.icount.dtype)
+            ipa = state_local.ipa + ipass * mask.astype(state_local.ipa.dtype)
+
+            dery = dery.at[NPQ : NPQ + env.eta.shape[0]].set(p_i)
+            dery = dery.at[NPQ + env.eta.shape[0] : NPQ + 2 * env.eta.shape[0]].set(p_h)
+
+            new_state = RhsState(isw=isw, ipa=ipa, icount=icount, ipmax=ipmax, pard0=pard0)
+            return dery, new_state
+
+        def rk4_step_inline(
+            phi_local: Array, y_local: Array, state_local: RhsState
+        ) -> Tuple[Array, Array, RhsState]:
+            """Inline RK4 to increase fusion with neo_eval."""
+            hh = hphi / 2.0
+            h6 = hphi / 6.0
+
+            k1, state1 = rhs_inline(phi_local, y_local, state_local)
+            y1 = y_local + hh * k1
+
+            k2, state2 = rhs_inline(phi_local + hh, y1, state1)
+            y2 = y_local + hh * k2
+
+            k3, state3 = rhs_inline(phi_local + hh, y2, state2)
+            y3 = y_local + hphi * k3
+
+            k4, state4 = rhs_inline(phi_local + hphi, y3, state3)
+
+            y_new = y_local + h6 * (k1 + k4 + 2.0 * (k2 + k3))
+            phi_new = phi_local + hphi
+            return phi_new, y_new, state4
+
         def inner_step(j, inner):
             phi, y, state, iswst, bigint, adimax, aditot = inner
-            phi, y, state = rk4_step(phi, y, state, env, hphi)
+            phi, y, state = rk4_step_inline(phi, y, state)
             p_i = y[NPQ : NPQ + npart]
             p_h = y[NPQ + npart : NPQ + 2 * npart]
             if diagnostic_callback is not None and emit_diag:
@@ -712,9 +800,36 @@ def flint_bo_jax(
 
                 snap_cond = (step_index == snap_n) & (j == snap_j)
                 _ = jax.lax.cond(snap_cond, _emit_snap, lambda _: None, operand=None)
-            state, iswst, p_i, p_h, bigint, adimax = _process_trapped(
-                state, iswst, p_i, p_h, bigint, adimax, multra
-            )
+
+            # Inline trapped-particle update to improve fusion in scan body.
+            mask2 = state.isw == 2
+            m_cl = jnp.clip(state.ipa, 1, multra).astype(state.ipa.dtype)
+
+            def body(i, carry):
+                bigint_acc, adimax_acc = carry
+
+                def add_fn(carry):
+                    bigint_acc, adimax_acc = carry
+                    safe_pi = jnp.where(p_i[i] == 0, jnp.array(1.0, dtype=p_i.dtype), p_i[i])
+                    add_on = (p_h[i] * p_h[i]) / safe_pi * iswst[i]
+                    idx = m_cl[i] - 1
+                    bigint_acc = bigint_acc.at[idx].add(add_on)
+                    adimax_acc = jnp.where(state.ipa[i] == 1, p_i[i], adimax_acc)
+                    return bigint_acc, adimax_acc
+
+                return jax.lax.cond(mask2[i], add_fn, lambda c: c, carry)
+
+            bigint, adimax = jax.lax.fori_loop(0, p_i.shape[0], body, (bigint, adimax))
+
+            iswst = jnp.where(mask2, 1, iswst)
+            p_h = jnp.where(mask2, 0.0, p_h)
+            p_i = jnp.where(mask2, 0.0, p_i)
+            zero_int = jnp.zeros_like(state.isw)
+            isw = jnp.where(mask2, zero_int, state.isw)
+            icount = jnp.where(mask2, zero_int, state.icount)
+            ipa = jnp.where(mask2, zero_int, state.ipa)
+            state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
+
             y = y.at[NPQ : NPQ + npart].set(p_i)
             y = y.at[NPQ + npart : NPQ + 2 * npart].set(p_h)
 
