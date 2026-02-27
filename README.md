@@ -65,3 +65,11 @@ NCSX benchmark comparison (10 surfaces, CPU warmup run, `/usr/bin/time -l`):
 
 This repository is under active development. See `PLAN.md` for the porting
 plan and roadmap.
+
+## Validation Cases
+
+Current parity fixtures include:
+
+- ORBITS (fast + full)
+- NCSX tutorial case (fast by default; full gated by `NEO_JAX_RUN_SLOW=1`)
+- LandremanPaul2021_QA_lowres (dense, 64x64 grid)
