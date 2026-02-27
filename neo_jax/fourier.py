@@ -50,11 +50,19 @@ def fourier_sums(
     lmns = lmns[mask]
     bmnc = bmnc[mask]
 
-    theta = theta_arr[:, None, None]
-    phi = phi_arr[None, :, None]
-    angle = m[None, None, :] * theta - n[None, None, :] * phi
-    cosv = jnp.cos(angle)
-    sinv = jnp.sin(angle)
+    theta = theta_arr[:, None]
+    phi = phi_arr[:, None]
+
+    # Match Fortran's trig combination to reduce rounding drift:
+    # cos(m*theta - n*phi) = cos(m*theta)*cos(n*phi) + sin(m*theta)*sin(n*phi)
+    # sin(m*theta - n*phi) = sin(m*theta)*cos(n*phi) - cos(m*theta)*sin(n*phi)
+    cos_mth = jnp.cos(theta * m[None, :])
+    sin_mth = jnp.sin(theta * m[None, :])
+    cos_nph = jnp.cos(phi * n[None, :])
+    sin_nph = jnp.sin(phi * n[None, :])
+
+    cosv = cos_mth[:, None, :] * cos_nph[None, :, :] + sin_mth[:, None, :] * sin_nph[None, :, :]
+    sinv = sin_mth[:, None, :] * cos_nph[None, :, :] - cos_mth[:, None, :] * sin_nph[None, :, :]
 
     r = jnp.sum(rmnc[None, None, :] * cosv, axis=2)
     z = jnp.sum(zmns[None, None, :] * sinv, axis=2)

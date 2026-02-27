@@ -1,19 +1,26 @@
+import os
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from neo_jax.control import read_control
 from neo_jax.driver import run_neo_from_boozmn
 
 
-def test_orbits_parity_jax():
-    fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "orbits"
-    control = read_control(fixtures / "neo_in.ORBITS")
-    boozmn = fixtures / "boozmn_ORBITS.nc"
+def _load_fixture(fixtures: Path, *, full: bool):
+    if full:
+        control = read_control(fixtures / "neo_in.ORBITS")
+        boozmn = fixtures / "boozmn_ORBITS.nc"
+        ref = np.loadtxt(fixtures / "neo_out.ORBITS")
+    else:
+        control = read_control(fixtures / "neo_in.ORBITS_FAST")
+        boozmn = fixtures / "boozmn_ORBITS_FAST.nc"
+        ref = np.loadtxt(fixtures / "neo_out.ORBITS_FAST")
+    return control, boozmn, ref
 
-    results = run_neo_from_boozmn(str(boozmn), control, use_jax=True)
 
-    ref = np.loadtxt(fixtures / "neo_out.ORBITS")
+def _assert_results(results, ref):
     assert ref.shape[0] == len(results)
 
     flux_idx = ref[:, 0].astype(int)
@@ -36,3 +43,22 @@ def test_orbits_parity_jax():
     assert np.allclose(iota, iota_ref, rtol=1e-6, atol=1e-10)
     assert np.allclose(b_ref, b_ref_ref, rtol=1e-6, atol=1e-10)
     assert np.allclose(r_ref, r_ref_ref, rtol=1e-6, atol=1e-10)
+
+
+def test_orbits_parity_fast():
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "orbits"
+    control, boozmn, ref = _load_fixture(fixtures, full=False)
+
+    results = run_neo_from_boozmn(str(boozmn), control, use_jax=True)
+    _assert_results(results, ref)
+
+
+def test_orbits_parity_full():
+    if not os.getenv("NEO_JAX_ORBITS_FULL"):
+        pytest.skip("Set NEO_JAX_ORBITS_FULL=1 to run full ORBITS parity.")
+
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "orbits"
+    control, boozmn, ref = _load_fixture(fixtures, full=True)
+
+    results = run_neo_from_boozmn(str(boozmn), control, use_jax=True)
+    _assert_results(results, ref)

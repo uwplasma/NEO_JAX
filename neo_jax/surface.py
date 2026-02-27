@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
+import math
+import numpy as np
+
 import jax
 import jax.numpy as jnp
 
@@ -56,6 +59,75 @@ def build_splines(
     return splines
 
 
+def _select_extremum_index(
+    b: Array,
+    theta_arr: Array,
+    phi_arr: Array,
+    ixm: Array,
+    ixn: Array,
+    bmnc: Array,
+    max_m_mode: int,
+    max_n_mode: int,
+    *,
+    find_max: bool,
+) -> Tuple[Array, Array]:
+    """Select extremum index with a Fortran-like tie-breaker."""
+    b_np = np.asarray(b)
+    if find_max:
+        extremum = b_np.max()
+        tol = 1.0e-12 * max(1.0, abs(extremum))
+        mask = b_np >= (extremum - tol)
+    else:
+        extremum = b_np.min()
+        tol = 1.0e-12 * max(1.0, abs(extremum))
+        mask = b_np <= (extremum + tol)
+
+    # Candidate indices in Fortran order (theta index varies fastest).
+    mask_t = mask.T
+    flat = mask_t.reshape(-1)
+    candidates = np.nonzero(flat)[0]
+    if candidates.size == 0:
+        idx = int(np.argmax(flat)) if find_max else int(np.argmin(flat))
+        j, i = np.unravel_index(idx, mask_t.shape)
+        return jnp.asarray(i), jnp.asarray(j)
+
+    theta_np = np.asarray(theta_arr)
+    phi_np = np.asarray(phi_arr)
+    ixm_np = np.asarray(ixm)
+    ixn_np = np.asarray(ixn)
+    bmnc_np = np.asarray(bmnc)
+
+    def b_at(theta: float, phi: float) -> float:
+        total = 0.0
+        for m, n, coeff in zip(ixm_np, ixn_np, bmnc_np):
+            if abs(m) <= max_m_mode and abs(n) <= max_n_mode:
+                total += float(coeff) * math.cos(float(m) * theta - float(n) * phi)
+        return total
+
+    best_val = None
+    best_i = None
+    best_j = None
+    for idx in candidates:
+        j, i = np.unravel_index(int(idx), mask_t.shape)
+        theta = float(theta_np[i])
+        phi = float(phi_np[j])
+        val = b_at(theta, phi)
+        if best_val is None:
+            best_val = val
+            best_i, best_j = i, j
+            continue
+        if find_max:
+            if val > best_val:
+                best_val = val
+                best_i, best_j = i, j
+        else:
+            if val < best_val:
+                best_val = val
+                best_i, best_j = i, j
+
+    return jnp.asarray(best_i), jnp.asarray(best_j)
+
+
 def init_surface(
     theta_arr: Array,
     phi_arr: Array,
@@ -97,11 +169,35 @@ def init_surface(
     splines = build_splines(fields, grid["theta_int"], grid["phi_int"], grid["mt"], grid["mp"], calc_cur)
 
     # Find initial min/max from grid, then refine with Newton.
+    # Fortran's MINLOC/MAXLOC traverse arrays in column-major order
+    # (theta index varies fastest). Use exact extrema and pick the
+    # first index in Fortran order when there are ties.
     b = fields["b"]
-    min_idx = jnp.argmin(b)
-    max_idx = jnp.argmax(b)
-    min_i, min_j = jnp.unravel_index(min_idx, b.shape)
-    max_i, max_j = jnp.unravel_index(max_idx, b.shape)
+    b_max = jnp.max(b)
+    b_min = jnp.min(b)
+
+    max_i, max_j = _select_extremum_index(
+        b,
+        theta_arr,
+        phi_arr,
+        ixm,
+        ixn,
+        coeffs["bmnc"],
+        max_m_mode,
+        max_n_mode,
+        find_max=True,
+    )
+    min_i, min_j = _select_extremum_index(
+        b,
+        theta_arr,
+        phi_arr,
+        ixm,
+        ixn,
+        coeffs["bmnc"],
+        max_m_mode,
+        max_n_mode,
+        find_max=False,
+    )
 
     theta_bmin = theta_arr[min_i]
     phi_bmin = phi_arr[min_j]
