@@ -50,6 +50,7 @@ def main() -> None:
 
     # Use Rmajor as the optimization variable.
     Rmajor0 = problem.Rmajor
+    print("initial Rmajor:", Rmajor0)
 
     def eps_eff_from_Rmajor(Rmajor: jnp.ndarray) -> jnp.ndarray:
         out = flint_bo_jax(problem.surface, problem.params, problem.env, nfp=booz.nfp, rt0=Rmajor)
@@ -83,6 +84,7 @@ def main() -> None:
         ftol=1.0e-14,
         xtol=1.0e-14,
         max_nfev=20,
+        verbose=2,
     )
     print("optimizer status:", result.message)
     print("optimized Rmajor:", result.x[0])
