@@ -22,7 +22,7 @@ def compute_reference(booz: BoozerData) -> Dict[str, float]:
     m0_idx = np.where((booz.ixm == 0) & (booz.ixn == 0))[0][0]
     rt0 = float(booz.rmnc[0, m0_idx])
     bmref_g = float(booz.bmnc[0, m0_idx])
-    return {"rt0": rt0, "bmref_g": bmref_g}
+    return {"rt0": rt0, "Rmajor": rt0, "bmref_g": bmref_g}
 
 
 def _env_flag(name: str) -> bool:

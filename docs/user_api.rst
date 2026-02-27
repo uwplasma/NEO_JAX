@@ -9,10 +9,10 @@ Quick start
 
 .. code-block:: python
 
-   from neo_jax import NeoConfig, run_boozmn
+   from neo_jax import NeoConfig, run_neo
 
    config = NeoConfig(surfaces=[19, 39, 59, 79], theta_n=64, phi_n=64)
-   results = run_boozmn("boozmn.nc", config=config)
+   results = run_neo("boozmn.nc", config=config)
 
    print(results.epsilon_effective)
    print(results[0].epsilon_effective_by_class)
@@ -30,6 +30,22 @@ supporting vector access by name:
 
 Aliases are supported for common names (``epstot`` → ``epsilon_effective``).
 
+Configuration parameters
+------------------------
+
+The main solver parameters live in :class:`neo_jax.NeoConfig`:
+
+- ``npart``: number of ``eta`` grid points (pitch parameter sampling).
+- ``multra``: number of trapped-particle classes to resolve.
+- ``nstep_per``: RK4 steps per field period.
+- ``nstep_min`` / ``nstep_max``: minimum/maximum number of field periods to
+  integrate before convergence checks.
+- ``acc_req``: accuracy requirement for rational-surface handling.
+- ``no_bins``: bins used for rational-surface coverage.
+
+These map directly to the legacy NEO control file and can be overridden in
+examples or custom workflows.
+
 Radial coordinates
 ------------------
 
@@ -44,15 +60,15 @@ NEO_JAX reports multiple radial coordinates:
 Running on Boozer objects
 -------------------------
 
-If you already have a Boozer object (for example, from ``booz_xform_jax``), use
-``run_booz_xform``:
+If you already have a Boozer object (for example, from ``booz_xform_jax``),
+you can pass it directly to ``run_neo`` (or call ``run_booz_xform``):
 
 .. code-block:: python
 
-   from neo_jax import NeoConfig, run_booz_xform
+   from neo_jax import NeoConfig, run_neo
 
    config = NeoConfig(surfaces=[10, 20, 30])
-   results = run_booz_xform(booz_obj, config=config)
+   results = run_neo(booz_obj, config=config)
 
 Plotting
 --------
@@ -66,6 +82,25 @@ A helper is provided to plot epsilon effective vs radius:
    fig, ax = plot_epsilon_effective(results, x="s")
    fig.savefig("eps_eff.png", dpi=150)
 
+Advanced workflows
+------------------
+
+For custom optimization loops (autodiff, JIT kernels, custom solvers), you can
+use :func:`neo_jax.workflow.build_surface_problem` to construct the surface,
+environment, and integration parameters in one step:
+
+.. code-block:: python
+
+   from neo_jax import NeoConfig, build_surface_problem
+   from neo_jax.api import load_boozmn
+
+   booz = load_boozmn("boozmn.nc")
+   config = NeoConfig(surfaces=[0.35], theta_n=64, phi_n=64)
+   problem = build_surface_problem(booz, config, surface=config.surfaces[0])
+
+The returned ``SurfaceProblem`` contains the fields ``surface``, ``env``,
+``params``, and ``Rmajor`` required by the low-level integrator.
+
 Surface selection by ``s``
 --------------------------
 
@@ -76,4 +111,4 @@ the nearest available surface in the Boozer grid.
 .. code-block:: python
 
    config = NeoConfig(surfaces=[0.2, 0.5, 0.8])
-   results = run_boozmn("boozmn.nc", config=config)
+   results = run_neo("boozmn.nc", config=config)

@@ -9,11 +9,11 @@ high-level config.
 
 .. code-block:: python
 
-   from neo_jax import NeoConfig, run_boozmn
+   from neo_jax import NeoConfig, run_neo
 
    # Surfaces may be specified by index or by s in [0, 1].
    config = NeoConfig(surfaces=[0.15, 0.35, 0.6, 0.85], theta_n=64, phi_n=64)
-   results = run_boozmn("boozmn.nc", config=config)
+   results = run_neo("boozmn.nc", config=config)
 
    # Access by name (aliases supported)
    print(results.epsilon_effective)
@@ -31,8 +31,8 @@ Examples
 Two executable examples are included in ``examples/``:
 
 - ``examples/ncsx_epsilon_effective_plot.py``: compute and plot epsilon effective vs ``s``.
-- ``examples/ncsx_autodiff_rt0_optimization.py``: autodiff demo that adjusts ``rt0`` to
-  reduce epsilon effective (toy example).
+- ``examples/ncsx_autodiff_Rmajor_optimization.py``: autodiff demo that adjusts
+  ``Rmajor`` to reduce epsilon effective (toy example).
 
 JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------
@@ -45,7 +45,7 @@ A typical flow is:
 
 - Use ``vmec_jax`` to compute an equilibrium state from a VMEC input file.
 - Use ``booz_xform_jax`` to generate Boozer Fourier coefficients and currents.
-- Pass those arrays directly into :func:`neo_jax.run_booz_xform` without writing
-  ``wout`` or ``boozmn`` files.
+- Pass those arrays directly into :func:`neo_jax.run_neo` (or
+  :func:`neo_jax.run_booz_xform`) without writing ``wout`` or ``boozmn`` files.
 
 See :doc:`vmec_boozer` for the required data interface and mapping details.
