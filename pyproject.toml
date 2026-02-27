@@ -37,6 +37,9 @@ docs = [
   "sphinx-design>=0.6",
 ]
 
+[tool.setuptools]
+packages = ["neo_jax"]
+
 [tool.pytest.ini_options]
 addopts = "-ra -q"
 testpaths = ["tests"]

@@ -2,6 +2,56 @@
 
 This plan is written as a step-by-step, always-on prompt. Follow it in order. Do not skip steps unless explicitly instructed. Keep each step small, testable, and reproducible.
 
+## Current Status (Completed)
+- Core NEO_JAX port complete with JAX scan backend, rational-surface correction, and parity on ORBITS_FAST, NCSX (fast + full gated), and LandremanPaul2021_QA_lowres.
+- Streamed Fourier summation mode added for memory reduction; vectorized mode retained for speed.
+- JAX scan body fused (neo_eval + RK4 + trapped update).
+- User-friendly API added: `NeoConfig`, `run_boozmn`, `run_boozer`, `run_booz_xform`, `NeoResults`.
+- Examples updated with full API usage, plotting, and autodiff demos.
+- Documentation expanded: API guide, performance page, tutorials, validation.
+- Parity fixtures tracked in `tests/fixtures/` with CI-ready fast cases.
+
+## Immediate Next Steps (vmec_jax → booz_xform_jax → neo_jax)
+1. **JAX-native Boozer adapter**:
+   - Update `booz_xform_to_boozerdata` to preserve JAX arrays when inputs are JAX.
+   - Eliminate `np.asarray` in the JAX path to keep JIT and gradients intact.
+2. **JAX-native surface loop**:
+   - Implement a `run_neo_jax` function that uses `jax.vmap` or `jax.lax.scan`
+     over surfaces (no Python loop).
+   - Return batched `NeoResults` with JAX arrays.
+3. **JAX-safe surface initialization**:
+   - Replace NumPy tie-breaker in `init_surface` for JIT path, or
+     accept Bmin/Bmax/angles directly from `booz_xform_jax` to avoid
+     host-side selection.
+4. **Pipeline module**:
+   - Add `neo_jax.pipeline.run_vmec_boozer_neo(vmec_state, neo_config)` that:
+     - calls vmec_jax → booz_xform_jax → neo_jax in one JIT.
+     - returns `NeoResults` and supports `jax.grad`.
+5. **Gradient validation**:
+   - Add a small gradient test: `grad(epsilon_effective)` w.r.t. a VMEC boundary
+     coefficient at low resolution.
+6. **Optimization demo**:
+   - Provide an end-to-end optimization example that minimizes epsilon effective
+     with respect to VMEC boundary coefficients.
+
+## Required changes in booz_xform_jax
+- Replace any NumPy usage with `jax.numpy` in core transforms.
+- Remove any file I/O from the core; keep I/O in a thin wrapper only.
+- Ensure all shapes are static and JIT-friendly (avoid dynamic list append).
+- Replace Python loops with `lax.scan`/`vmap` where possible.
+- Provide an explicit JAX API that returns a boozmn-like object with fields
+  (`rmnc_b`, `zmns_b`, `pmns_b`, `bmnc_b`, `ixm_b`, `ixn_b`, `iota_b`,
+  `buco_b`, `bvco_b`, `nfp_b`, `jlist`).
+
+## Required changes in vmec_jax
+- Provide a clean, pure JAX API that returns all fields needed by booz_xform_jax.
+- Ensure no file I/O or side effects in the core VMEC solve.
+- Expose boundary parameterization with JAX arrays for optimization.
+
+## Deferred / Later
+- GPU parity and overnight ORBITS full parity.
+- Performance tuning on GPU after end-to-end JIT pipeline is ready.
+
 ## Goals
 - Port the STELLOPT NEO Fortran code to a JAX implementation that reproduces `xneo` outputs and logs for the same inputs.
 - Provide an end-to-end differentiable pipeline: `vmec_jax` -> `booz_xform_jax` -> `neo_jax`, fully JIT-friendly, CPU and GPU capable.
