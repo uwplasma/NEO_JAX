@@ -14,6 +14,12 @@ pip install -e .
 neo-jax ORBITS --boozmn tests/fixtures/orbits/boozmn_ORBITS.nc --verbose
 ```
 
+If you prefer not to install, run from the repo root with:
+
+```bash
+PYTHONPATH=. python examples/ncsx_jit_run.py
+```
+
 ## Simple Python API
 
 ```python
