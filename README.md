@@ -14,6 +14,19 @@ pip install -e .
 neo-jax ORBITS --boozmn tests/fixtures/orbits/boozmn_ORBITS.nc --verbose
 ```
 
+## Simple Python API
+
+```python
+from neo_jax import NeoConfig, run_boozmn
+
+config = NeoConfig(surfaces=[19, 39, 59, 79], theta_n=64, phi_n=64)
+results = run_boozmn("boozmn.nc", config=config)
+
+# Access by name
+print(results.epsilon_effective)
+print(results["epsilon_effective_by_class"].shape)
+```
+
 ## Documentation
 
 Sphinx documentation lives in `docs/` and is configured for Read the Docs.

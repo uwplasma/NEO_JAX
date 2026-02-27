@@ -14,6 +14,7 @@ from .data_models import BoozerData
 from .grids import prepare_grids
 from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
 from .io import read_boozmn
+from .results import NeoResults, NeoSurfaceResult
 from .surface import init_surface
 
 
@@ -191,7 +192,7 @@ def run_neo_from_boozer(
     *,
     use_jax: bool = False,
     progress: bool = False,
-) -> List[Dict[str, float]]:
+) -> NeoResults:
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
 
     max_m_mode = control.max_m_mode if control.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
@@ -220,7 +221,7 @@ def run_neo_from_boozer(
         calc_nstep_max=control.calc_nstep_max,
     )
 
-    results: List[Dict[str, float]] = []
+    results: List[NeoSurfaceResult] = []
     reff = 0.0
 
     write_diagnostic = bool(control.write_diagnostic) or _env_flag("NEO_JAX_WRITE_DIAGNOSTIC")
@@ -373,22 +374,21 @@ def run_neo_from_boozer(
         reff = reff + float(out["drdpsi"] * dpsi)
 
         flux_index = control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1
-        result = (
-            {
-                "flux_index": flux_index,
-                "epstot": epstot,
-                "reff": reff,
-                "iota": float(booz.iota[surf_idx]),
-                "b_ref": b_ref,
-                "r_ref": r_ref,
-                "epspar": epspar,
-                "ctrone": float(out.get("ctrone", 0.0)),
-                "ctrtot": float(out.get("ctrtot", 0.0)),
-                "bareph": float(out.get("bareph", 0.0)),
-                "barept": float(out.get("barept", 0.0)),
-                "yps": float(out.get("yps", 0.0)),
-                "diagnostics": out,
-            }
+        result = NeoSurfaceResult(
+            flux_index=flux_index,
+            psi=float(psi),
+            reff=reff,
+            iota=float(booz.iota[surf_idx]),
+            b_ref=b_ref,
+            r_ref=r_ref,
+            epsilon_effective=epstot,
+            epsilon_effective_by_class=epspar,
+            ctrone=float(out.get("ctrone", 0.0)),
+            ctrtot=float(out.get("ctrtot", 0.0)),
+            bareph=float(out.get("bareph", 0.0)),
+            barept=float(out.get("barept", 0.0)),
+            yps=float(out.get("yps", 0.0)),
+            diagnostics=out,
         )
 
         if write_diagnostic:
@@ -422,7 +422,7 @@ def run_neo_from_boozer(
                 f"NEO_JAX: epstot={result['epstot']:.6e} reff={result['reff']:.6e} iota={result['iota']:.6e}"
             )
 
-    return results
+    return NeoResults(results)
 
 
 def run_neo_from_boozmn(
@@ -432,7 +432,7 @@ def run_neo_from_boozmn(
     use_jax: bool = False,
     progress: bool = False,
     extension: str | None = None,
-) -> List[Dict[str, float]]:
+) -> NeoResults:
     booz = read_boozmn(
         boozmn_path,
         max_m_mode=control.max_m_mode,
