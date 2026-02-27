@@ -33,6 +33,8 @@ Two executable examples are included in ``examples/``:
 - ``examples/ncsx_epsilon_effective_plot.py``: compute and plot epsilon effective vs ``s``.
 - ``examples/ncsx_autodiff_Rmajor_optimization.py``: autodiff demo that adjusts
   ``Rmajor`` to reduce epsilon effective (toy example).
+- ``examples/epsilon_effective_scale_optimization.py``: toy optimization that
+  scales |B| to reduce epsilon effective (autodiff demo).
 
 JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------
@@ -44,8 +46,8 @@ allowing end-to-end differentiation when paired with ``vmec_jax`` and
 A typical flow is:
 
 - Use ``vmec_jax`` to compute an equilibrium state from a VMEC input file.
-- Use ``booz_xform_jax`` to generate Boozer Fourier coefficients and currents.
+- Use ``booz_xform_jax.jax_api`` to generate Boozer Fourier coefficients and currents.
 - Pass those arrays directly into :func:`neo_jax.run_neo` (or
-  :func:`neo_jax.run_booz_xform`) without writing ``wout`` or ``boozmn`` files.
+  :func:`neo_jax.run_boozer_to_neo`) without writing ``wout`` or ``boozmn`` files.
 
 See :doc:`vmec_boozer` for the required data interface and mapping details.

@@ -148,6 +148,7 @@ def run_booz_xform(
         max_m_mode=cfg.max_m_mode if max_m_mode is None else max_m_mode,
         max_n_mode=cfg.max_n_mode if max_n_mode is None else max_n_mode,
         fluxs_arr=cfg.surfaces,
+        use_jax=use_jax,
     )
     return run_boozer(booz_data, config=cfg, use_jax=use_jax, progress=progress)
 

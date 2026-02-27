@@ -8,6 +8,16 @@ from typing import Optional, Sequence
 import math
 import numpy as np
 
+try:  # Optional JAX support for end-to-end pipelines
+    import jax
+    import jax.numpy as jnp
+
+    _JAX_AVAILABLE = True
+except Exception:  # pragma: no cover - optional dependency
+    jax = None  # type: ignore
+    jnp = None  # type: ignore
+    _JAX_AVAILABLE = False
+
 from .data_models import BoozerData
 
 try:
@@ -107,7 +117,9 @@ def _transpose_if_needed(arr: np.ndarray, pack_len: int) -> np.ndarray:
     raise ValueError("Unexpected boozmn array shape")
 
 
-def _select_modes(ixm: np.ndarray, ixn: np.ndarray, max_m: int, max_n: int) -> np.ndarray:
+def _select_modes(ixm: np.ndarray, ixn: np.ndarray, max_m: int, max_n: int):
+    if _JAX_AVAILABLE and isinstance(ixm, jax.Array):  # type: ignore[arg-type]
+        return (jnp.abs(ixm) <= max_m) & (jnp.abs(ixn) <= max_n)  # type: ignore[union-attr]
     return (np.abs(ixm) <= max_m) & (np.abs(ixn) <= max_n)
 
 
@@ -216,6 +228,7 @@ def booz_xform_to_boozerdata(
     max_m_mode: int = 0,
     max_n_mode: int = 0,
     fluxs_arr: Optional[Sequence[int]] = None,
+    use_jax: bool | None = None,
 ) -> BoozerData:
     """Convert booz_xform-style arrays into BoozerData.
 
@@ -230,18 +243,29 @@ def booz_xform_to_boozerdata(
             return getattr(booz, name)
         raise KeyError(f"Missing field {name} in Boozer data")
 
+    def _asarray(obj, *, dtype=None):
+        if isinstance(obj, np.ma.MaskedArray):
+            obj = obj.filled()
+        return xp.asarray(obj, dtype=dtype)
+
+    sample = _get("rmnc_b")
+    if use_jax is None:
+        use_jax = _JAX_AVAILABLE and isinstance(sample, jax.Array)  # type: ignore[arg-type]
+
+    xp = jnp if (use_jax and _JAX_AVAILABLE) else np
+
     nfp = int(np.asarray(_get("nfp_b")).squeeze())
-    ixm_b = np.asarray(_get("ixm_b"), dtype=int)
-    ixn_b = np.asarray(_get("ixn_b"), dtype=int)
+    ixm_b = _asarray(_get("ixm_b"), dtype=int)
+    ixn_b = _asarray(_get("ixn_b"), dtype=int)
 
-    iota_b = np.asarray(_get("iota_b"), dtype=float)
-    buco_b = np.asarray(_get("buco_b"), dtype=float)
-    bvco_b = np.asarray(_get("bvco_b"), dtype=float)
+    iota_b = _asarray(_get("iota_b"), dtype=float)
+    buco_b = _asarray(_get("buco_b"), dtype=float)
+    bvco_b = _asarray(_get("bvco_b"), dtype=float)
 
-    rmnc_raw = np.asarray(_get("rmnc_b"), dtype=float)
-    zmns_raw = np.asarray(_get("zmns_b"), dtype=float)
-    pmns_raw = np.asarray(_get("pmns_b"), dtype=float)
-    bmnc_raw = np.asarray(_get("bmnc_b"), dtype=float)
+    rmnc_raw = _asarray(_get("rmnc_b"), dtype=float)
+    zmns_raw = _asarray(_get("zmns_b"), dtype=float)
+    pmns_raw = _asarray(_get("pmns_b"), dtype=float)
+    bmnc_raw = _asarray(_get("bmnc_b"), dtype=float)
 
     if rmnc_raw.shape[0] == ixm_b.shape[0]:
         rmnc_raw = rmnc_raw.T
@@ -251,8 +275,8 @@ def booz_xform_to_boozerdata(
 
     ns_b = rmnc_raw.shape[0]
 
-    max_m = max_m_mode if max_m_mode > 0 else int(np.max(np.abs(ixm_b)))
-    max_n = max_n_mode if max_n_mode > 0 else int(np.max(np.abs(ixn_b)))
+    max_m = max_m_mode if max_m_mode > 0 else int(np.max(np.abs(np.asarray(ixm_b))))
+    max_n = max_n_mode if max_n_mode > 0 else int(np.max(np.abs(np.asarray(ixn_b))))
     mode_mask = _select_modes(ixm_b, ixn_b, max_m, max_n)
 
     ixm = ixm_b[mode_mask]
@@ -285,16 +309,18 @@ def booz_xform_to_boozerdata(
         curr_pol.append(bvco_b[surf_idx])
         curr_tor.append(buco_b[surf_idx])
 
+    arr = xp.asarray
+
     return BoozerData(
-        rmnc=np.asarray(rmnc),
-        zmns=np.asarray(zmns),
-        lmns=np.asarray(lmns),
-        bmnc=np.asarray(bmnc),
-        ixm=np.asarray(ixm),
-        ixn=np.asarray(ixn),
-        es=np.asarray(es),
-        iota=np.asarray(iota),
-        curr_pol=np.asarray(curr_pol),
-        curr_tor=np.asarray(curr_tor),
+        rmnc=arr(rmnc),
+        zmns=arr(zmns),
+        lmns=arr(lmns),
+        bmnc=arr(bmnc),
+        ixm=arr(ixm),
+        ixn=arr(ixn),
+        es=arr(es),
+        iota=arr(iota),
+        curr_pol=arr(curr_pol),
+        curr_tor=arr(curr_tor),
         nfp=nfp,
     )

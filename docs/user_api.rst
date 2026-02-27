@@ -70,6 +70,14 @@ you can pass it directly to ``run_neo`` (or call ``run_booz_xform``):
    config = NeoConfig(surfaces=[10, 20, 30])
    results = run_neo(booz_obj, config=config)
 
+Pipeline helpers
+----------------
+
+For workflows that chain VMEC → Boozer → NEO, NEO_JAX provides two helpers:
+
+- :func:`neo_jax.run_boozer_to_neo`: run NEO directly on a booz_xform output mapping.
+- :func:`neo_jax.run_vmec_boozer_neo`: convenience wrapper for vmec_jax → booz_xform_jax → NEO.
+
 Plotting
 --------
 

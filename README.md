@@ -34,6 +34,18 @@ print(results.epsilon_effective)
 print(results["epsilon_effective_by_class"].shape)
 ```
 
+## JAX-native pipeline
+
+You can run directly on JAX-native Boozer outputs (for example from
+`booz_xform_jax.jax_api`) without writing `boozmn` files:
+
+```python
+from neo_jax import NeoConfig, run_neo
+
+# booz_out is a dict with keys like rmnc_b, zmns_b, pmns_b, bmnc_b, ixm_b, ixn_b
+results = run_neo(booz_out, config=NeoConfig(surfaces=[1, 2, 3]))
+```
+
 ## Documentation
 
 Sphinx documentation lives in `docs/` and is configured for Read the Docs.
@@ -44,6 +56,7 @@ See `docs/index.rst` for the table of contents.
 
 - `examples/ncsx_epsilon_effective_plot.py`: compute and plot epsilon effective vs `s`.
 - `examples/ncsx_autodiff_Rmajor_optimization.py`: autodiff optimization demo over `Rmajor`.
+- `examples/epsilon_effective_scale_optimization.py`: toy autodiff example that scales |B| to reduce epsilon effective.
 
 ## NCSX Parity Snapshot
 
