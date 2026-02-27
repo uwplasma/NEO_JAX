@@ -19,6 +19,7 @@ ripple and related neoclassical transport diagnostics in Boozer coordinates.
    tutorials_orbits
    tutorials_ncsx
    validation
+   performance
    fortran_map
    api
    references

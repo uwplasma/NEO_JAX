@@ -24,6 +24,15 @@ To emulate ``xneo``, you can use the CLI:
 
    neo-jax ORBITS --boozmn boozmn_ORBITS.nc --verbose
 
+Examples
+--------
+
+Two executable examples are included in ``examples/``:
+
+- ``examples/ncsx_jit_run.py``: run a JIT-compiled NCSX solve on a single surface.
+- ``examples/ncsx_autodiff_opt.py``: minimize a scalar loss using autodiff through
+  ``flint_bo_jax``.
+
 JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------
 

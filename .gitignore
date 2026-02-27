@@ -19,5 +19,8 @@ __pycache__/
 # Sphinx
 /docs/_build/
 
+# Profiling
+/profiles/
+
 # OS
 .DS_Store
