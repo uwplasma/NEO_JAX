@@ -70,7 +70,7 @@ def ncsx_autodiff_demo(
     Rmajor_base = jnp.asarray(problem.Rmajor)
 
     def epstot_from_Rmajor(Rmajor: jnp.ndarray) -> jnp.ndarray:
-        out = flint_bo_jax(problem.surface, problem.params, problem.env, nfp=booz.nfp, rt0=Rmajor)
+        out = flint_bo_jax(problem.surface, problem.params, problem.env, nfp=booz.nfp, Rmajor=Rmajor)
         return out["epstot"]
 
     epstot_fn = jax.jit(epstot_from_Rmajor)
