@@ -58,6 +58,10 @@ from a booz_xform-style object into the ``BoozerData`` container used by the
 solver, and :func:`neo_jax.run_neo` (or :func:`neo_jax.run_booz_xform`) to run
 the solver directly on that object with a high-level configuration.
 
+When the Boozer transform returns JAX arrays (from ``booz_xform_jax.jax_api``),
+use :func:`neo_jax.io.booz_xform_to_boozerdata_jax` to preserve device arrays
+and keep the pipeline differentiable.
+
 For pipeline workflows, see :func:`neo_jax.run_boozer_to_neo` and
 :func:`neo_jax.run_vmec_boozer_neo` for convenience wrappers.
 
