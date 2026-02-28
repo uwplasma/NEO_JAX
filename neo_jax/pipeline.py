@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+import numpy as np
+
 from .api import run_neo
 from .config import NeoConfig
 
@@ -62,6 +64,91 @@ def booz_xform_from_vmec_wout(
     if surfaces is not None:
         bx.register_surfaces(surfaces)
     return bx.run_jax(jit=jit)
+
+
+def booz_xform_from_vmec_state_jax(
+    *,
+    vmec_run: Any,
+    mboz: int | None = None,
+    nboz: int | None = None,
+    surfaces: Sequence[int | float] | None = None,
+    jit: bool = True,
+) -> Mapping[str, Any]:
+    """JAX-native VMEC state -> Boozer transform using booz_xform_jax."""
+    try:
+        import jax
+        from booz_xform_jax.jax_api import prepare_booz_xform_constants, booz_xform_jax_impl
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "booz_xform_jax is required for the JAX-native VMEC -> Boozer path."
+        ) from exc
+
+    try:
+        from vmec_jax.booz_input import booz_xform_inputs_from_state
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "vmec_jax with booz_input is required for the JAX-native VMEC -> Boozer path."
+        ) from exc
+
+    inputs = booz_xform_inputs_from_state(
+        state=vmec_run.state,
+        static=vmec_run.static,
+        indata=vmec_run.indata,
+        signgs=int(vmec_run.signgs),
+    )
+
+    mboz_val = int(mboz) if mboz is not None else int(np.max(np.asarray(inputs.xm))) + 1
+    nboz_val = int(nboz) if nboz is not None else int(np.max(np.abs(np.asarray(inputs.xn)))) // int(inputs.nfp)
+
+    constants, grids = prepare_booz_xform_constants(
+        nfp=int(inputs.nfp),
+        mboz=mboz_val,
+        nboz=nboz_val,
+        asym=bool(vmec_run.static.cfg.lasym),
+        xm=np.asarray(inputs.xm),
+        xn=np.asarray(inputs.xn),
+        xm_nyq=np.asarray(inputs.xm_nyq),
+        xn_nyq=np.asarray(inputs.xn_nyq),
+    )
+
+    if surfaces is None:
+        surface_indices = None
+    else:
+        ns_b = int(inputs.rmnc.shape[0])
+        hs = 1.0 / ns_b
+        s_vals = [(idx + 1 - 1.5) * hs for idx in range(ns_b)]
+        surface_indices = []
+        for val in surfaces:
+            if isinstance(val, float) and 0.0 <= val <= 1.0:
+                best = min(range(ns_b), key=lambda i: abs(s_vals[i] - val))
+                surface_indices.append(best)
+            else:
+                surface_indices.append(int(val) - 1)
+        surface_indices = jax.numpy.asarray(surface_indices, dtype=jax.numpy.int32)
+
+    booz_fn = booz_xform_jax_impl
+    if jit:
+        booz_fn = jax.jit(booz_xform_jax_impl, static_argnames=("constants",))
+
+    return booz_fn(
+        rmnc=inputs.rmnc,
+        zmns=inputs.zmns,
+        lmns=inputs.lmns,
+        bmnc=inputs.bmnc,
+        bsubumnc=inputs.bsubumnc,
+        bsubvmnc=inputs.bsubvmnc,
+        iota=inputs.iota,
+        xm=inputs.xm,
+        xn=inputs.xn,
+        xm_nyq=inputs.xm_nyq,
+        xn_nyq=inputs.xn_nyq,
+        constants=constants,
+        grids=grids,
+        bmns=inputs.bmns,
+        bsubumns=inputs.bsubumns,
+        bsubvmns=inputs.bsubvmns,
+        surface_indices=surface_indices,
+    )
 
 
 def _resolve_vmec_wout(
@@ -128,3 +215,23 @@ def run_vmec_boozer_neo(
     else:
         booz_output = booz_xform_fn(wout, **booz_kwargs)
     return run_neo(booz_output, config=neo_config, use_jax=use_jax, progress=progress)
+
+
+def run_vmec_boozer_neo_jax(
+    vmec_run: Any,
+    *,
+    booz_kwargs: dict | None = None,
+    neo_config: NeoConfig | None = None,
+    jax_surface_scan: bool = True,
+    progress: bool | None = None,
+) -> Any:
+    """JAX-native VMEC -> Boozer -> NEO pipeline using the JAX surface scan."""
+    booz_kwargs = booz_kwargs or {}
+    booz_output = booz_xform_from_vmec_state_jax(vmec_run=vmec_run, **booz_kwargs)
+    return run_neo(
+        booz_output,
+        config=neo_config,
+        use_jax=True,
+        progress=progress,
+        jax_surface_scan=jax_surface_scan,
+    )

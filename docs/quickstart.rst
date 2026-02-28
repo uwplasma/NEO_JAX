@@ -64,4 +64,7 @@ For a convenience wrapper that runs vmec_jax → booz_xform_jax → NEO in one c
        neo_config=config,
    )
 
+For a JAX-native VMEC→Boozer adapter plus JAX surface scan (no NumPy in VMEC→Boozer),
+use :func:`neo_jax.run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun`.
+
 See :doc:`vmec_boozer` for the required data interface and mapping details.

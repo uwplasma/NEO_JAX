@@ -128,6 +128,19 @@ def _select_extremum_index(
     return jnp.asarray(best_i), jnp.asarray(best_j)
 
 
+def _select_extremum_index_jax(
+    b: Array,
+    *,
+    find_max: bool,
+) -> Tuple[Array, Array]:
+    """JAX-safe extremum selection (no Python/Numpy tie-breaker)."""
+    # Fortran order: theta index varies fastest, so flatten b.T.
+    flat = jnp.reshape(b.T, (-1,))
+    idx = jnp.argmax(flat) if find_max else jnp.argmin(flat)
+    j, i = jnp.unravel_index(idx, b.T.shape)
+    return jnp.asarray(i), jnp.asarray(j)
+
+
 def init_surface(
     theta_arr: Array,
     phi_arr: Array,
@@ -142,6 +155,7 @@ def init_surface(
     iota: Array,
     grid: Dict[str, float],
     calc_cur: bool = False,
+    use_jax: bool = False,
 ) -> SurfaceData:
     """Initialize a single flux surface: Fourier sums, derived fields, splines, B min/max."""
     fourier = fourier_sums(
@@ -176,28 +190,32 @@ def init_surface(
     b_max = jnp.max(b)
     b_min = jnp.min(b)
 
-    max_i, max_j = _select_extremum_index(
-        b,
-        theta_arr,
-        phi_arr,
-        ixm,
-        ixn,
-        coeffs["bmnc"],
-        max_m_mode,
-        max_n_mode,
-        find_max=True,
-    )
-    min_i, min_j = _select_extremum_index(
-        b,
-        theta_arr,
-        phi_arr,
-        ixm,
-        ixn,
-        coeffs["bmnc"],
-        max_m_mode,
-        max_n_mode,
-        find_max=False,
-    )
+    if use_jax:
+        max_i, max_j = _select_extremum_index_jax(b, find_max=True)
+        min_i, min_j = _select_extremum_index_jax(b, find_max=False)
+    else:
+        max_i, max_j = _select_extremum_index(
+            b,
+            theta_arr,
+            phi_arr,
+            ixm,
+            ixn,
+            coeffs["bmnc"],
+            max_m_mode,
+            max_n_mode,
+            find_max=True,
+        )
+        min_i, min_j = _select_extremum_index(
+            b,
+            theta_arr,
+            phi_arr,
+            ixm,
+            ixn,
+            coeffs["bmnc"],
+            max_m_mode,
+            max_n_mode,
+            find_max=False,
+        )
 
     theta_bmin = theta_arr[min_i]
     phi_bmin = phi_arr[min_j]

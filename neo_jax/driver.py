@@ -16,6 +16,7 @@ from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
 from .io import read_boozmn
 from .results import NeoResults, NeoSurfaceResult
 from .surface import init_surface
+from .data_models import NeoOutputs
 
 
 def compute_reference(booz: BoozerData) -> Dict[str, float]:
@@ -23,6 +24,166 @@ def compute_reference(booz: BoozerData) -> Dict[str, float]:
     rt0 = float(booz.rmnc[0, m0_idx])
     bmref_g = float(booz.bmnc[0, m0_idx])
     return {"rt0": rt0, "Rmajor": rt0, "bmref_g": bmref_g}
+
+
+def compute_reference_jax(booz: BoozerData):
+    """JAX-friendly reference values."""
+    m0_mask = (booz.ixm == 0) & (booz.ixn == 0)
+    m0_idx = jnp.where(m0_mask, size=1, fill_value=0)[0]
+    rt0 = jnp.squeeze(booz.rmnc[0, m0_idx])
+    bmref_g = jnp.squeeze(booz.bmnc[0, m0_idx])
+    return rt0, bmref_g
+
+
+def run_neo_from_boozer_jax(
+    booz: BoozerData,
+    control: ControlParams,
+) -> NeoOutputs:
+    """JAX surface scan over all requested surfaces (no Python loop)."""
+    booz = BoozerData(
+        rmnc=jnp.asarray(booz.rmnc),
+        zmns=jnp.asarray(booz.zmns),
+        lmns=jnp.asarray(booz.lmns),
+        bmnc=jnp.asarray(booz.bmnc),
+        ixm=jnp.asarray(booz.ixm),
+        ixn=jnp.asarray(booz.ixn),
+        es=jnp.asarray(booz.es),
+        iota=jnp.asarray(booz.iota),
+        curr_pol=jnp.asarray(booz.curr_pol),
+        curr_tor=jnp.asarray(booz.curr_tor),
+        nfp=int(booz.nfp),
+    )
+    grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
+
+    max_m_mode = control.max_m_mode if control.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
+    max_n_mode = control.max_n_mode if control.max_n_mode > 0 else int(np.max(np.abs(booz.ixn)))
+
+    if control.fluxs_arr:
+        if booz.rmnc.shape[0] == len(control.fluxs_arr):
+            surf_indices = list(range(booz.rmnc.shape[0]))
+        else:
+            surf_indices = [i - 1 for i in control.fluxs_arr]
+    else:
+        surf_indices = list(range(booz.rmnc.shape[0]))
+
+    surf_indices_j = jnp.asarray(surf_indices, dtype=jnp.int32)
+
+    rt0, bmref_g = compute_reference_jax(booz)
+
+    params = FlintParams(
+        npart=control.npart,
+        multra=control.multra,
+        nstep_per=control.nstep_per,
+        nstep_min=control.nstep_min,
+        nstep_max=control.nstep_max,
+        acc_req=control.acc_req,
+        no_bins=control.no_bins,
+        calc_nstep_max=control.calc_nstep_max,
+    )
+
+    def _solve_surface(surf_idx):
+        coeffs = {
+            "rmnc": booz.rmnc[surf_idx],
+            "zmns": booz.zmns[surf_idx],
+            "lmns": booz.lmns[surf_idx],
+            "bmnc": booz.bmnc[surf_idx],
+        }
+
+        surface = init_surface(
+            grid["theta_arr"],
+            grid["phi_arr"],
+            coeffs,
+            booz.ixm,
+            booz.ixn,
+            nfp=booz.nfp,
+            max_m_mode=max_m_mode,
+            max_n_mode=max_n_mode,
+            curr_pol=booz.curr_pol[surf_idx],
+            curr_tor=booz.curr_tor[surf_idx],
+            iota=booz.iota[surf_idx],
+            grid=grid,
+            use_jax=True,
+        )
+
+        env = RhsEnv(
+            splines=surface.splines,
+            grid=grid,
+            eta=jnp.array([0.0]),
+            bmod0=surface.bmref,
+            iota=booz.iota[surf_idx],
+            curr_pol=booz.curr_pol[surf_idx],
+            curr_tor=booz.curr_tor[surf_idx],
+        )
+
+        out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0)
+
+        if control.ref_swi == 1:
+            b_ref = bmref_g
+            r_ref = rt0
+        elif control.ref_swi == 2:
+            b_ref = surface.bmref
+            r_ref = rt0
+        else:
+            raise ValueError(f"Unsupported ref_swi: {control.ref_swi}")
+
+        scale = (b_ref / surface.bmref) ** 2 * (r_ref / rt0) ** 2
+        epstot = out["epstot"] * scale
+        epspar = out["epspar"] * scale
+
+        return (
+            epstot,
+            epspar,
+            out["ctrone"],
+            out["ctrtot"],
+            out["bareph"],
+            out["barept"],
+            out["yps"],
+            out["drdpsi"],
+            surface.bmref,
+            booz.es[surf_idx],
+            booz.iota[surf_idx],
+            b_ref,
+            r_ref,
+        )
+
+    (
+        epstot,
+        epspar,
+        ctrone,
+        ctrtot,
+        bareph,
+        barept,
+        yps,
+        drdpsi,
+        bmref,
+        s_vals,
+        iota_vals,
+        b_ref,
+        r_ref,
+    ) = jax.vmap(_solve_surface)(surf_indices_j)
+
+    dpsi = jnp.concatenate([s_vals[:1], s_vals[1:] - s_vals[:-1]], axis=0)
+    r_eff = jnp.cumsum(drdpsi * dpsi)
+
+    diagnostics = {
+        "s": s_vals,
+        "r_eff": r_eff,
+        "iota": iota_vals,
+        "b_ref": b_ref,
+        "r_ref": r_ref,
+        "bareph": bareph,
+        "barept": barept,
+        "yps": yps,
+    }
+
+    return NeoOutputs(
+        eps_eff=epstot,
+        eps_par=epspar,
+        eps_tot=epstot,
+        ctr_one=ctrone,
+        ctr_tot=ctrtot,
+        diagnostics=diagnostics,
+    )
 
 
 def _env_flag(name: str) -> bool:

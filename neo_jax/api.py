@@ -11,9 +11,10 @@ import numpy as np
 from .config import NeoConfig
 from .control import ControlParams
 from .data_models import BoozerData
-from .driver import run_neo_from_boozer, run_neo_from_boozmn
+from .driver import run_neo_from_boozer, run_neo_from_boozmn, run_neo_from_boozer_jax
 from .io import booz_xform_to_boozerdata, read_boozmn, read_boozmn_metadata
 from .results import NeoResults
+from .data_models import NeoOutputs
 
 
 def _control_from_config(config: NeoConfig, *, in_file: str = "boozmn", out_file: str = "neo_out") -> ControlParams:
@@ -62,7 +63,8 @@ def run_boozmn(
     surfaces: Sequence[int] | None = None,
     use_jax: bool = True,
     progress: bool | None = None,
-) -> NeoResults:
+    jax_surface_scan: bool = False,
+) -> NeoResults | NeoOutputs:
     """Run NEO_JAX from a boozmn file using a simplified configuration."""
     cfg = config or NeoConfig()
     if surfaces is not None:
@@ -75,6 +77,14 @@ def run_boozmn(
     ctrl = _control_from_config(cfg)
     if progress is None:
         progress = cfg.write_progress
+    if jax_surface_scan:
+        booz = read_boozmn(
+            str(boozmn_path),
+            max_m_mode=cfg.max_m_mode,
+            max_n_mode=cfg.max_n_mode,
+            fluxs_arr=cfg.surfaces,
+        )
+        return run_neo_from_boozer_jax(booz, ctrl)
     return run_neo_from_boozmn(str(boozmn_path), ctrl, use_jax=use_jax, progress=progress)
 
 
@@ -85,7 +95,8 @@ def run_boozer(
     surfaces: Sequence[int] | None = None,
     use_jax: bool = True,
     progress: bool | None = None,
-) -> NeoResults:
+    jax_surface_scan: bool = False,
+) -> NeoResults | NeoOutputs:
     """Run NEO_JAX from a BoozerData object (e.g., booz_xform_jax output)."""
     cfg = config or NeoConfig()
     if surfaces is not None:
@@ -104,6 +115,8 @@ def run_boozer(
     ctrl = _control_from_config(cfg)
     if progress is None:
         progress = cfg.write_progress
+    if jax_surface_scan:
+        return run_neo_from_boozer_jax(booz, ctrl)
     return run_neo_from_boozer(booz, ctrl, use_jax=use_jax, progress=progress)
 
 
@@ -116,7 +129,8 @@ def run_booz_xform(
     progress: bool | None = None,
     max_m_mode: int | None = None,
     max_n_mode: int | None = None,
-) -> NeoResults:
+    jax_surface_scan: bool = False,
+) -> NeoResults | NeoOutputs:
     """Run NEO_JAX from a booz_xform_jax-style object or mapping."""
     cfg = config or NeoConfig()
     if surfaces is not None:
@@ -150,7 +164,13 @@ def run_booz_xform(
         fluxs_arr=cfg.surfaces,
         use_jax=use_jax,
     )
-    return run_boozer(booz_data, config=cfg, use_jax=use_jax, progress=progress)
+    return run_boozer(
+        booz_data,
+        config=cfg,
+        use_jax=use_jax,
+        progress=progress,
+        jax_surface_scan=jax_surface_scan,
+    )
 
 
 def run_neo(
@@ -162,7 +182,8 @@ def run_neo(
     progress: bool | None = None,
     max_m_mode: int | None = None,
     max_n_mode: int | None = None,
-) -> NeoResults:
+    jax_surface_scan: bool = False,
+) -> NeoResults | NeoOutputs:
     """Run NEO_JAX from a boozmn path, BoozerData, or booz_xform_jax-like object."""
     if isinstance(source, (str, Path)):
         return run_boozmn(
@@ -171,6 +192,7 @@ def run_neo(
             surfaces=surfaces,
             use_jax=use_jax,
             progress=progress,
+            jax_surface_scan=jax_surface_scan,
         )
     if isinstance(source, BoozerData):
         return run_boozer(
@@ -179,6 +201,7 @@ def run_neo(
             surfaces=surfaces,
             use_jax=use_jax,
             progress=progress,
+            jax_surface_scan=jax_surface_scan,
         )
     return run_booz_xform(
         source,
@@ -188,6 +211,7 @@ def run_neo(
         progress=progress,
         max_m_mode=max_m_mode,
         max_n_mode=max_n_mode,
+        jax_surface_scan=jax_surface_scan,
     )
 
 

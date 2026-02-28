@@ -61,6 +61,10 @@ the solver directly on that object with a high-level configuration.
 For pipeline workflows, see :func:`neo_jax.run_boozer_to_neo` and
 :func:`neo_jax.run_vmec_boozer_neo` for convenience wrappers.
 
+For a JAX-native VMEC state → Boozer adapter plus a JAX surface scan, use
+:func:`neo_jax.run_vmec_boozer_neo_jax`. This path avoids NumPy in the VMEC→Boozer
+interface and is suitable for autodiff experiments.
+
 Example: vmec_jax → booz_xform_jax → neo_jax
 --------------------------------------------
 
