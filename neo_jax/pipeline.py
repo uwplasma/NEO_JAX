@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
+from dataclasses import replace
 
 import numpy as np
 
@@ -341,6 +342,15 @@ def build_vmec_boozer_neo_jax(
         s_selected = jnp.take(s_half_full, surface_indices, axis=0)
 
     control = cfg.to_control()
+    # Modes already filtered in the JAX pipeline; skip re-masking in Fourier sums.
+    control = replace(control, max_m_mode=-1, max_n_mode=-1)
+
+    # Precompute mode indices for JIT-safe slicing.
+    xm_b_np = np.asarray(grids.xm_b)
+    xn_b_np = np.asarray(grids.xn_b)
+    max_m = int(cfg.max_m_mode) if cfg.max_m_mode > 0 else int(np.max(np.abs(xm_b_np)))
+    max_n = int(cfg.max_n_mode) if cfg.max_n_mode > 0 else int(np.max(np.abs(xn_b_np)))
+    mode_indices = np.where((np.abs(xm_b_np) <= max_m) & (np.abs(xn_b_np) <= max_n))[0]
 
     def _solve(state):
         inputs = booz_xform_inputs_from_state(
@@ -380,8 +390,9 @@ def build_vmec_boozer_neo_jax(
             max_m_mode=cfg.max_m_mode,
             max_n_mode=cfg.max_n_mode,
             nfp_override=int(inputs0.nfp),
+            mode_indices=mode_indices,
         )
-        return run_neo_from_boozer_jax(booz, control)
+        return run_neo_from_boozer_jax(booz, control, skip_fourier_mask=True)
 
     if jit:
         _solve = jax.jit(_solve)

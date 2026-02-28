@@ -38,6 +38,8 @@ def compute_reference_jax(booz: BoozerData):
 def run_neo_from_boozer_jax(
     booz: BoozerData,
     control: ControlParams,
+    *,
+    skip_fourier_mask: bool = False,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
     booz = BoozerData(
@@ -111,6 +113,7 @@ def run_neo_from_boozer_jax(
             iota=booz.iota[surf_idx],
             grid=grid,
             use_jax=True,
+            skip_mask=skip_fourier_mask,
         )
 
         env = RhsEnv(

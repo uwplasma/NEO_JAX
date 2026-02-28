@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      JAX_PLATFORM_NAME: cpu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install "vmec_jax @ git+https://github.com/uwplasma/vmec_jax.git"
+          pip install "booz_xform_jax @ git+https://github.com/uwplasma/booz_xform_jax.git"
+      - name: Run tests
+        run: pytest -q
+      - name: Perf regression check
+        run: python benchmarks/ci_perf_check.py

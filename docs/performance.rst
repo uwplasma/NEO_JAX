@@ -57,6 +57,17 @@ Use ``benchmarks/profile_run.py`` to generate traces and XLA dumps:
 
 Open the trace directory with TensorBoard to inspect kernel-level hotspots.
 
+For end-to-end VMEC→Boozer→NEO profiling (including the Boozer transform),
+use ``benchmarks/profile_vmec_boozer_pipeline.py``. It records a JAX trace and
+emits an HLO text dump for kernel-level inspection:
+
+.. code-block:: bash
+
+   python benchmarks/profile_vmec_boozer_pipeline.py \
+     --case circular_tokamak \
+     --trace-dir profiles/vmec_boozer_neo_trace \
+     --hlo-out profiles/vmec_boozer_neo.hlo.txt
+
 JIT Pipeline Reuse
 ------------------
 
@@ -70,3 +81,6 @@ Benchmark JIT reuse with:
 .. code-block:: bash
 
    python benchmarks/benchmark_vmec_boozer_pipeline.py --case circular_tokamak --repeats 3
+
+For CI, ``benchmarks/ci_perf_check.py`` provides a small regression guardrail
+using a tiny pipeline case and configurable thresholds.
