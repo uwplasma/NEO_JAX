@@ -56,3 +56,11 @@ Use ``benchmarks/profile_run.py`` to generate traces and XLA dumps:
        --xla-dump-dir profiles/xla_orbits_fast_streamed
 
 Open the trace directory with TensorBoard to inspect kernel-level hotspots.
+
+JIT Pipeline Reuse
+------------------
+
+For end-to-end VMEC→Boozer→NEO workflows, prefer
+:func:`neo_jax.build_vmec_boozer_neo_jax` to precompute Boozer constants and
+reuse a single compiled callable. This avoids recompiling the Boozer transform
+and NEO scan in optimization loops.
