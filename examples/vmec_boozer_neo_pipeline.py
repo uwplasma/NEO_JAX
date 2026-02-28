@@ -7,6 +7,7 @@ import argparse
 
 from neo_jax import (
     NeoConfig,
+    build_vmec_boozer_neo_jax,
     neo_outputs_to_results,
     plot_epsilon_effective,
     run_vmec_boozer_neo,
@@ -57,6 +58,11 @@ def main() -> None:
         action="store_true",
         help="Use JAX-native VMEC->Boozer adapter and JAX surface scan.",
     )
+    parser.add_argument(
+        "--jit-pipeline",
+        action="store_true",
+        help="Build a reusable JAX pipeline callable and JIT it.",
+    )
     parser.add_argument("--no-show", action="store_true", help="Do not display plots.")
     args = parser.parse_args()
 
@@ -97,12 +103,21 @@ def main() -> None:
 
     if args.jax_scan:
         run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
-        results = run_vmec_boozer_neo_jax(
-            run,
-            booz_kwargs=booz_kwargs,
-            neo_config=config,
-            progress=True,
-        )
+        if args.jit_pipeline:
+            solver = build_vmec_boozer_neo_jax(
+                run,
+                booz_kwargs=booz_kwargs,
+                neo_config=config,
+                jit=True,
+            )
+            results = solver(run.state)
+        else:
+            results = run_vmec_boozer_neo_jax(
+                run,
+                booz_kwargs=booz_kwargs,
+                neo_config=config,
+                progress=True,
+            )
     else:
         results = run_vmec_boozer_neo(
             input_path,
