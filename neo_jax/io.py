@@ -346,6 +346,7 @@ def booz_xform_to_boozerdata_jax(
     max_n_mode: int = 0,
     fluxs_arr: Optional[Sequence[int]] = None,
     nfp_override: int | None = None,
+    mode_indices: Optional[Sequence[int]] = None,
 ) -> BoozerData:
     """JAX-friendly conversion from booz_xform outputs to BoozerData."""
     if not _JAX_AVAILABLE:  # pragma: no cover - optional
@@ -385,22 +386,39 @@ def booz_xform_to_boozerdata_jax(
 
     ns_b = rmnc_raw.shape[0]
 
-    max_m = max_m_mode if max_m_mode > 0 else jnp.max(jnp.abs(ixm_b))
-    max_n = max_n_mode if max_n_mode > 0 else jnp.max(jnp.abs(ixn_b))
-    mode_mask = (jnp.abs(ixm_b) <= max_m) & (jnp.abs(ixn_b) <= max_n)
+    if mode_indices is not None:
+        mode_idx = _asarray(mode_indices, dtype=jnp.int32)
+        ixm = jnp.take(ixm_b, mode_idx, axis=0)
+        ixn = jnp.take(ixn_b, mode_idx, axis=0)
+        mode_mask = None
+    else:
+        max_m = max_m_mode if max_m_mode > 0 else jnp.max(jnp.abs(ixm_b))
+        max_n = max_n_mode if max_n_mode > 0 else jnp.max(jnp.abs(ixn_b))
+        mode_mask = (jnp.abs(ixm_b) <= max_m) & (jnp.abs(ixn_b) <= max_n)
 
-    ixm = ixm_b[mode_mask]
-    ixn = ixn_b[mode_mask]
+        ixm = ixm_b[mode_mask]
+        ixn = ixn_b[mode_mask]
 
     if fluxs_arr:
         surface_indices = jnp.asarray([int(s) - 1 for s in fluxs_arr], dtype=jnp.int32)
     else:
         surface_indices = jnp.arange(ns_b, dtype=jnp.int32)
 
-    rmnc = jnp.take(rmnc_raw, surface_indices, axis=0)[:, mode_mask]
-    zmns = jnp.take(zmns_raw, surface_indices, axis=0)[:, mode_mask]
-    lmns = -jnp.take(pmns_raw, surface_indices, axis=0)[:, mode_mask] * nfp / (2.0 * math.pi)
-    bmnc = jnp.take(bmnc_raw, surface_indices, axis=0)[:, mode_mask]
+    rmnc_sel = jnp.take(rmnc_raw, surface_indices, axis=0)
+    zmns_sel = jnp.take(zmns_raw, surface_indices, axis=0)
+    pmns_sel = jnp.take(pmns_raw, surface_indices, axis=0)
+    bmnc_sel = jnp.take(bmnc_raw, surface_indices, axis=0)
+
+    if mode_indices is not None:
+        rmnc = jnp.take(rmnc_sel, mode_idx, axis=1)
+        zmns = jnp.take(zmns_sel, mode_idx, axis=1)
+        lmns = -jnp.take(pmns_sel, mode_idx, axis=1) * nfp / (2.0 * math.pi)
+        bmnc = jnp.take(bmnc_sel, mode_idx, axis=1)
+    else:
+        rmnc = rmnc_sel[:, mode_mask]
+        zmns = zmns_sel[:, mode_mask]
+        lmns = -pmns_sel[:, mode_mask] * nfp / (2.0 * math.pi)
+        bmnc = bmnc_sel[:, mode_mask]
 
     iota = jnp.take(iota_b, surface_indices, axis=0)
     curr_pol = jnp.take(bvco_b, surface_indices, axis=0)

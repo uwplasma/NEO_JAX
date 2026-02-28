@@ -30,6 +30,8 @@ def _fourier_sums_vectorized(
     nfp: int,
     max_m_mode: int,
     max_n_mode: int,
+    *,
+    skip_mask: bool = False,
     lasym: bool = False,
     rmns: Array | None = None,
     zmnc: Array | None = None,
@@ -40,13 +42,16 @@ def _fourier_sums_vectorized(
     m = ixm.astype(theta_arr.dtype)
     n = ixn.astype(theta_arr.dtype)
 
-    mask = (jnp.abs(m) <= max_m_mode) & (jnp.abs(n) <= max_n_mode)
-    m = m[mask]
-    n = n[mask]
-    rmnc = rmnc[mask]
-    zmns = zmns[mask]
-    lmns = lmns[mask]
-    bmnc = bmnc[mask]
+    if skip_mask:
+        mask = None
+    else:
+        mask = (jnp.abs(m) <= max_m_mode) & (jnp.abs(n) <= max_n_mode)
+        m = m[mask]
+        n = n[mask]
+        rmnc = rmnc[mask]
+        zmns = zmns[mask]
+        lmns = lmns[mask]
+        bmnc = bmnc[mask]
 
     theta = theta_arr[:, None]
     phi = phi_arr[:, None]
@@ -79,10 +84,11 @@ def _fourier_sums_vectorized(
     if lasym:
         if rmns is None or zmnc is None or lmnc is None or bmns is None:
             raise ValueError("Asymmetric terms requested but coefficients missing")
-        rmns = rmns[mask]
-        zmnc = zmnc[mask]
-        lmnc = lmnc[mask]
-        bmns = bmns[mask]
+        if mask is not None:
+            rmns = rmns[mask]
+            zmnc = zmnc[mask]
+            lmnc = lmnc[mask]
+            bmns = bmns[mask]
 
         r = r + jnp.sum(rmns[None, None, :] * sinv, axis=2)
         z = z + jnp.sum(zmnc[None, None, :] * cosv, axis=2)
@@ -145,6 +151,8 @@ def _fourier_sums_streamed(
     nfp: int,
     max_m_mode: int,
     max_n_mode: int,
+    *,
+    skip_mask: bool = False,
     lasym: bool = False,
     rmns: Array | None = None,
     zmnc: Array | None = None,
@@ -155,13 +163,16 @@ def _fourier_sums_streamed(
     m = ixm.astype(theta_arr.dtype)
     n = ixn.astype(theta_arr.dtype)
 
-    mask = (jnp.abs(m) <= max_m_mode) & (jnp.abs(n) <= max_n_mode)
-    m = m[mask]
-    n = n[mask]
-    rmnc = rmnc[mask]
-    zmns = zmns[mask]
-    lmns = lmns[mask]
-    bmnc = bmnc[mask]
+    if skip_mask:
+        mask = None
+    else:
+        mask = (jnp.abs(m) <= max_m_mode) & (jnp.abs(n) <= max_n_mode)
+        m = m[mask]
+        n = n[mask]
+        rmnc = rmnc[mask]
+        zmns = zmns[mask]
+        lmns = lmns[mask]
+        bmnc = bmnc[mask]
 
     theta = theta_arr
     phi = phi_arr
@@ -220,10 +231,11 @@ def _fourier_sums_streamed(
     if lasym:
         if rmns is None or zmnc is None or lmnc is None or bmns is None:
             raise ValueError("Asymmetric terms requested but coefficients missing")
-        rmns = rmns[mask]
-        zmnc = zmnc[mask]
-        lmnc = lmnc[mask]
-        bmns = bmns[mask]
+        if mask is not None:
+            rmns = rmns[mask]
+            zmnc = zmnc[mask]
+            lmnc = lmnc[mask]
+            bmns = bmns[mask]
 
         def body_asym(k, state):
             r, z, l, b, r_tb, r_pb, z_tb, z_pb, p_tb, p_pb, b_tb, b_pb = state
@@ -297,6 +309,8 @@ def fourier_sums(
     nfp: int,
     max_m_mode: int,
     max_n_mode: int,
+    *,
+    skip_mask: bool = False,
     lasym: bool = False,
     rmns: Array | None = None,
     zmnc: Array | None = None,
@@ -323,6 +337,7 @@ def fourier_sums(
             nfp,
             max_m_mode,
             max_n_mode,
+            skip_mask=skip_mask,
             lasym=lasym,
             rmns=rmns,
             zmnc=zmnc,
@@ -342,6 +357,7 @@ def fourier_sums(
             nfp,
             max_m_mode,
             max_n_mode,
+            skip_mask=skip_mask,
             lasym=lasym,
             rmns=rmns,
             zmnc=zmnc,

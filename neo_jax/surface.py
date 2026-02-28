@@ -156,6 +156,7 @@ def init_surface(
     grid: Dict[str, float],
     calc_cur: bool = False,
     use_jax: bool = False,
+    skip_mask: bool = False,
 ) -> SurfaceData:
     """Initialize a single flux surface: Fourier sums, derived fields, splines, B min/max."""
     fourier = fourier_sums(
@@ -170,6 +171,7 @@ def init_surface(
         nfp=nfp,
         max_m_mode=max_m_mode,
         max_n_mode=max_n_mode,
+        skip_mask=skip_mask,
         lasym=bool(coeffs.get("lasym", False)),
         rmns=coeffs.get("rmns"),
         zmnc=coeffs.get("zmnc"),
