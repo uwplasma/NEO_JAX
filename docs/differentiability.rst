@@ -30,3 +30,7 @@ JAX-native Boozer transforms
 For a fully differentiable pipeline, pair NEO_JAX with the functional API
 in ``booz_xform_jax.jax_api``. This avoids Python loops over surfaces and keeps
 all arrays on-device for JIT and ``jax.grad``.
+
+For repeated solves, use :func:`neo_jax.build_vmec_boozer_neo_jax` to build a
+reusable, optionally JIT-compiled callable that closes over the static Boozer
+constants and grid setup.

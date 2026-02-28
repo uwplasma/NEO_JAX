@@ -107,6 +107,24 @@ convert to NumPy as needed. For convenience, use
 
    results = neo_outputs_to_results(outputs)
 
+Reusable JAX pipeline
+---------------------
+
+For optimization loops or repeated solves, build the pipeline once and reuse
+the returned callable (optionally JIT-compiled):
+
+.. code-block:: python
+
+   from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
+
+   solver = build_vmec_boozer_neo_jax(
+       run,
+       booz_kwargs=dict(mboz=8, nboz=8),
+       neo_config=NeoConfig(surfaces=[0.5]),
+       jit=True,
+   )
+   outputs = solver(run.state)
+
 Plotting
 --------
 

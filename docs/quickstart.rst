@@ -66,6 +66,20 @@ For a convenience wrapper that runs vmec_jax → booz_xform_jax → NEO in one c
        neo_config=config,
    )
 
+For repeated solves or optimization loops, build a reusable JAX pipeline:
+
+.. code-block:: python
+
+   from neo_jax import build_vmec_boozer_neo_jax, NeoConfig
+
+   solver = build_vmec_boozer_neo_jax(
+       run,
+       booz_kwargs=dict(mboz=8, nboz=8),
+       neo_config=NeoConfig(surfaces=[0.5]),
+       jit=True,
+   )
+   outputs = solver(run.state)
+
 For a JAX-native VMEC→Boozer adapter plus JAX surface scan (no NumPy in VMEC→Boozer),
 use :func:`neo_jax.run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun`.
 
