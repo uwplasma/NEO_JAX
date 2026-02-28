@@ -93,6 +93,11 @@ Example:
        neo_config=config,
    )
 
+When ``jax_surface_scan=True`` (or when using :func:`neo_jax.run_vmec_boozer_neo_jax`),
+the return type is a JAX-friendly :class:`neo_jax.data_models.NeoOutputs` with
+arrays in JAX device memory. This is useful for autodiff pipelines; you can
+convert to NumPy as needed.
+
 Plotting
 --------
 
