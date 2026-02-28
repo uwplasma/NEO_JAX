@@ -1,5 +1,20 @@
 """NEO_JAX package."""
 
+import os
+
+# Ensure double precision by default for physics fidelity.
+# Users can disable via NEO_JAX_ENABLE_X64=0 or JAX_ENABLE_X64=0.
+if os.getenv("JAX_ENABLE_X64") is None:
+    enable_x64 = os.getenv("NEO_JAX_ENABLE_X64", "1").strip().lower()
+    if enable_x64 not in {"0", "false", "no", "off"}:
+        try:  # pragma: no cover - defensive in case jax isn't available yet
+            import jax
+
+            if not jax.config.jax_enable_x64:
+                jax.config.update("jax_enable_x64", True)
+        except Exception:
+            pass
+
 from ._version import __version__
 from .api import load_boozmn, run_boozer, run_booz_xform, run_boozmn, run_neo
 from .config import NeoConfig

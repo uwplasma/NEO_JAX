@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       JAX_PLATFORM_NAME: cpu
+      JAX_ENABLE_X64: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
