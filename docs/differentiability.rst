@@ -24,6 +24,10 @@ For performance-critical workflows, we recommend:
 - Using 64-bit precision when matching Fortran outputs.
 - Keeping diagnostic prints off during JIT execution.
 
+Reverse-mode autodiff (``jax.grad``) through the scan is currently limited by
+dynamic loop bounds in the trapped-particle logic. Forward-mode
+(``jax.jvp``/``jax.jacfwd``) is supported and used in the optimization examples.
+
 JAX-native Boozer transforms
 ----------------------------
 
