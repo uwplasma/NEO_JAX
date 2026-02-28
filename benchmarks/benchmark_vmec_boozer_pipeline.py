@@ -7,16 +7,6 @@ import time
 from pathlib import Path
 
 
-def _parse_surfaces(text: str) -> list[float]:
-    vals = []
-    for item in text.split(","):
-        item = item.strip()
-        if not item:
-            continue
-        vals.append(float(item))
-    return vals
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Benchmark JIT reuse for the VMEC→Boozer→NEO pipeline")
     parser.add_argument("--case", default="circular_tokamak", help="vmec_jax example case name")
@@ -36,6 +26,7 @@ def main() -> int:
 
     import vmec_jax as vj
     from vmec_jax.driver import example_paths
+    from vmec_jax.optimization import parse_surface_list
     from vmec_jax.vmec_tomnsp import vmec_angle_grid
 
     from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
@@ -61,7 +52,7 @@ def main() -> int:
     config = NeoConfig(
         theta_n=int(args.theta_n),
         phi_n=int(args.phi_n),
-        surfaces=_parse_surfaces(args.surfaces),
+        surfaces=parse_surface_list(args.surfaces),
         npart=12,
         multra=1,
         nstep_per=6,
