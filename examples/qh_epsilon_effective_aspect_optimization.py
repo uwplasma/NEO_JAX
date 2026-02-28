@@ -70,7 +70,6 @@ def main() -> None:
     from neo_jax import NeoConfig
     from neo_jax.driver import run_neo_from_boozer_jax
     from neo_jax.io import booz_xform_to_boozerdata
-    from neo_jax.results import neo_outputs_to_results
 
     if not has_jax():
         raise SystemExit("This example requires JAX (pip install -e '.[jax]').")
@@ -225,8 +224,7 @@ def main() -> None:
         )
         booz = booz_xform_to_boozerdata(booz_out, use_jax=True)
         outputs = run_neo_from_boozer_jax(booz, control)
-        results = neo_outputs_to_results(outputs)
-        return jnp.mean(jnp.asarray(results.epsilon_effective))
+        return jnp.mean(outputs.eps_eff)
 
     def objective(params):
         boundary = _build_boundary(params)
