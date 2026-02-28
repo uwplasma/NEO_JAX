@@ -13,6 +13,8 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
 - Documentation expanded: API guide, performance page, tutorials, validation.
 - Parity fixtures tracked in `tests/fixtures/` with CI-ready fast cases.
 - Added a JAX-native Boozer functional API in booz_xform_jax for end-to-end differentiation.
+- Added in-memory vmec_jax → booz_xform_jax → neo_jax pipeline helper (`run_vmec_boozer_neo`)
+  with a dedicated example and test (non-JIT end-to-end; uses WoutData).
 - Packaging fixed for editable installs (explicit package list); docs build fixes applied (intersphinx, title underline).
 
 ## Immediate Next Steps (vmec_jax → booz_xform_jax → neo_jax)
@@ -28,10 +30,12 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
      accept Bmin/Bmax/angles directly from `booz_xform_jax` to avoid
      host-side selection.
 4. **Pipeline module**:
-   - Add `neo_jax.pipeline.run_vmec_boozer_neo(vmec_state, neo_config)` that:
-     - calls vmec_jax → booz_xform_jax → neo_jax in one JIT.
-     - returns `NeoResults` and supports `jax.grad`.
-   - Coordinate with vmec_jax to provide a JAX-native `vmec_state` interface.
+   - ✅ Added `neo_jax.pipeline.run_vmec_boozer_neo(vmec_source, neo_config)`:
+     - accepts vmec_jax `FixedBoundaryRun`, `WoutData`, or input path.
+     - runs vmec_jax → booz_xform_jax → neo_jax without file I/O.
+   - 🔜 Upgrade to a **fully JIT** end-to-end path:
+     - accept a JAX-native `vmec_state` and avoid NumPy in the VMEC→Boozer adapter.
+     - return `NeoResults` with `jax.grad` support through the entire pipeline.
 5. **Gradient validation**:
    - Add a small gradient test: `grad(epsilon_effective)` w.r.t. a VMEC boundary
      coefficient at low resolution.

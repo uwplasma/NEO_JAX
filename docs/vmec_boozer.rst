@@ -60,3 +60,26 @@ the solver directly on that object with a high-level configuration.
 
 For pipeline workflows, see :func:`neo_jax.run_boozer_to_neo` and
 :func:`neo_jax.run_vmec_boozer_neo` for convenience wrappers.
+
+Example: vmec_jax → booz_xform_jax → neo_jax
+--------------------------------------------
+
+.. code-block:: python
+
+   from neo_jax import NeoConfig, run_vmec_boozer_neo
+
+   config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
+   results = run_vmec_boozer_neo(
+       "path/to/input.vmec",
+       vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
+       booz_kwargs=dict(mboz=8, nboz=8),
+       neo_config=config,
+   )
+
+Notes:
+
+- For accurate surface mapping, it is recommended to let the Boozer step
+  compute all VMEC half-grid surfaces and use the NEO surface selection
+  (``NeoConfig.surfaces``) to pick the subset.
+- The pipeline avoids file I/O and returns JAX arrays, but full end-to-end JIT
+  across vmec_jax is still in progress; see ``PLAN.md`` for roadmap details.

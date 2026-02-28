@@ -46,6 +46,20 @@ from neo_jax import NeoConfig, run_neo
 results = run_neo(booz_out, config=NeoConfig(surfaces=[1, 2, 3]))
 ```
 
+For a full vmec_jax → booz_xform_jax → neo_jax workflow (no file I/O), use:
+
+```python
+from neo_jax import NeoConfig, run_vmec_boozer_neo
+
+config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
+results = run_vmec_boozer_neo(
+    "path/to/input.vmec",
+    vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
+    booz_kwargs=dict(mboz=8, nboz=8),
+    neo_config=config,
+)
+```
+
 ## Documentation
 
 Sphinx documentation lives in `docs/` and is configured for Read the Docs.
@@ -57,6 +71,7 @@ See `docs/index.rst` for the table of contents.
 - `examples/ncsx_epsilon_effective_plot.py`: compute and plot epsilon effective vs `s`.
 - `examples/ncsx_autodiff_Rmajor_optimization.py`: autodiff optimization demo over `Rmajor`.
 - `examples/epsilon_effective_scale_optimization.py`: toy autodiff example that scales |B| to reduce epsilon effective.
+- `examples/vmec_boozer_neo_pipeline.py`: full vmec_jax → booz_xform_jax → neo_jax pipeline.
 
 ## NCSX Parity Snapshot
 
