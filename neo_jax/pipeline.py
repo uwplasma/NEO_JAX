@@ -270,6 +270,7 @@ def build_vmec_boozer_neo_jax(
 
     try:
         from vmec_jax.booz_input import booz_xform_inputs_from_state
+        from vmec_jax.vmec_tomnsp import vmec_trig_tables
     except ImportError as exc:  # pragma: no cover
         raise ImportError("vmec_jax with booz_input is required for build_vmec_boozer_neo_jax") from exc
 
@@ -282,6 +283,22 @@ def build_vmec_boozer_neo_jax(
         static=vmec_run.static,
         indata=vmec_run.indata,
         signgs=int(vmec_run.signgs),
+    )
+
+    nyq_m = np.asarray(inputs0.xm_nyq)
+    nyq_n = np.asarray(inputs0.xn_nyq)
+    nfp_int = int(inputs0.nfp)
+    mmax = int(np.max(nyq_m)) if nyq_m.size else 0
+    nmax = int(np.max(np.abs(nyq_n))) // nfp_int if nyq_n.size else 0
+    trig = vmec_trig_tables(
+        ntheta=int(vmec_run.static.cfg.ntheta),
+        nzeta=int(vmec_run.static.cfg.nzeta),
+        nfp=nfp_int,
+        mmax=mmax,
+        nmax=nmax,
+        lasym=bool(vmec_run.static.cfg.lasym),
+        dtype=np.asarray(inputs0.rmnc).dtype,
+        cache=True,
     )
 
     mboz_val = int(booz_kwargs.get("mboz") or (np.max(np.asarray(inputs0.xm)) + 1))
@@ -326,6 +343,7 @@ def build_vmec_boozer_neo_jax(
             static=vmec_run.static,
             indata=vmec_run.indata,
             signgs=int(vmec_run.signgs),
+            trig=trig,
         )
         booz_out = booz_xform_jax_impl(
             rmnc=inputs.rmnc,
