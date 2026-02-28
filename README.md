@@ -60,6 +60,9 @@ results = run_vmec_boozer_neo(
 )
 ```
 
+For a JAX-native VMEC→Boozer adapter plus a JAX surface scan, use
+`run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun` object.
+
 ## Documentation
 
 Sphinx documentation lives in `docs/` and is configured for Read the Docs.

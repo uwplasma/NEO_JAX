@@ -21,10 +21,14 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
 1. **JAX-native Boozer adapter**:
    - Update `booz_xform_to_boozerdata` to preserve JAX arrays when inputs are JAX.
    - Eliminate `np.asarray` in the JAX path to keep JIT and gradients intact.
+   - ✅ Added `vmec_jax.booz_xform_inputs_from_state` (JAX) to produce Boozer inputs
+     without NumPy in the VMEC→Boozer path.
 2. **JAX-native surface loop**:
    - Implement a `run_neo_jax` function that uses `jax.vmap` or `jax.lax.scan`
      over surfaces (no Python loop).
    - Return batched `NeoResults` with JAX arrays.
+   - ✅ Added `run_neo_from_boozer_jax` (JAX surface scan) + `jax_surface_scan` flag.
+   - 🔜 Add a conversion helper from JAX outputs to `NeoResults` (optional).
 3. **JAX-safe surface initialization**:
    - Replace NumPy tie-breaker in `init_surface` for JIT path, or
      accept Bmin/Bmax/angles directly from `booz_xform_jax` to avoid

@@ -77,6 +77,7 @@ For workflows that chain VMEC → Boozer → NEO, NEO_JAX provides two helpers:
 
 - :func:`neo_jax.run_boozer_to_neo`: run NEO directly on a booz_xform output mapping.
 - :func:`neo_jax.run_vmec_boozer_neo`: convenience wrapper for vmec_jax → booz_xform_jax → NEO.
+- :func:`neo_jax.run_vmec_boozer_neo_jax`: JAX-native VMEC→Boozer adapter + JAX surface scan.
 
 Example:
 

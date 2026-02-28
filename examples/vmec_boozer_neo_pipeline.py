@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 
-from neo_jax import NeoConfig, plot_epsilon_effective, run_vmec_boozer_neo
+from neo_jax import NeoConfig, plot_epsilon_effective, run_vmec_boozer_neo, run_vmec_boozer_neo_jax
 
 
 def _parse_surfaces(text: str) -> list[float]:
@@ -46,6 +46,11 @@ def main() -> None:
         default=3,
         help="VMEC max iterations (increase for a converged equilibrium).",
     )
+    parser.add_argument(
+        "--jax-scan",
+        action="store_true",
+        help="Use JAX-native VMEC->Boozer adapter and JAX surface scan.",
+    )
     parser.add_argument("--no-show", action="store_true", help="Do not display plots.")
     args = parser.parse_args()
 
@@ -84,24 +89,42 @@ def main() -> None:
 
     booz_kwargs = dict(mboz=int(args.mboz), nboz=int(args.nboz), jit=True)
 
-    results = run_vmec_boozer_neo(
-        input_path,
-        vmec_kwargs=vmec_kwargs,
-        booz_kwargs=booz_kwargs,
-        neo_config=config,
-        progress=True,
-        fast_bcovar=True,
-    )
+    if args.jax_scan:
+        run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
+        results = run_vmec_boozer_neo_jax(
+            run,
+            booz_kwargs=booz_kwargs,
+            neo_config=config,
+            progress=True,
+        )
+    else:
+        results = run_vmec_boozer_neo(
+            input_path,
+            vmec_kwargs=vmec_kwargs,
+            booz_kwargs=booz_kwargs,
+            neo_config=config,
+            progress=True,
+            fast_bcovar=True,
+        )
 
     import numpy as np
 
-    if not np.all(np.isfinite(results.epsilon_effective)):
+    eps_eff = (
+        np.asarray(results.epsilon_effective)
+        if hasattr(results, "epsilon_effective")
+        else np.asarray(results.eps_eff)
+    )
+
+    if not np.all(np.isfinite(eps_eff)):
         print(
             "[warning] Non-finite epsilon_effective values detected. "
             "Increase --max-iter or choose different surfaces for a converged equilibrium."
         )
 
-    fig, _ = plot_epsilon_effective(results, x="s")
+    if hasattr(results, "epsilon_effective"):
+        fig, _ = plot_epsilon_effective(results, x="s")
+    else:
+        fig = None
     if not args.no_show:
         import matplotlib.pyplot as plt
 
