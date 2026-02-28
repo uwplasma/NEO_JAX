@@ -86,7 +86,11 @@ def main() -> int:
         hlo_path.parent.mkdir(parents=True, exist_ok=True)
         lowered = solver.lower(run.state)
         hlo = lowered.compiler_ir(dialect="hlo")
-        hlo_path.write_text(str(hlo))
+        if hasattr(hlo, "as_hlo_text"):
+            hlo_text = hlo.as_hlo_text()
+        else:  # pragma: no cover - fallback
+            hlo_text = str(hlo)
+        hlo_path.write_text(hlo_text)
 
     trace_dir = Path(args.trace_dir)
     trace_dir.mkdir(parents=True, exist_ok=True)
