@@ -87,14 +87,19 @@ def rhs_bo1(phi: Array, y: Array, state: RhsState, env: RhsEnv) -> Tuple[Array, 
     dery = dery.at[2].set(bmodm2 * gval)
     dery = dery.at[3].set(geodcu * bmodm3)
 
-    subsq = 1.0 - bra / env.eta
-    mask = subsq > 0
+    eta_pos = env.eta > 0
+    eta_safe = jnp.where(eta_pos, env.eta, jnp.asarray(1.0, dtype=env.eta.dtype))
+    inv_eta = jnp.where(eta_pos, 1.0 / eta_safe, 0.0)
+    sqeta = jnp.sqrt(eta_safe)
+    inv_sqeta = jnp.where(eta_pos, 1.0 / sqeta, 0.0)
 
-    sqeta = jnp.sqrt(env.eta)
+    subsq = 1.0 - bra * inv_eta
+    mask = (subsq > 0) & eta_pos
+
     safe_subsq = jnp.where(mask, subsq, 0.0)
     sq = jnp.sqrt(safe_subsq) * bmodm2
     p_i = jnp.where(mask, sq, 0.0)
-    p_h = jnp.where(mask, sq * (4.0 / bra - 1.0 / env.eta) * geodcu / sqeta, 0.0)
+    p_h = jnp.where(mask, sq * (4.0 / bra - inv_eta) * geodcu * inv_sqeta, 0.0)
 
     # Update particle state
     one_i = jnp.array(1, dtype=state.isw.dtype)
@@ -705,14 +710,19 @@ def flint_bo_jax(
             dery = dery.at[2].set(bmodm2 * gval)
             dery = dery.at[3].set(geodcu * bmodm3)
 
-            subsq = 1.0 - bra / env.eta
-            mask = subsq > 0
+            eta_pos = env.eta > 0
+            eta_safe = jnp.where(eta_pos, env.eta, jnp.asarray(1.0, dtype=env.eta.dtype))
+            inv_eta = jnp.where(eta_pos, 1.0 / eta_safe, 0.0)
+            sqeta = jnp.sqrt(eta_safe)
+            inv_sqeta = jnp.where(eta_pos, 1.0 / sqeta, 0.0)
 
-            sqeta = jnp.sqrt(env.eta)
+            subsq = 1.0 - bra * inv_eta
+            mask = (subsq > 0) & eta_pos
+
             safe_subsq = jnp.where(mask, subsq, 0.0)
             sq = jnp.sqrt(safe_subsq) * bmodm2
             p_i = jnp.where(mask, sq, 0.0)
-            p_h = jnp.where(mask, sq * (4.0 / bra - 1.0 / env.eta) * geodcu / sqeta, 0.0)
+            p_h = jnp.where(mask, sq * (4.0 / bra - inv_eta) * geodcu * inv_sqeta, 0.0)
 
             one_i = jnp.array(1, dtype=state_local.isw.dtype)
             two_i = jnp.array(2, dtype=state_local.isw.dtype)

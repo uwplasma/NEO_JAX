@@ -15,16 +15,6 @@ from neo_jax import (
 )
 
 
-def _parse_surfaces(text: str) -> list[float]:
-    vals = []
-    for item in text.split(","):
-        item = item.strip()
-        if not item:
-            continue
-        vals.append(float(item))
-    return vals
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run vmec_jax -> booz_xform_jax -> neo_jax without file I/O."
@@ -80,6 +70,7 @@ def main() -> None:
     try:
         import vmec_jax as vj
         from vmec_jax.driver import example_paths
+        from vmec_jax.optimization import parse_surface_list
         from vmec_jax.vmec_tomnsp import vmec_angle_grid
     except ImportError as exc:
         raise ImportError(
@@ -98,7 +89,7 @@ def main() -> None:
     config = NeoConfig(
         theta_n=int(args.theta_n),
         phi_n=int(args.phi_n),
-        surfaces=_parse_surfaces(args.surfaces),
+        surfaces=parse_surface_list(args.surfaces),
         write_progress=True,
     )
 
