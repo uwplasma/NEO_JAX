@@ -270,6 +270,8 @@ def build_vmec_boozer_neo_jax(
 
     try:
         from vmec_jax.booz_input import booz_xform_inputs_from_state
+        from vmec_jax.energy import flux_profiles_from_indata
+        from vmec_jax.profiles import eval_profiles
         from vmec_jax.vmec_tomnsp import vmec_trig_tables
     except ImportError as exc:  # pragma: no cover
         raise ImportError("vmec_jax with booz_input is required for build_vmec_boozer_neo_jax") from exc
@@ -320,6 +322,9 @@ def build_vmec_boozer_neo_jax(
 
     ns_full = int(inputs0.rmnc.shape[0])
     s_half_full = jnp.asarray(0.5 * (vmec_run.static.s[:-1] + vmec_run.static.s[1:]))
+    s_half_eval = jnp.concatenate([vmec_run.static.s[:1], s_half_full], axis=0)
+    profiles_half = eval_profiles(vmec_run.indata, s_half_eval)
+    flux = flux_profiles_from_indata(vmec_run.indata, vmec_run.static.s, signgs=int(vmec_run.signgs))
     if cfg.surfaces is None:
         surface_indices = None
         s_selected = s_half_full
@@ -344,6 +349,8 @@ def build_vmec_boozer_neo_jax(
             indata=vmec_run.indata,
             signgs=int(vmec_run.signgs),
             trig=trig,
+            flux=flux,
+            profiles_half=profiles_half,
         )
         booz_out = booz_xform_jax_impl(
             rmnc=inputs.rmnc,
