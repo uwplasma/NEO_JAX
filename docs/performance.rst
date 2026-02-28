@@ -64,3 +64,9 @@ For end-to-end VMEC→Boozer→NEO workflows, prefer
 :func:`neo_jax.build_vmec_boozer_neo_jax` to precompute Boozer constants and
 reuse a single compiled callable. This avoids recompiling the Boozer transform
 and NEO scan in optimization loops.
+
+Benchmark JIT reuse with:
+
+.. code-block:: bash
+
+   python benchmarks/benchmark_vmec_boozer_pipeline.py --case circular_tokamak --repeats 3
