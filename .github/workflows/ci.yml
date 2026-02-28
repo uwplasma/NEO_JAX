@@ -23,4 +23,7 @@ jobs:
       - name: Run tests
         run: pytest -q
       - name: Perf regression check
+        env:
+          NEO_JAX_CI_PERF_COMPILE_MAX: "45"
+          NEO_JAX_CI_PERF_REUSE_MAX: "0.3"
         run: python benchmarks/ci_perf_check.py
