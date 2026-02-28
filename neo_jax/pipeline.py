@@ -151,9 +151,11 @@ def booz_xform_from_vmec_state_jax(
         bsubvmns=inputs.bsubvmns,
         surface_indices=surface_indices,
     )
-    booz_out["s_b"] = s_selected
-    booz_out["ns_b"] = ns_b_full
-    if surface_indices is not None:
+    if "s_b" not in booz_out:
+        booz_out["s_b"] = s_selected
+    if "ns_b" not in booz_out:
+        booz_out["ns_b"] = jax.numpy.asarray(ns_b_full)
+    if surface_indices is not None and "jlist" not in booz_out:
         booz_out["jlist"] = surface_indices + 1
     return booz_out
 
