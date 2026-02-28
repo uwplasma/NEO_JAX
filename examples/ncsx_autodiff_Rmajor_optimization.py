@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import numpy as np
 from scipy.optimize import least_squares
 
-from neo_jax import NeoConfig, build_surface_problem, run_neo
+from neo_jax import NeoConfig, build_surface_problem, neo_outputs_to_results, run_neo
 from neo_jax.integrate import flint_bo_jax
 
 
@@ -37,7 +37,8 @@ def main() -> None:
         acc_req=0.02,  # rational-surface accuracy requirement
         no_bins=50,  # bins for rational-surface coverage
     )
-    baseline = run_neo(boozmn_path, config=config, use_jax=True)
+    baseline_out = run_neo(boozmn_path, config=config, use_jax=True, jax_surface_scan=True)
+    baseline = neo_outputs_to_results(baseline_out)
     print("baseline epsilon_effective:", baseline.epsilon_effective)
 
     # Build a surface problem so users don't have to wire init_surface/RhsEnv manually.

@@ -29,8 +29,8 @@ def main() -> None:
 
     def eps_eff_from_scale(scale: jnp.ndarray) -> jnp.ndarray:
         scaled = replace(booz, bmnc=booz.bmnc * scale)
-        results = run_neo(scaled, config=config, use_jax=True)
-        return results.epsilon_effective[0]
+        outputs = run_neo(scaled, config=config, use_jax=True, jax_surface_scan=True)
+        return outputs.eps_eff[0]
 
     eps_fn = jax.jit(eps_eff_from_scale)
     eps0 = float(eps_fn(jnp.array(1.0)))

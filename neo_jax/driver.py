@@ -360,7 +360,7 @@ def run_neo_from_boozer(
     booz: BoozerData,
     control: ControlParams,
     *,
-    use_jax: bool = False,
+    use_jax: bool = True,
     progress: bool = False,
 ) -> NeoResults:
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
@@ -599,7 +599,7 @@ def run_neo_from_boozmn(
     boozmn_path: str,
     control: ControlParams,
     *,
-    use_jax: bool = False,
+    use_jax: bool = True,
     progress: bool = False,
     extension: str | None = None,
 ) -> NeoResults:

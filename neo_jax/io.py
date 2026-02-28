@@ -358,18 +358,23 @@ def booz_xform_to_boozerdata_jax(
             return getattr(booz, name)
         raise KeyError(f"Missing field {name} in Boozer data")
 
-    nfp = nfp_override if nfp_override is not None else jnp.asarray(_get("nfp_b")).reshape(())[()]
-    ixm_b = jnp.asarray(_get("ixm_b"), dtype=jnp.int32)
-    ixn_b = jnp.asarray(_get("ixn_b"), dtype=jnp.int32)
+    def _asarray(obj, *, dtype=None):
+        if isinstance(obj, np.ma.MaskedArray):
+            obj = obj.filled()
+        return jnp.asarray(obj, dtype=dtype)
 
-    iota_b = jnp.asarray(_get("iota_b"))
-    buco_b = jnp.asarray(_get("buco_b"))
-    bvco_b = jnp.asarray(_get("bvco_b"))
+    nfp = nfp_override if nfp_override is not None else _asarray(_get("nfp_b")).reshape(())[()]
+    ixm_b = _asarray(_get("ixm_b"), dtype=jnp.int32)
+    ixn_b = _asarray(_get("ixn_b"), dtype=jnp.int32)
 
-    rmnc_raw = jnp.asarray(_get("rmnc_b"))
-    zmns_raw = jnp.asarray(_get("zmns_b"))
-    pmns_raw = jnp.asarray(_get("pmns_b"))
-    bmnc_raw = jnp.asarray(_get("bmnc_b"))
+    iota_b = _asarray(_get("iota_b"))
+    buco_b = _asarray(_get("buco_b"))
+    bvco_b = _asarray(_get("bvco_b"))
+
+    rmnc_raw = _asarray(_get("rmnc_b"))
+    zmns_raw = _asarray(_get("zmns_b"))
+    pmns_raw = _asarray(_get("pmns_b"))
+    bmnc_raw = _asarray(_get("bmnc_b"))
 
     # Ensure surface dimension first (static shape check).
     if rmnc_raw.shape[0] == ixm_b.shape[0]:
@@ -402,16 +407,14 @@ def booz_xform_to_boozerdata_jax(
     curr_tor = jnp.take(buco_b, surface_indices, axis=0)
 
     if isinstance(booz, dict) and "s_b" in booz:
-        s_vals = jnp.asarray(_get("s_b"))
+        s_vals = _asarray(_get("s_b"))
         es = jnp.take(s_vals, surface_indices, axis=0)
     else:
         ns_full = (
-            int(jnp.asarray(_get("ns_b"))) if (isinstance(booz, dict) and "ns_b" in booz) else int(ns_b)
+            int(_asarray(_get("ns_b"))) if (isinstance(booz, dict) and "ns_b" in booz) else int(ns_b)
         )
         hs = 1.0 / (ns_full - 1) if ns_full > 1 else 0.0
-        jlist = (
-            jnp.asarray(_get("jlist")) if (isinstance(booz, dict) and "jlist" in booz) else (surface_indices + 1)
-        )
+        jlist = _asarray(_get("jlist")) if (isinstance(booz, dict) and "jlist" in booz) else (surface_indices + 1)
         es = (jlist - 1.5) * hs
 
     return BoozerData(

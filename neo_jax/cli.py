@@ -55,10 +55,12 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("extension", nargs="?", help="NEO input extension (xneo style)")
     parser.add_argument("--control", help="Path to NEO control file")
     parser.add_argument("--boozmn", help="Path to boozmn file (netCDF)")
-    parser.add_argument("--jax", action="store_true", help="Use JAX scan backend")
+    parser.add_argument("--jax", action="store_true", help="Use JAX backend (default)")
+    parser.add_argument("--no-jax", action="store_true", help="Disable JAX backend")
     parser.add_argument("--output", help="Override NEO output file path")
     parser.add_argument("--verbose", action="store_true", help="Print progress to stdout")
 
+    parser.set_defaults(jax=True)
     args = parser.parse_args(argv)
 
     if args.control:
@@ -77,7 +79,8 @@ def main(argv: List[str] | None = None) -> int:
     if args.verbose:
         print(f"NEO_JAX: control={control_path} boozmn={boozmn_path}")
 
-    results = run_neo_from_boozmn(str(boozmn_path), control, use_jax=args.jax, progress=args.verbose)
+    use_jax = bool(args.jax) and not bool(args.no_jax)
+    results = run_neo_from_boozmn(str(boozmn_path), control, use_jax=use_jax, progress=args.verbose)
 
     lines = [_format_line(result, control.eout_swi) for result in results]
 

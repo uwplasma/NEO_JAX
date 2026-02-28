@@ -56,14 +56,25 @@ def main() -> None:
     parser.add_argument(
         "--jax-scan",
         action="store_true",
-        help="Use JAX-native VMEC->Boozer adapter and JAX surface scan.",
+        help="Use JAX-native VMEC->Boozer adapter and JAX surface scan (default).",
+    )
+    parser.add_argument(
+        "--no-jax-scan",
+        action="store_true",
+        help="Disable the JAX-native VMEC->Boozer adapter.",
     )
     parser.add_argument(
         "--jit-pipeline",
         action="store_true",
-        help="Build a reusable JAX pipeline callable and JIT it.",
+        help="Build a reusable JAX pipeline callable and JIT it (default).",
+    )
+    parser.add_argument(
+        "--no-jit-pipeline",
+        action="store_true",
+        help="Disable the JIT pipeline builder.",
     )
     parser.add_argument("--no-show", action="store_true", help="Do not display plots.")
+    parser.set_defaults(jax_scan=True, jit_pipeline=True)
     args = parser.parse_args()
 
     try:
@@ -101,9 +112,12 @@ def main() -> None:
 
     booz_kwargs = dict(mboz=int(args.mboz), nboz=int(args.nboz), jit=True)
 
-    if args.jax_scan:
+    use_jax_scan = bool(args.jax_scan) and not bool(args.no_jax_scan)
+    use_jit_pipeline = bool(args.jit_pipeline) and not bool(args.no_jit_pipeline)
+
+    if use_jax_scan:
         run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
-        if args.jit_pipeline:
+        if use_jit_pipeline:
             solver = build_vmec_boozer_neo_jax(
                 run,
                 booz_kwargs=booz_kwargs,
