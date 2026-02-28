@@ -133,6 +133,14 @@ NCSX benchmark comparison (10 surfaces, CPU warmup run, `/usr/bin/time -l`):
 | Vectorized | 51.37 s | 4.45 GB |
 | Streamed | 58.78 s | 2.55 GB |
 
+## Precision
+
+NEO_JAX enables 64-bit JAX precision by default to match the Fortran
+reference outputs. You can override this behavior by setting either:
+
+- `NEO_JAX_ENABLE_X64=0` (NEO_JAX-specific)
+- `JAX_ENABLE_X64=0` (global JAX)
+
 ## Status
 
 This repository is under active development. See `PLAN.md` for the porting

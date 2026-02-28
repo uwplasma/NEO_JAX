@@ -15,6 +15,15 @@ Current reference cases include:
 - ``NCSX`` tutorial example (tests/fixtures/ncsx)
 - ``LandremanPaul2021_QA_lowres`` (tests/fixtures/landreman_qa_lowres)
 
+Precision
+---------
+
+NEO_JAX enables 64-bit JAX precision by default to match Fortran parity.
+You can override this behavior by setting either:
+
+- ``NEO_JAX_ENABLE_X64=0`` (NEO_JAX-specific)
+- ``JAX_ENABLE_X64=0`` (global JAX setting)
+
 Fast vs. full ORBITS parity:
 
 - The default regression test uses the reduced ``ORBITS_FAST`` fixture
