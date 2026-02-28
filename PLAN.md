@@ -64,6 +64,16 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
 ## Deferred / Later
 - GPU parity and overnight ORBITS full parity.
 - Performance tuning on GPU after end-to-end JIT pipeline is ready.
+- **Reverse-mode autodiff (long-term goal)**:
+  - Refactor dynamic `lax.while_loop`/`fori_loop` paths in NEO to fixed-length
+    `lax.scan` with static loop bounds (or introduce a `max_steps` scan with
+    masking).
+  - Isolate non-smooth trapped/passing event logic behind smoothing or
+    differentiable surrogate logic where feasible.
+  - Consider custom VJP for the field-line integration if scan-based reverse-mode
+    remains too memory-intensive.
+  - Add checkpointing and/or rematerialization to control reverse-mode memory.
+  - Provide a dedicated reverse-mode validation test (compare to forward-mode).
 
 ## Goals
 - Port the STELLOPT NEO Fortran code to a JAX implementation that reproduces `xneo` outputs and logs for the same inputs.
