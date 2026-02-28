@@ -63,10 +63,13 @@ def run_neo_from_boozer_jax(
             surf_indices = list(range(booz.rmnc.shape[0]))
         else:
             surf_indices = [i - 1 for i in control.fluxs_arr]
+        flux_indices = list(control.fluxs_arr)
     else:
         surf_indices = list(range(booz.rmnc.shape[0]))
+        flux_indices = [idx + 1 for idx in surf_indices]
 
     surf_indices_j = jnp.asarray(surf_indices, dtype=jnp.int32)
+    flux_indices_j = jnp.asarray(flux_indices, dtype=jnp.int32)
 
     rt0, bmref_g = compute_reference_jax(booz)
 
@@ -174,6 +177,7 @@ def run_neo_from_boozer_jax(
         "bareph": bareph,
         "barept": barept,
         "yps": yps,
+        "flux_index": flux_indices_j,
     }
 
     return NeoOutputs(

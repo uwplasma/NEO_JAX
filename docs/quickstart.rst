@@ -28,13 +28,15 @@ To emulate ``xneo``, you can use the CLI:
 Examples
 --------
 
-Two executable examples are included in ``examples/``:
+Executable examples are included in ``examples/``:
 
 - ``examples/ncsx_epsilon_effective_plot.py``: compute and plot epsilon effective vs ``s``.
 - ``examples/ncsx_autodiff_Rmajor_optimization.py``: autodiff demo that adjusts
   ``Rmajor`` to reduce epsilon effective (toy example).
 - ``examples/epsilon_effective_scale_optimization.py``: toy optimization that
   scales |B| to reduce epsilon effective (autodiff demo).
+- ``examples/qh_epsilon_effective_aspect_optimization.py``: QH warm-start
+  optimization (epsilon effective + aspect ratio).
 
 JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------

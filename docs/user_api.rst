@@ -96,7 +96,15 @@ Example:
 When ``jax_surface_scan=True`` (or when using :func:`neo_jax.run_vmec_boozer_neo_jax`),
 the return type is a JAX-friendly :class:`neo_jax.data_models.NeoOutputs` with
 arrays in JAX device memory. This is useful for autodiff pipelines; you can
-convert to NumPy as needed.
+convert to NumPy as needed. For convenience, use
+:func:`neo_jax.neo_outputs_to_results` to obtain the standard
+:class:`neo_jax.results.NeoResults` container:
+
+.. code-block:: python
+
+   from neo_jax import neo_outputs_to_results
+
+   results = neo_outputs_to_results(outputs)
 
 Plotting
 --------
