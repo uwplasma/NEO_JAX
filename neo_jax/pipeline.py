@@ -242,3 +242,120 @@ def run_vmec_boozer_neo_jax(
         progress=progress,
         jax_surface_scan=jax_surface_scan,
     )
+
+
+def build_vmec_boozer_neo_jax(
+    vmec_run: Any,
+    *,
+    booz_kwargs: dict | None = None,
+    neo_config: NeoConfig | None = None,
+    jit: bool = True,
+):
+    """Return a callable `solve(state)` for the JAX-native VMEC→Boozer→NEO path.
+
+    This precomputes Boozer constants and surface selections so the returned
+    function is suitable for repeated calls (and optional JIT).
+    """
+    booz_kwargs = booz_kwargs or {}
+    cfg = neo_config or NeoConfig()
+
+    try:
+        import jax
+        import jax.numpy as jnp
+        from booz_xform_jax.jax_api import prepare_booz_xform_constants, booz_xform_jax_impl
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError("booz_xform_jax is required for build_vmec_boozer_neo_jax") from exc
+
+    try:
+        from vmec_jax.booz_input import booz_xform_inputs_from_state
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError("vmec_jax with booz_input is required for build_vmec_boozer_neo_jax") from exc
+
+    from .driver import run_neo_from_boozer_jax
+    from .io import booz_xform_to_boozerdata_jax
+
+    # Precompute static Boozer constants from the current state.
+    inputs0 = booz_xform_inputs_from_state(
+        state=vmec_run.state,
+        static=vmec_run.static,
+        indata=vmec_run.indata,
+        signgs=int(vmec_run.signgs),
+    )
+
+    mboz_val = int(booz_kwargs.get("mboz") or (np.max(np.asarray(inputs0.xm)) + 1))
+    nboz_val = int(
+        booz_kwargs.get("nboz")
+        or (np.max(np.abs(np.asarray(inputs0.xn))) // int(inputs0.nfp))
+    )
+
+    constants, grids = prepare_booz_xform_constants(
+        nfp=int(inputs0.nfp),
+        mboz=mboz_val,
+        nboz=nboz_val,
+        asym=bool(vmec_run.static.cfg.lasym),
+        xm=np.asarray(inputs0.xm),
+        xn=np.asarray(inputs0.xn),
+        xm_nyq=np.asarray(inputs0.xm_nyq),
+        xn_nyq=np.asarray(inputs0.xn_nyq),
+    )
+
+    ns_full = int(inputs0.rmnc.shape[0])
+    s_half_full = jnp.asarray(0.5 * (vmec_run.static.s[:-1] + vmec_run.static.s[1:]))
+    if cfg.surfaces is None:
+        surface_indices = None
+        s_selected = s_half_full
+    else:
+        s_vals = list(np.asarray(s_half_full))
+        surface_indices_list = []
+        for val in cfg.surfaces:
+            if isinstance(val, float) and 0.0 <= val <= 1.0:
+                best = min(range(ns_full), key=lambda i: abs(s_vals[i] - val))
+                surface_indices_list.append(best)
+            else:
+                surface_indices_list.append(int(val) - 1)
+        surface_indices = jnp.asarray(surface_indices_list, dtype=jnp.int32)
+        s_selected = jnp.take(s_half_full, surface_indices, axis=0)
+
+    control = cfg.to_control()
+
+    def _solve(state):
+        inputs = booz_xform_inputs_from_state(
+            state=state,
+            static=vmec_run.static,
+            indata=vmec_run.indata,
+            signgs=int(vmec_run.signgs),
+        )
+        booz_out = booz_xform_jax_impl(
+            rmnc=inputs.rmnc,
+            zmns=inputs.zmns,
+            lmns=inputs.lmns,
+            bmnc=inputs.bmnc,
+            bsubumnc=inputs.bsubumnc,
+            bsubvmnc=inputs.bsubvmnc,
+            iota=inputs.iota,
+            xm=inputs.xm,
+            xn=inputs.xn,
+            xm_nyq=inputs.xm_nyq,
+            xn_nyq=inputs.xn_nyq,
+            constants=constants,
+            grids=grids,
+            bmns=inputs.bmns,
+            bsubumns=inputs.bsubumns,
+            bsubvmns=inputs.bsubvmns,
+            surface_indices=surface_indices,
+        )
+        booz_out["s_b"] = s_selected
+        booz_out["ns_b"] = ns_full
+        if surface_indices is not None:
+            booz_out["jlist"] = surface_indices + 1
+        booz = booz_xform_to_boozerdata_jax(
+            booz_out,
+            max_m_mode=cfg.max_m_mode,
+            max_n_mode=cfg.max_n_mode,
+            nfp_override=int(inputs0.nfp),
+        )
+        return run_neo_from_boozer_jax(booz, control)
+
+    if jit:
+        _solve = jax.jit(_solve)
+    return _solve

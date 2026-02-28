@@ -345,6 +345,7 @@ def booz_xform_to_boozerdata_jax(
     max_m_mode: int = 0,
     max_n_mode: int = 0,
     fluxs_arr: Optional[Sequence[int]] = None,
+    nfp_override: int | None = None,
 ) -> BoozerData:
     """JAX-friendly conversion from booz_xform outputs to BoozerData."""
     if not _JAX_AVAILABLE:  # pragma: no cover - optional
@@ -357,7 +358,7 @@ def booz_xform_to_boozerdata_jax(
             return getattr(booz, name)
         raise KeyError(f"Missing field {name} in Boozer data")
 
-    nfp = jnp.asarray(_get("nfp_b")).reshape(())[()]
+    nfp = nfp_override if nfp_override is not None else jnp.asarray(_get("nfp_b")).reshape(())[()]
     ixm_b = jnp.asarray(_get("ixm_b"), dtype=jnp.int32)
     ixn_b = jnp.asarray(_get("ixn_b"), dtype=jnp.int32)
 
@@ -424,5 +425,5 @@ def booz_xform_to_boozerdata_jax(
         iota=iota,
         curr_pol=curr_pol,
         curr_tor=curr_tor,
-        nfp=int(nfp),
+        nfp=int(nfp) if nfp_override is None else int(nfp_override),
     )
