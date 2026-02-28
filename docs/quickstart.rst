@@ -50,4 +50,18 @@ A typical flow is:
 - Pass those arrays directly into :func:`neo_jax.run_neo` (or
   :func:`neo_jax.run_boozer_to_neo`) without writing ``wout`` or ``boozmn`` files.
 
+For a convenience wrapper that runs vmec_jax → booz_xform_jax → NEO in one call:
+
+.. code-block:: python
+
+   from neo_jax import NeoConfig, run_vmec_boozer_neo
+
+   config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
+   results = run_vmec_boozer_neo(
+       "path/to/input.vmec",
+       vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
+       booz_kwargs=dict(mboz=8, nboz=8),
+       neo_config=config,
+   )
+
 See :doc:`vmec_boozer` for the required data interface and mapping details.

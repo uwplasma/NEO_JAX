@@ -7,7 +7,7 @@ from .data_models import BoozerData, NeoInputs, NeoOutputs, VmecData
 from .driver import run_neo_from_boozer, run_neo_from_boozmn
 from .io import booz_xform_to_boozerdata, read_boozmn
 from .plotting import plot_epsilon_effective
-from .pipeline import run_boozer_to_neo, run_vmec_boozer_neo
+from .pipeline import booz_xform_from_vmec_wout, run_boozer_to_neo, run_vmec_boozer_neo
 from .workflow import SurfaceProblem, build_surface_problem
 from .results import NeoResults, NeoSurfaceResult
 
@@ -34,4 +34,5 @@ __all__ = [
     "build_surface_problem",
     "run_boozer_to_neo",
     "run_vmec_boozer_neo",
+    "booz_xform_from_vmec_wout",
 ]

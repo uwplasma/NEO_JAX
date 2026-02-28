@@ -78,3 +78,9 @@ Surface
 
 .. automodule:: neo_jax.surface
    :members:
+
+Pipeline
+--------
+
+.. automodule:: neo_jax.pipeline
+   :members:
