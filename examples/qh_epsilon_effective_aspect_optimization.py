@@ -50,10 +50,22 @@ def main() -> None:
     parser.add_argument("--nboz", type=int, default=8, help="Boozer n resolution.")
     parser.add_argument("--aspect-weight", type=float, default=1.0, help="Aspect ratio penalty weight.")
     parser.add_argument(
+        "--max-mode",
+        type=int,
+        default=1,
+        help="Optimize all boundary modes with |m|,|n| <= max-mode.",
+    )
+    parser.add_argument(
+        "--fix",
+        type=str,
+        default="rc00",
+        help="Comma-separated list of fixed parameters (e.g. rc00, zs10).",
+    )
+    parser.add_argument(
         "--min-coeff",
         type=float,
-        default=1.0e-12,
-        help="Minimum |rc/zs| to include as an optimization parameter.",
+        default=0.0,
+        help="Minimum |rc/zs| to include as an optimization parameter (0 includes all).",
     )
     parser.add_argument(
         "--aspect-target",
@@ -71,7 +83,13 @@ def main() -> None:
     from vmec_jax.driver import example_paths
     from vmec_jax.driver import solve_fixed_boundary_from_boundary
     from vmec_jax.fourier import build_helical_basis
-    from vmec_jax.init_guess import initial_guess_from_boundary
+    from vmec_jax.optimization import (
+        apply_boundary_params,
+        boundary_param_names,
+        boundary_param_specs,
+        prepare_fixed_boundary_context,
+        surface_indices_from_static,
+    )
     from vmec_jax.static import build_static
 
     from booz_xform_jax.jax_api import prepare_booz_xform_constants_from_inputs, booz_xform_from_inputs
@@ -89,61 +107,33 @@ def main() -> None:
     boundary0 = boundary_from_indata(indata, static.modes)
     basis = build_helical_basis(static.modes, static.grid)
 
-    modes = static.modes
+    fixed = [item.strip() for item in args.fix.split(",") if item.strip()]
 
-    def _coeff_label(prefix: str, m: int, n: int) -> str:
-        n_str = f"{n:+d}".replace("+", "")
-        return f"{prefix}{m}{n_str}"
-
-    # Select symmetric coefficients to vary (rc, zs), fixing rc00.
-    param_specs: list[tuple[str, int, int, int]] = []
-    for k, (m_i, n_i) in enumerate(zip(np.asarray(modes.m), np.asarray(modes.n))):
-        m_i = int(m_i)
-        n_i = int(n_i)
-        if m_i < 0:
-            continue
-        if m_i == 0 and n_i == 0:
-            continue
-        if abs(float(boundary0.R_cos[k])) > float(args.min_coeff):
-            param_specs.append(("rc", k, m_i, n_i))
-        if abs(float(boundary0.Z_sin[k])) > float(args.min_coeff):
-            param_specs.append(("zs", k, m_i, n_i))
-
+    param_specs = boundary_param_specs(
+        boundary0,
+        static.modes,
+        max_mode=int(args.max_mode),
+        min_coeff=float(args.min_coeff),
+        include=("rc", "zs"),
+        fix=fixed,
+    )
     if not param_specs:
         raise RuntimeError("No nonzero rc/zs modes found to optimize.")
 
-    param_names = [_coeff_label(kind, m_i, n_i) for kind, _, m_i, n_i in param_specs]
+    param_names = boundary_param_names(param_specs)
 
-    st0 = initial_guess_from_boundary(static, boundary0, indata, vmec_project=False)
-    g0 = vj.eval_geom(st0, static)
-    signgs0 = vj.signgs_from_sqrtg(np.asarray(g0.sqrtg), axis_index=1)
-    flux = vj.flux_profiles_from_indata(indata, static.s, signgs=signgs0)
-    pressure = jnp.zeros_like(jnp.asarray(static.s))
-
-    base_inputs = booz_xform_inputs_from_state(
-        state=st0,
-        static=static,
-        indata=indata,
-        signgs=signgs0,
-    )
+    ctx = prepare_fixed_boundary_context(static=static, indata=indata, boundary=boundary0)
 
     constants, grids = prepare_booz_xform_constants_from_inputs(
-        inputs=base_inputs,
+        inputs=ctx.booz_inputs,
         mboz=int(args.mboz),
         nboz=int(args.nboz),
         asym=bool(cfg.lasym),
     )
 
-    s_half = 0.5 * (np.asarray(static.s[:-1]) + np.asarray(static.s[1:]))
     surface_requests = _parse_surfaces(args.surfaces)
-    surface_indices: list[int] = []
-    for val in surface_requests:
-        if isinstance(val, float) and 0.0 <= val <= 1.0:
-            surface_indices.append(int(np.argmin(np.abs(s_half - val))))
-        else:
-            surface_indices.append(int(val) - 1)
+    surface_indices, selected_s = surface_indices_from_static(static, surface_requests)
     surface_indices_j = jnp.asarray(surface_indices, dtype=jnp.int32)
-    selected_s = s_half[np.asarray(surface_indices)]
 
     neo_config = NeoConfig(
         surfaces=None,
@@ -163,28 +153,16 @@ def main() -> None:
     aspect_target = float(args.aspect_target) if args.aspect_target is not None else aspect0
 
     def _build_boundary(params):
-        Rcos = jnp.asarray(boundary0.R_cos)
-        Zsin = jnp.asarray(boundary0.Z_sin)
-        for idx, (kind, k, _m, _n) in enumerate(param_specs):
-            if kind == "rc":
-                Rcos = Rcos.at[k].add(params[idx])
-            else:
-                Zsin = Zsin.at[k].add(params[idx])
-        return vj.BoundaryCoeffs(
-            R_cos=Rcos,
-            R_sin=jnp.asarray(boundary0.R_sin),
-            Z_cos=jnp.asarray(boundary0.Z_cos),
-            Z_sin=Zsin,
-        )
+        return apply_boundary_params(boundary0, param_specs, params)
 
     def _solve_vmec(boundary):
         return solve_fixed_boundary_from_boundary(
             boundary=boundary,
             static=static,
             indata=indata,
-            flux=flux,
-            pressure=pressure,
-            signgs=signgs0,
+            flux=ctx.flux,
+            pressure=ctx.pressure,
+            signgs=ctx.signgs,
             max_iter=int(args.max_iter),
             step_size=float(args.step_size),
             jacobian_penalty=1e3,
@@ -199,7 +177,7 @@ def main() -> None:
             state=state,
             static=static,
             indata=indata,
-            signgs=signgs0,
+            signgs=ctx.signgs,
         )
         booz_out = booz_xform_from_inputs(
             inputs=inputs,
@@ -232,7 +210,8 @@ def main() -> None:
     print("NEO_JAX QH optimization (epsilon effective + aspect ratio)")
     print("Surfaces (s):", ", ".join(f"{s:.3f}" for s in selected_s))
     print("Params:", ", ".join(param_names))
-    print("Fixed: rc00 (major radius)")
+    print("Fixed:", ", ".join(fixed) if fixed else "none")
+    print(f"Max mode: {int(args.max_mode)}")
     print(f"Param threshold |rc/zs| > {float(args.min_coeff):.1e}")
     print(f"Baseline eps_eff={float(eps0):.6e}, aspect={float(aspect_init):.4f}")
 
