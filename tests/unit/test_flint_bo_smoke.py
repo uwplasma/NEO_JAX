@@ -67,7 +67,7 @@ def test_flint_bo_smoke_constant_field():
         curr_tor=jnp.array(0.0),
     )
 
-    out = flint_bo(surface, params, env, nfp=1, rt0=1.0)
+    out = flint_bo(surface, params, env, nfp=1, Rmajor=1.0)
 
     assert np.isfinite(np.asarray(out["epstot"]))
     assert np.isfinite(np.asarray(out["ctrone"]))

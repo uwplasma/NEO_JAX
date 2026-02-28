@@ -54,7 +54,13 @@ def main() -> None:
     print("initial Rmajor:", Rmajor0)
 
     def eps_eff_from_Rmajor(Rmajor: jnp.ndarray) -> jnp.ndarray:
-        out = flint_bo_jax(problem.surface, problem.params, problem.env, nfp=booz.nfp, rt0=Rmajor)
+        out = flint_bo_jax(
+            problem.surface,
+            problem.params,
+            problem.env,
+            nfp=booz.nfp,
+            Rmajor=Rmajor,
+        )
         return out["epstot"] * problem.scale
 
     eps_fn = jax.jit(eps_eff_from_Rmajor)

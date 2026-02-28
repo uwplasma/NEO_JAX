@@ -206,8 +206,9 @@ def flint_bo(
     params: FlintParams,
     env: RhsEnv,
     nfp: int,
-    rt0: float,
+    rt0: float | None = None,
     *,
+    Rmajor: float | None = None,
     diagnostic: bool = False,
     diagnostic_trap: bool = False,
     diagnostic_trap_path: str = "diagnostic_first_trap.dat",
@@ -215,6 +216,12 @@ def flint_bo(
     diagnostic_snapshot_path: str = "diagnostic_snapshot.dat",
 ):
     """Python-loop port of flint_bo.f90 (not yet JIT-optimized)."""
+    if rt0 is None:
+        if Rmajor is None:
+            raise ValueError("Either rt0 or Rmajor must be provided.")
+        rt0 = float(Rmajor)
+    elif Rmajor is not None and float(Rmajor) != float(rt0):
+        raise ValueError("rt0 and Rmajor must match if both are provided.")
     npart = params.npart
     multra = params.multra
     ndim = NPQ + 2 * npart
@@ -562,14 +569,21 @@ def flint_bo_jax(
     params: FlintParams,
     env: RhsEnv,
     nfp: int,
-    rt0: float,
+    rt0: float | None = None,
     *,
+    Rmajor: float | None = None,
     diagnostic_callback=None,
     diagnostic_trap_callback=None,
     diagnostic_snapshot: tuple[int, int] | None = None,
     diagnostic_snapshot_callback=None,
 ):
     """JAX-friendly integration loop with rational-surface correction."""
+    if rt0 is None:
+        if Rmajor is None:
+            raise ValueError("Either rt0 or Rmajor must be provided.")
+        rt0 = float(Rmajor)
+    elif Rmajor is not None and float(Rmajor) != float(rt0):
+        raise ValueError("rt0 and Rmajor must match if both are provided.")
     npart = params.npart
     multra = params.multra
     ndim = NPQ + 2 * npart

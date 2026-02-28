@@ -8,6 +8,7 @@ with a penalty on the aspect ratio, computed directly from the boundary shape.
 
 Note: NEO_JAX's JAX surface scan currently supports forward-mode autodiff.
 We therefore use ``jax.jacfwd`` for gradients in this example.
+We fix rc00 (R_cos at m=0,n=0) so the major radius stays constant.
 """
 
 from __future__ import annotations
@@ -49,6 +50,12 @@ def main() -> None:
     parser.add_argument("--nboz", type=int, default=8, help="Boozer n resolution.")
     parser.add_argument("--aspect-weight", type=float, default=1.0, help="Aspect ratio penalty weight.")
     parser.add_argument(
+        "--min-coeff",
+        type=float,
+        default=1.0e-12,
+        help="Minimum |rc/zs| to include as an optimization parameter.",
+    )
+    parser.add_argument(
         "--aspect-target",
         type=float,
         default=None,
@@ -60,13 +67,14 @@ def main() -> None:
     import vmec_jax as vj
     from vmec_jax._compat import enable_x64, has_jax, jax, jnp
     from vmec_jax.booz_input import booz_xform_inputs_from_state
-    from vmec_jax.boundary import boundary_from_indata
+    from vmec_jax.boundary import boundary_from_indata, boundary_aspect_ratio
     from vmec_jax.driver import example_paths
-    from vmec_jax.fourier import build_helical_basis, eval_fourier
+    from vmec_jax.driver import solve_fixed_boundary_from_boundary
+    from vmec_jax.fourier import build_helical_basis
     from vmec_jax.init_guess import initial_guess_from_boundary
     from vmec_jax.static import build_static
 
-    from booz_xform_jax.jax_api import prepare_booz_xform_constants, booz_xform_jax_impl
+    from booz_xform_jax.jax_api import prepare_booz_xform_constants_from_inputs, booz_xform_from_inputs
     from neo_jax import NeoConfig
     from neo_jax.driver import run_neo_from_boozer_jax
     from neo_jax.io import booz_xform_to_boozerdata
@@ -79,20 +87,32 @@ def main() -> None:
     cfg, indata = vj.load_config(input_path)
     static = build_static(cfg)
     boundary0 = boundary_from_indata(indata, static.modes)
+    basis = build_helical_basis(static.modes, static.grid)
 
     modes = static.modes
 
-    def _mode_index(m: int, n: int) -> int:
-        mask = (np.asarray(modes.m) == m) & (np.asarray(modes.n) == n)
-        idx = np.where(mask)[0]
-        if idx.size == 0:
-            raise ValueError(f"Mode (m={m}, n={n}) not found in VMEC mode table")
-        return int(idx[0])
+    def _coeff_label(prefix: str, m: int, n: int) -> str:
+        n_str = f"{n:+d}".replace("+", "")
+        return f"{prefix}{m}{n_str}"
 
-    # Small set of boundary coefficients to vary.
-    k10 = _mode_index(1, 0)
-    k11 = _mode_index(1, 1)
-    param_names = ["dRcos(1,0)", "dZsin(1,0)", "dRcos(1,1)", "dZsin(1,1)"]
+    # Select symmetric coefficients to vary (rc, zs), fixing rc00.
+    param_specs: list[tuple[str, int, int, int]] = []
+    for k, (m_i, n_i) in enumerate(zip(np.asarray(modes.m), np.asarray(modes.n))):
+        m_i = int(m_i)
+        n_i = int(n_i)
+        if m_i < 0:
+            continue
+        if m_i == 0 and n_i == 0:
+            continue
+        if abs(float(boundary0.R_cos[k])) > float(args.min_coeff):
+            param_specs.append(("rc", k, m_i, n_i))
+        if abs(float(boundary0.Z_sin[k])) > float(args.min_coeff):
+            param_specs.append(("zs", k, m_i, n_i))
+
+    if not param_specs:
+        raise RuntimeError("No nonzero rc/zs modes found to optimize.")
+
+    param_names = [_coeff_label(kind, m_i, n_i) for kind, _, m_i, n_i in param_specs]
 
     st0 = initial_guess_from_boundary(static, boundary0, indata, vmec_project=False)
     g0 = vj.eval_geom(st0, static)
@@ -107,15 +127,11 @@ def main() -> None:
         signgs=signgs0,
     )
 
-    constants, grids = prepare_booz_xform_constants(
-        nfp=int(base_inputs.nfp),
+    constants, grids = prepare_booz_xform_constants_from_inputs(
+        inputs=base_inputs,
         mboz=int(args.mboz),
         nboz=int(args.nboz),
         asym=bool(cfg.lasym),
-        xm=np.asarray(base_inputs.xm),
-        xn=np.asarray(base_inputs.xn),
-        xm_nyq=np.asarray(base_inputs.xm_nyq),
-        xn_nyq=np.asarray(base_inputs.xn_nyq),
     )
 
     s_half = 0.5 * (np.asarray(static.s[:-1]) + np.asarray(static.s[1:]))
@@ -143,31 +159,17 @@ def main() -> None:
     )
     control = neo_config.to_control()
 
-    basis = build_helical_basis(static.modes, static.grid)
-
-    def boundary_aspect_ratio(boundary) -> jnp.ndarray:
-        Rb = eval_fourier(jnp.asarray(boundary.R_cos), jnp.asarray(boundary.R_sin), basis)
-        Zb = eval_fourier(jnp.asarray(boundary.Z_cos), jnp.asarray(boundary.Z_sin), basis)
-        dA = Rb * jnp.roll(Zb, -1, axis=0) - jnp.roll(Rb, -1, axis=0) * Zb
-        area = 0.5 * jnp.sum(dA, axis=0)
-        minor = jnp.sqrt(jnp.abs(area) / jnp.pi)
-        Rmax = jnp.max(Rb, axis=0)
-        Rmin = jnp.min(Rb, axis=0)
-        Rmajor = jnp.mean(0.5 * (Rmax + Rmin))
-        Aminor = jnp.mean(minor)
-        return Rmajor / Aminor
-
-    aspect0 = float(boundary_aspect_ratio(boundary0))
+    aspect0 = float(boundary_aspect_ratio(boundary0, basis))
     aspect_target = float(args.aspect_target) if args.aspect_target is not None else aspect0
 
-    booz_fn = booz_xform_jax_impl
-    if args.jit_booz:
-        booz_fn = jax.jit(booz_xform_jax_impl, static_argnames=("constants",))
-
     def _build_boundary(params):
-        dR10, dZ10, dR11, dZ11 = params
-        Rcos = jnp.asarray(boundary0.R_cos).at[k10].add(dR10).at[k11].add(dR11)
-        Zsin = jnp.asarray(boundary0.Z_sin).at[k10].add(dZ10).at[k11].add(dZ11)
+        Rcos = jnp.asarray(boundary0.R_cos)
+        Zsin = jnp.asarray(boundary0.Z_sin)
+        for idx, (kind, k, _m, _n) in enumerate(param_specs):
+            if kind == "rc":
+                Rcos = Rcos.at[k].add(params[idx])
+            else:
+                Zsin = Zsin.at[k].add(params[idx])
         return vj.BoundaryCoeffs(
             R_cos=Rcos,
             R_sin=jnp.asarray(boundary0.R_sin),
@@ -176,16 +178,13 @@ def main() -> None:
         )
 
     def _solve_vmec(boundary):
-        st_guess = initial_guess_from_boundary(static, boundary, indata, vmec_project=False)
-        res = vj.solve_fixed_boundary_gd(
-            st_guess,
-            static,
-            phipf=flux.phipf,
-            chipf=flux.chipf,
-            signgs=signgs0,
-            lamscale=flux.lamscale,
+        return solve_fixed_boundary_from_boundary(
+            boundary=boundary,
+            static=static,
+            indata=indata,
+            flux=flux,
             pressure=pressure,
-            gamma=float(indata.get_float("GAMMA", 0.0)),
+            signgs=signgs0,
             max_iter=int(args.max_iter),
             step_size=float(args.step_size),
             jacobian_penalty=1e3,
@@ -194,7 +193,6 @@ def main() -> None:
             stop_grad_in_update=True,
             verbose=False,
         )
-        return res.state
 
     def epsilon_effective_from_state(state):
         inputs = booz_xform_inputs_from_state(
@@ -203,24 +201,12 @@ def main() -> None:
             indata=indata,
             signgs=signgs0,
         )
-        booz_out = booz_fn(
-            rmnc=inputs.rmnc,
-            zmns=inputs.zmns,
-            lmns=inputs.lmns,
-            bmnc=inputs.bmnc,
-            bsubumnc=inputs.bsubumnc,
-            bsubvmnc=inputs.bsubvmnc,
-            iota=inputs.iota,
-            xm=inputs.xm,
-            xn=inputs.xn,
-            xm_nyq=inputs.xm_nyq,
-            xn_nyq=inputs.xn_nyq,
+        booz_out = booz_xform_from_inputs(
+            inputs=inputs,
             constants=constants,
             grids=grids,
-            bmns=inputs.bmns,
-            bsubumns=inputs.bsubumns,
-            bsubvmns=inputs.bsubvmns,
             surface_indices=surface_indices_j,
+            jit=bool(args.jit_booz),
         )
         booz = booz_xform_to_boozerdata(booz_out, use_jax=True)
         outputs = run_neo_from_boozer_jax(booz, control)
@@ -230,22 +216,24 @@ def main() -> None:
         boundary = _build_boundary(params)
         state = _solve_vmec(boundary)
         eps_eff = epsilon_effective_from_state(state)
-        aspect = boundary_aspect_ratio(boundary)
+        aspect = boundary_aspect_ratio(boundary, basis)
         return eps_eff + float(args.aspect_weight) * (aspect - aspect_target) ** 2
 
     def metrics(params):
         boundary = _build_boundary(params)
         state = _solve_vmec(boundary)
         eps_eff = epsilon_effective_from_state(state)
-        aspect = boundary_aspect_ratio(boundary)
+        aspect = boundary_aspect_ratio(boundary, basis)
         obj = eps_eff + float(args.aspect_weight) * (aspect - aspect_target) ** 2
         return obj, eps_eff, aspect
 
-    params = jnp.zeros((4,), dtype=jnp.float64)
+    params = jnp.zeros((len(param_specs),), dtype=jnp.float64)
     obj0, eps0, aspect_init = metrics(params)
     print("NEO_JAX QH optimization (epsilon effective + aspect ratio)")
     print("Surfaces (s):", ", ".join(f"{s:.3f}" for s in selected_s))
     print("Params:", ", ".join(param_names))
+    print("Fixed: rc00 (major radius)")
+    print(f"Param threshold |rc/zs| > {float(args.min_coeff):.1e}")
     print(f"Baseline eps_eff={float(eps0):.6e}, aspect={float(aspect_init):.4f}")
 
     grad_fn = jax.jacfwd(objective)
