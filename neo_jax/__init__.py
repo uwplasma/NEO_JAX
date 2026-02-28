@@ -10,6 +10,7 @@ from .plotting import plot_epsilon_effective
 from .pipeline import (
     booz_xform_from_vmec_wout,
     booz_xform_from_vmec_state_jax,
+    build_vmec_boozer_neo_jax,
     run_boozer_to_neo,
     run_vmec_boozer_neo,
     run_vmec_boozer_neo_jax,
@@ -44,5 +45,6 @@ __all__ = [
     "run_vmec_boozer_neo",
     "booz_xform_from_vmec_wout",
     "booz_xform_from_vmec_state_jax",
+    "build_vmec_boozer_neo_jax",
     "run_vmec_boozer_neo_jax",
 ]
