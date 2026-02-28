@@ -23,6 +23,7 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
    - Eliminate `np.asarray` in the JAX path to keep JIT and gradients intact.
    - ✅ Added `vmec_jax.booz_xform_inputs_from_state` (JAX) to produce Boozer inputs
      without NumPy in the VMEC→Boozer path.
+   - ✅ Added `booz_xform_to_boozerdata_jax` and surface metadata (`s_b`, `ns_b`, `jlist`) handling.
 2. **JAX-native surface loop**:
    - Implement a `run_neo_jax` function that uses `jax.vmap` or `jax.lax.scan`
      over surfaces (no Python loop).
@@ -40,12 +41,15 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
    - 🔜 Upgrade to a **fully JIT** end-to-end path:
      - accept a JAX-native `vmec_state` and avoid NumPy in the VMEC→Boozer adapter.
      - return `NeoResults` with `jax.grad` support through the entire pipeline.
+   - ✅ Added `build_vmec_boozer_neo_jax` to precompute Boozer constants and reuse a JAX callable.
 5. **Gradient validation**:
    - Add a small gradient test: `grad(epsilon_effective)` w.r.t. a VMEC boundary
      coefficient at low resolution.
+   - ✅ Added a forward-mode JVP gradient test (reverse-mode blocked by dynamic loops).
 6. **Optimization demo**:
    - Provide an end-to-end optimization example that minimizes epsilon effective
      with respect to VMEC boundary coefficients.
+   - ✅ Added QH warm-start optimization example (epsilon effective + aspect ratio).
 
 ## Required changes in booz_xform_jax
 - Replace any NumPy usage with `jax.numpy` in core transforms.
