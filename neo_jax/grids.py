@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict
 
+import jax
 import jax.numpy as jnp
 
 
@@ -23,13 +24,18 @@ def prepare_grids(theta_n: int, phi_n: int, nfp: int) -> Dict[str, jnp.ndarray |
     theta_arr = theta_start + theta_int * jnp.arange(theta_n)
     phi_arr = phi_start + phi_int * jnp.arange(phi_n)
 
+    def _maybe_float(value):
+        if isinstance(value, jax.Array):
+            return value
+        return float(value)
+
     return {
         "theta_start": theta_start,
         "theta_end": theta_end,
         "phi_start": phi_start,
         "phi_end": phi_end,
-        "theta_int": float(theta_int),
-        "phi_int": float(phi_int),
+        "theta_int": _maybe_float(theta_int),
+        "phi_int": _maybe_float(phi_int),
         "theta_arr": theta_arr,
         "phi_arr": phi_arr,
         "theta_n": theta_n,

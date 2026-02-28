@@ -55,8 +55,13 @@ def run_neo_from_boozer_jax(
     )
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
 
-    max_m_mode = control.max_m_mode if control.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
-    max_n_mode = control.max_n_mode if control.max_n_mode > 0 else int(np.max(np.abs(booz.ixn)))
+    def _max_abs_mode(arr):
+        if isinstance(arr, jax.Array):
+            return jnp.max(jnp.abs(arr))
+        return int(np.max(np.abs(arr)))
+
+    max_m_mode = control.max_m_mode if control.max_m_mode > 0 else _max_abs_mode(booz.ixm)
+    max_n_mode = control.max_n_mode if control.max_n_mode > 0 else _max_abs_mode(booz.ixn)
 
     if control.fluxs_arr:
         if booz.rmnc.shape[0] == len(control.fluxs_arr):
