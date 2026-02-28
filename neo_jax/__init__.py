@@ -5,7 +5,7 @@ from .api import load_boozmn, run_boozer, run_booz_xform, run_boozmn, run_neo
 from .config import NeoConfig
 from .data_models import BoozerData, NeoInputs, NeoOutputs, VmecData
 from .driver import run_neo_from_boozer, run_neo_from_boozmn
-from .io import booz_xform_to_boozerdata, read_boozmn
+from .io import booz_xform_to_boozerdata, booz_xform_to_boozerdata_jax, read_boozmn
 from .plotting import plot_epsilon_effective
 from .pipeline import (
     booz_xform_from_vmec_wout,
@@ -29,6 +29,7 @@ __all__ = [
     "neo_outputs_to_results",
     "read_boozmn",
     "booz_xform_to_boozerdata",
+    "booz_xform_to_boozerdata_jax",
     "run_neo_from_boozer",
     "run_neo_from_boozmn",
     "load_boozmn",

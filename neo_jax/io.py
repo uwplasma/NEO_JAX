@@ -252,6 +252,14 @@ def booz_xform_to_boozerdata(
     if use_jax is None:
         use_jax = _JAX_AVAILABLE and isinstance(sample, jax.Array)  # type: ignore[arg-type]
 
+    if use_jax and _JAX_AVAILABLE:
+        return booz_xform_to_boozerdata_jax(
+            booz,
+            max_m_mode=max_m_mode,
+            max_n_mode=max_n_mode,
+            fluxs_arr=fluxs_arr,
+        )
+
     xp = jnp if (use_jax and _JAX_AVAILABLE) else np
 
     nfp = int(np.asarray(_get("nfp_b")).squeeze())
@@ -296,7 +304,12 @@ def booz_xform_to_boozerdata(
     curr_pol = []
     curr_tor = []
 
-    hs = 1.0 / (ns_b - 1)
+    if "s_b" in getattr(booz, "__dict__", {}) or (isinstance(booz, dict) and "s_b" in booz):
+        s_vals = np.asarray(_get("s_b"), dtype=float)
+    else:
+        ns_full = int(np.asarray(_get("ns_b"))) if (isinstance(booz, dict) and "ns_b" in booz) else ns_b
+        hs = 1.0 / (ns_full - 1) if ns_full > 1 else 0.0
+        s_vals = np.array([(surf - 1.5) * hs for surf in range(1, ns_b + 1)], dtype=float)
     for surf in surfaces:
         surf_idx = surf - 1
         rmnc.append(rmnc_raw[surf_idx, mode_mask])
@@ -304,7 +317,7 @@ def booz_xform_to_boozerdata(
         lmns.append(-pmns_raw[surf_idx, mode_mask] * nfp / (2.0 * math.pi))
         bmnc.append(bmnc_raw[surf_idx, mode_mask])
 
-        es.append((surf - 1.5) * hs)
+        es.append(s_vals[surf_idx])
         iota.append(iota_b[surf_idx])
         curr_pol.append(bvco_b[surf_idx])
         curr_tor.append(buco_b[surf_idx])
@@ -323,4 +336,93 @@ def booz_xform_to_boozerdata(
         curr_pol=arr(curr_pol),
         curr_tor=arr(curr_tor),
         nfp=nfp,
+    )
+
+
+def booz_xform_to_boozerdata_jax(
+    booz: object,
+    *,
+    max_m_mode: int = 0,
+    max_n_mode: int = 0,
+    fluxs_arr: Optional[Sequence[int]] = None,
+) -> BoozerData:
+    """JAX-friendly conversion from booz_xform outputs to BoozerData."""
+    if not _JAX_AVAILABLE:  # pragma: no cover - optional
+        raise ImportError("JAX is required for booz_xform_to_boozerdata_jax")
+
+    def _get(name: str):
+        if isinstance(booz, dict) and name in booz:
+            return booz[name]
+        if hasattr(booz, name):
+            return getattr(booz, name)
+        raise KeyError(f"Missing field {name} in Boozer data")
+
+    nfp = jnp.asarray(_get("nfp_b")).reshape(())[()]
+    ixm_b = jnp.asarray(_get("ixm_b"), dtype=jnp.int32)
+    ixn_b = jnp.asarray(_get("ixn_b"), dtype=jnp.int32)
+
+    iota_b = jnp.asarray(_get("iota_b"))
+    buco_b = jnp.asarray(_get("buco_b"))
+    bvco_b = jnp.asarray(_get("bvco_b"))
+
+    rmnc_raw = jnp.asarray(_get("rmnc_b"))
+    zmns_raw = jnp.asarray(_get("zmns_b"))
+    pmns_raw = jnp.asarray(_get("pmns_b"))
+    bmnc_raw = jnp.asarray(_get("bmnc_b"))
+
+    # Ensure surface dimension first (static shape check).
+    if rmnc_raw.shape[0] == ixm_b.shape[0]:
+        rmnc_raw = rmnc_raw.T
+        zmns_raw = zmns_raw.T
+        pmns_raw = pmns_raw.T
+        bmnc_raw = bmnc_raw.T
+
+    ns_b = rmnc_raw.shape[0]
+
+    max_m = max_m_mode if max_m_mode > 0 else jnp.max(jnp.abs(ixm_b))
+    max_n = max_n_mode if max_n_mode > 0 else jnp.max(jnp.abs(ixn_b))
+    mode_mask = (jnp.abs(ixm_b) <= max_m) & (jnp.abs(ixn_b) <= max_n)
+
+    ixm = ixm_b[mode_mask]
+    ixn = ixn_b[mode_mask]
+
+    if fluxs_arr:
+        surface_indices = jnp.asarray([int(s) - 1 for s in fluxs_arr], dtype=jnp.int32)
+    else:
+        surface_indices = jnp.arange(ns_b, dtype=jnp.int32)
+
+    rmnc = jnp.take(rmnc_raw, surface_indices, axis=0)[:, mode_mask]
+    zmns = jnp.take(zmns_raw, surface_indices, axis=0)[:, mode_mask]
+    lmns = -jnp.take(pmns_raw, surface_indices, axis=0)[:, mode_mask] * nfp / (2.0 * math.pi)
+    bmnc = jnp.take(bmnc_raw, surface_indices, axis=0)[:, mode_mask]
+
+    iota = jnp.take(iota_b, surface_indices, axis=0)
+    curr_pol = jnp.take(bvco_b, surface_indices, axis=0)
+    curr_tor = jnp.take(buco_b, surface_indices, axis=0)
+
+    if isinstance(booz, dict) and "s_b" in booz:
+        s_vals = jnp.asarray(_get("s_b"))
+        es = jnp.take(s_vals, surface_indices, axis=0)
+    else:
+        ns_full = (
+            int(jnp.asarray(_get("ns_b"))) if (isinstance(booz, dict) and "ns_b" in booz) else int(ns_b)
+        )
+        hs = 1.0 / (ns_full - 1) if ns_full > 1 else 0.0
+        jlist = (
+            jnp.asarray(_get("jlist")) if (isinstance(booz, dict) and "jlist" in booz) else (surface_indices + 1)
+        )
+        es = (jlist - 1.5) * hs
+
+    return BoozerData(
+        rmnc=rmnc,
+        zmns=zmns,
+        lmns=lmns,
+        bmnc=bmnc,
+        ixm=ixm,
+        ixn=ixn,
+        es=es,
+        iota=iota,
+        curr_pol=curr_pol,
+        curr_tor=curr_tor,
+        nfp=int(nfp),
     )
