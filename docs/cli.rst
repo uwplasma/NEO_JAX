@@ -17,7 +17,8 @@ Useful options:
 
 - ``--boozmn``: path to a ``boozmn`` file (netCDF).
 - ``--output``: override the NEO output file name.
-- ``--jax``: use the JAX scan backend (no rational-surface correction yet).
+- ``--jax``: use the JAX backend (default).
+- ``--no-jax``: disable the JAX backend.
 - ``--verbose``: print progress and output lines to stdout.
 
 Example using the ORBITS reference case:

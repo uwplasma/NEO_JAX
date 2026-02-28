@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from neo_jax import NeoConfig, load_boozmn, plot_epsilon_effective, run_neo
+from neo_jax import NeoConfig, load_boozmn, neo_outputs_to_results, plot_epsilon_effective, run_neo
 
 
 def main() -> None:
@@ -22,12 +22,14 @@ def main() -> None:
         write_progress=True,
     )
 
-    results = run_neo(boozmn_path, config=config, use_jax=True)
+    outputs = run_neo(boozmn_path, config=config, use_jax=True, jax_surface_scan=True)
+    results = neo_outputs_to_results(outputs)
 
     # Alternative: load the boozmn file once and reuse the BoozerData object.
     # Here we load the same surfaces selected above so the comparison is apples-to-apples.
     booz = load_boozmn(boozmn_path, surfaces=results.flux_index)
-    results_from_booz = run_neo(booz, config=NeoConfig(theta_n=64, phi_n=64), use_jax=True)
+    outputs_from_booz = run_neo(booz, config=NeoConfig(theta_n=64, phi_n=64), use_jax=True, jax_surface_scan=True)
+    results_from_booz = neo_outputs_to_results(outputs_from_booz)
     assert np.allclose(results_from_booz.epsilon_effective, results.epsilon_effective)
 
     # Access by name (aliases supported)
