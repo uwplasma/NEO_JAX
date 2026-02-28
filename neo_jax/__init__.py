@@ -15,7 +15,7 @@ from .pipeline import (
     run_vmec_boozer_neo_jax,
 )
 from .workflow import SurfaceProblem, build_surface_problem
-from .results import NeoResults, NeoSurfaceResult
+from .results import NeoResults, NeoSurfaceResult, neo_outputs_to_results
 
 __all__ = [
     "__version__",
@@ -26,6 +26,7 @@ __all__ = [
     "NeoConfig",
     "NeoResults",
     "NeoSurfaceResult",
+    "neo_outputs_to_results",
     "read_boozmn",
     "booz_xform_to_boozerdata",
     "run_neo_from_boozer",

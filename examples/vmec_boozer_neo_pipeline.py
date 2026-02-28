@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import argparse
 
-from neo_jax import NeoConfig, plot_epsilon_effective, run_vmec_boozer_neo, run_vmec_boozer_neo_jax
+from neo_jax import (
+    NeoConfig,
+    neo_outputs_to_results,
+    plot_epsilon_effective,
+    run_vmec_boozer_neo,
+    run_vmec_boozer_neo_jax,
+)
 
 
 def _parse_surfaces(text: str) -> list[float]:
@@ -109,11 +115,10 @@ def main() -> None:
 
     import numpy as np
 
-    eps_eff = (
-        np.asarray(results.epsilon_effective)
-        if hasattr(results, "epsilon_effective")
-        else np.asarray(results.eps_eff)
-    )
+    if hasattr(results, "eps_eff") and not hasattr(results, "epsilon_effective"):
+        results = neo_outputs_to_results(results)
+
+    eps_eff = np.asarray(results.epsilon_effective)
 
     if not np.all(np.isfinite(eps_eff)):
         print(
@@ -121,10 +126,7 @@ def main() -> None:
             "Increase --max-iter or choose different surfaces for a converged equilibrium."
         )
 
-    if hasattr(results, "epsilon_effective"):
-        fig, _ = plot_epsilon_effective(results, x="s")
-    else:
-        fig = None
+    fig, _ = plot_epsilon_effective(results, x="s")
     if not args.no_show:
         import matplotlib.pyplot as plt
 

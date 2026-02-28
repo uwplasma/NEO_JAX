@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Iterator, Mapping, Sequence
 
+from .data_models import NeoOutputs
+
 import numpy as np
 
 
@@ -144,3 +146,89 @@ class NeoResults(Sequence[NeoSurfaceResult]):
 
     def to_dicts(self) -> list[dict]:
         return [res.to_dict() for res in self._results]
+
+
+def _as_array(value):
+    try:
+        arr = np.asarray(value)
+    except Exception:
+        return None
+    if arr.shape == ():
+        return None
+    return arr
+
+
+def neo_outputs_to_results(
+    outputs: NeoOutputs,
+    *,
+    flux_indices: Sequence[int] | None = None,
+) -> NeoResults:
+    """Convert JAX-friendly ``NeoOutputs`` into ``NeoResults``."""
+    diag = outputs.diagnostics or {}
+
+    eps_eff = np.asarray(outputs.eps_eff)
+    eps_par = np.asarray(outputs.eps_par)
+    ctr_one = np.asarray(outputs.ctr_one)
+    ctr_tot = np.asarray(outputs.ctr_tot)
+
+    n = int(eps_eff.shape[0])
+
+    def _series(key: str, default: float = 0.0) -> np.ndarray:
+        value = diag.get(key, default)
+        arr = np.asarray(value)
+        if arr.shape == ():
+            return np.full((n,), float(arr))
+        return arr
+
+    s = _series("s", 0.0)
+    r_eff = _series("r_eff", 0.0)
+    iota = _series("iota", 0.0)
+    b_ref = _series("b_ref", 0.0)
+    r_ref = _series("r_ref", 0.0)
+    bareph = _series("bareph", 0.0)
+    barept = _series("barept", 0.0)
+    yps = _series("yps", 0.0)
+
+    flux_index = None
+    if flux_indices is not None:
+        flux_index = np.asarray(flux_indices)
+    else:
+        flux_index = diag.get("flux_index")
+        if flux_index is not None:
+            flux_index = np.asarray(flux_index)
+    if flux_index is None or flux_index.shape == ():
+        flux_index = np.arange(1, n + 1, dtype=int)
+
+    results: list[NeoSurfaceResult] = []
+    for idx in range(n):
+        surface_diag: dict[str, object] = {}
+        for key, value in diag.items():
+            arr = _as_array(value)
+            if arr is not None and arr.shape[0] == n:
+                if arr.ndim == 1:
+                    surface_diag[key] = float(arr[idx])
+                else:
+                    surface_diag[key] = arr[idx]
+            else:
+                surface_diag[key] = value
+
+        results.append(
+            NeoSurfaceResult(
+                flux_index=int(flux_index[idx]),
+                s=float(s[idx]),
+                r_eff=float(r_eff[idx]),
+                iota=float(iota[idx]),
+                b_ref=float(b_ref[idx]),
+                r_ref=float(r_ref[idx]),
+                epsilon_effective=float(eps_eff[idx]),
+                epsilon_effective_by_class=np.asarray(eps_par[idx]),
+                ctrone=float(ctr_one[idx]),
+                ctrtot=float(ctr_tot[idx]),
+                bareph=float(bareph[idx]),
+                barept=float(barept[idx]),
+                yps=float(yps[idx]),
+                diagnostics=surface_diag,
+            )
+        )
+
+    return NeoResults(results)

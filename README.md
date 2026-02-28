@@ -63,6 +63,15 @@ results = run_vmec_boozer_neo(
 For a JAX-native VMEC→Boozer adapter plus a JAX surface scan, use
 `run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun` object.
 
+When using JAX surface scans, the return type is a JAX-friendly
+`NeoOutputs`. Convert it to the standard `NeoResults` container with:
+
+```python
+from neo_jax import neo_outputs_to_results
+
+results = neo_outputs_to_results(outputs)
+```
+
 ## Documentation
 
 Sphinx documentation lives in `docs/` and is configured for Read the Docs.
@@ -74,6 +83,7 @@ See `docs/index.rst` for the table of contents.
 - `examples/ncsx_epsilon_effective_plot.py`: compute and plot epsilon effective vs `s`.
 - `examples/ncsx_autodiff_Rmajor_optimization.py`: autodiff optimization demo over `Rmajor`.
 - `examples/epsilon_effective_scale_optimization.py`: toy autodiff example that scales |B| to reduce epsilon effective.
+- `examples/qh_epsilon_effective_aspect_optimization.py`: QH warm-start optimization (epsilon effective + aspect ratio).
 - `examples/vmec_boozer_neo_pipeline.py`: full vmec_jax → booz_xform_jax → neo_jax pipeline.
 
 ## NCSX Parity Snapshot
