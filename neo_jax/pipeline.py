@@ -111,26 +111,28 @@ def booz_xform_from_vmec_state_jax(
         xn_nyq=np.asarray(inputs.xn_nyq),
     )
 
+    ns_b_full = int(inputs.rmnc.shape[0])
+    s_half_full = jax.numpy.asarray(0.5 * (vmec_run.static.s[:-1] + vmec_run.static.s[1:]))
     if surfaces is None:
         surface_indices = None
+        s_selected = s_half_full
     else:
-        ns_b = int(inputs.rmnc.shape[0])
-        hs = 1.0 / ns_b
-        s_vals = [(idx + 1 - 1.5) * hs for idx in range(ns_b)]
-        surface_indices = []
+        s_vals = list(np.asarray(s_half_full))
+        surface_indices_list = []
         for val in surfaces:
             if isinstance(val, float) and 0.0 <= val <= 1.0:
-                best = min(range(ns_b), key=lambda i: abs(s_vals[i] - val))
-                surface_indices.append(best)
+                best = min(range(ns_b_full), key=lambda i: abs(s_vals[i] - val))
+                surface_indices_list.append(best)
             else:
-                surface_indices.append(int(val) - 1)
-        surface_indices = jax.numpy.asarray(surface_indices, dtype=jax.numpy.int32)
+                surface_indices_list.append(int(val) - 1)
+        surface_indices = jax.numpy.asarray(surface_indices_list, dtype=jax.numpy.int32)
+        s_selected = jax.numpy.take(s_half_full, surface_indices, axis=0)
 
     booz_fn = booz_xform_jax_impl
     if jit:
         booz_fn = jax.jit(booz_xform_jax_impl, static_argnames=("constants",))
 
-    return booz_fn(
+    booz_out = booz_fn(
         rmnc=inputs.rmnc,
         zmns=inputs.zmns,
         lmns=inputs.lmns,
@@ -149,6 +151,11 @@ def booz_xform_from_vmec_state_jax(
         bsubvmns=inputs.bsubvmns,
         surface_indices=surface_indices,
     )
+    booz_out["s_b"] = s_selected
+    booz_out["ns_b"] = ns_b_full
+    if surface_indices is not None:
+        booz_out["jlist"] = surface_indices + 1
+    return booz_out
 
 
 def _resolve_vmec_wout(
