@@ -65,6 +65,20 @@ For a JAX-native VMEC state → Boozer adapter plus a JAX surface scan, use
 :func:`neo_jax.run_vmec_boozer_neo_jax`. This path avoids NumPy in the VMEC→Boozer
 interface and is suitable for autodiff experiments.
 
+For repeated solves (e.g., optimization loops), build a reusable pipeline:
+
+.. code-block:: python
+
+   from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
+
+   solver = build_vmec_boozer_neo_jax(
+       run,
+       booz_kwargs=dict(mboz=8, nboz=8),
+       neo_config=NeoConfig(surfaces=[0.5]),
+       jit=True,
+   )
+   outputs = solver(run.state)
+
 Example: vmec_jax → booz_xform_jax → neo_jax
 --------------------------------------------
 

@@ -72,6 +72,17 @@ from neo_jax import neo_outputs_to_results
 results = neo_outputs_to_results(outputs)
 ```
 
+If you want a reusable, JIT-friendly pipeline callable (useful for loops and
+optimizers), use `build_vmec_boozer_neo_jax`:
+
+```python
+from neo_jax import build_vmec_boozer_neo_jax, NeoConfig
+
+solver = build_vmec_boozer_neo_jax(run, booz_kwargs=dict(mboz=8, nboz=8),
+                                   neo_config=NeoConfig(surfaces=[0.5]), jit=True)
+outputs = solver(run.state)
+```
+
 ## Documentation
 
 Sphinx documentation lives in `docs/` and is configured for Read the Docs.
