@@ -211,11 +211,10 @@ def run_vmec_boozer_neo(
 ) -> Any:
     """Run vmec_jax -> booz_xform_jax -> neo_jax in one workflow.
 
-    This requires a JAX-native `booz_xform_fn` (e.g., from booz_xform_jax.jax_api)
-    and a vmec_source that is either:
-      - a vmec_jax FixedBoundaryRun,
-      - a vmec_jax WoutData object,
-      - or a path to a VMEC input file.
+    This requires a JAX-native ``booz_xform_fn`` (for example from
+    ``booz_xform_jax.jax_api``). ``vmec_source`` may be a
+    ``vmec_jax.FixedBoundaryRun``, a ``vmec_jax.WoutData`` object, or a path to
+    a VMEC input file.
     """
     wout = _resolve_vmec_wout(vmec_source, vmec_kwargs=vmec_kwargs, fast_bcovar=fast_bcovar)
 

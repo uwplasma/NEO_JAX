@@ -219,6 +219,7 @@ def flint_bo(
     diagnostic_trap_path: str = "diagnostic_first_trap.dat",
     diagnostic_snapshot: tuple[int, int] | None = None,
     diagnostic_snapshot_path: str = "diagnostic_snapshot.dat",
+    collect_convergence: bool = False,
 ):
     """Python-loop port of flint_bo.f90 (not yet JIT-optimized)."""
     if rt0 is None:
@@ -306,11 +307,13 @@ def flint_bo(
     n_iota = 1
     m_iota = 1
     iota_bar_fp = 0.0
+    n_gap = 0
 
     diagnostic_events = [] if diagnostic else None
     max_class = 0
     trap_written = False
     snapshot_written = False
+    convergence_history = [] if collect_convergence else None
 
     # Main loop
     for n in range(1, params.nstep_max + 1):
@@ -389,6 +392,21 @@ def flint_bo(
             if int(state.ipmax) == 1:
                 aditot = aditot + adimax
                 state = RhsState(state.isw, state.ipa, state.icount, jnp.array(0, dtype=jnp.int32), state.pard0)
+
+        if collect_convergence and convergence_history is not None:
+            epstot_check = 0.0
+            for m_cl in range(1, multra + 1):
+                epspar_check = float(coeps * bigint[m_cl - 1] * y[1] / (y[2] * y[2]))
+                epstot_check = epstot_check + epspar_check
+            convergence_history.append(
+                (
+                    float(n),
+                    epstot_check,
+                    float(y[3]),
+                    float(y[NPQ + npart - 1] / y[1]),
+                    float(aditot / y[1]),
+                )
+            )
 
         # Rational surface detection
         theta = y[0]
@@ -503,6 +521,21 @@ def flint_bo(
                         aditot_s = aditot_s + adimax_s
                         state = RhsState(state.isw, state.ipa, state.icount, jnp.array(0, dtype=jnp.int32), state.pard0)
 
+                if collect_convergence and convergence_history is not None:
+                    epstot_check = 0.0
+                    for m_cl in range(1, multra + 1):
+                        epspar_check = float(coeps * bigint_s[m_cl - 1] * y[1] / (y[2] * y[2]))
+                        epstot_check = epstot_check + epspar_check
+                    convergence_history.append(
+                        (
+                            float(nfl * nfp_rat + _n),
+                            epstot_check,
+                            float(y[3]),
+                            float(y[NPQ + npart - 1] / y[1]),
+                            float(aditot_s / y[1]),
+                        )
+                    )
+
             y2_s = y[1]
             y3_s = y[2]
             y4_s = y[3]
@@ -549,9 +582,15 @@ def flint_bo(
         "bigint": bigint,
         "nintfp": nintfp,
         "hit_rat": hit_rat,
+        "n_iota": n_iota,
+        "m_iota": m_iota,
+        "n_gap": n_gap,
+        "final_n": n,
         "nfp_rat": nfp_rat,
         "nfl_rat": nfl_rat,
     }
+    if collect_convergence and convergence_history is not None:
+        out["convergence_history"] = convergence_history
     if diagnostic and diagnostic_events is not None:
         out["diagnostic_events"] = diagnostic_events
         out["diagnostic_meta"] = {
@@ -660,6 +699,7 @@ def flint_bo_jax(
     nfp_rat = jnp.array(0, dtype=jnp.int32)
     nfl_rat = jnp.array(0, dtype=jnp.int32)
     delta_theta_rat = jnp.array(0.0)
+    n_gap = jnp.array(0, dtype=jnp.int32)
 
     stop = jnp.array(False)
     n = jnp.array(0, dtype=jnp.int32)
@@ -887,17 +927,29 @@ def flint_bo_jax(
             n_val <= params.nstep_min, body, lambda _: (theta_d_min, n_iota, m_iota, iota_bar_fp), operand=None
         )
 
-    def update_rational(n_val, theta_d_min, n_iota, iota_bar_fp, nstep_max_c, hit_rat, exist_first_ratfl, nfp_rat, nfl_rat, delta_theta_rat):
+    def update_rational(
+        n_val,
+        theta_d_min,
+        n_iota,
+        iota_bar_fp,
+        nstep_max_c,
+        hit_rat,
+        exist_first_ratfl,
+        nfp_rat,
+        nfl_rat,
+        delta_theta_rat,
+        n_gap,
+    ):
         twopi = 2.0 * jnp.pi
 
         def body(_):
             theta_d_min_safe = jnp.where(theta_d_min == 0.0, 1.0e-12, theta_d_min)
             theta_gap = twopi / n_iota
-            n_gap = n_iota * jnp.floor(jnp.abs(theta_gap / theta_d_min_safe)).astype(jnp.int32)
+            n_gap_new = n_iota * jnp.floor(jnp.abs(theta_gap / theta_d_min_safe)).astype(jnp.int32)
             nstep_max_c_new = jnp.where(
-                n_gap > params.nstep_min,
-                n_gap,
-                n_gap * jnp.ceil(params.nstep_min / n_gap).astype(jnp.int32),
+                n_gap_new > params.nstep_min,
+                n_gap_new,
+                n_gap_new * jnp.ceil(params.nstep_min / n_gap_new).astype(jnp.int32),
             )
 
             hit_rat_new = jnp.where(nstep_max_c_new > params.nstep_max, 1, 0).astype(jnp.int32)
@@ -915,8 +967,16 @@ def flint_bo_jax(
             exist_first_ratfl_new = jnp.where(nfp_rat_new >= params.nstep_min, 1, 0).astype(jnp.int32)
             nstep_max_c_new = jnp.where(exist_first_ratfl_new == 1, nfp_rat_new, nstep_max_c_new)
 
-            nfl_rat_new = jnp.ceil(params.no_bins / n_iota).astype(jnp.int32)
-            delta_theta_rat_new = theta_gap / (nfl_rat_new + 1)
+            nfl_rat_new = jnp.where(
+                hit_rat_new == 1,
+                jnp.ceil(params.no_bins / n_iota).astype(jnp.int32),
+                nfl_rat,
+            )
+            delta_theta_rat_new = jnp.where(
+                hit_rat_new == 1,
+                theta_gap / (nfl_rat_new + 1),
+                delta_theta_rat,
+            )
 
             hit_rat_new = jnp.where(params.calc_nstep_max == 1, 0, hit_rat_new).astype(jnp.int32)
 
@@ -927,12 +987,13 @@ def flint_bo_jax(
                 nfp_rat_new,
                 nfl_rat_new,
                 delta_theta_rat_new,
+                n_gap_new,
             )
 
         return jax.lax.cond(
             n_val == params.nstep_min,
             body,
-            lambda _: (nstep_max_c, hit_rat, exist_first_ratfl, nfp_rat, nfl_rat, delta_theta_rat),
+            lambda _: (nstep_max_c, hit_rat, exist_first_ratfl, nfp_rat, nfl_rat, delta_theta_rat, n_gap),
             operand=None,
         )
 
@@ -956,6 +1017,7 @@ def flint_bo_jax(
             nfp_rat,
             nfl_rat,
             delta_theta_rat,
+            n_gap,
             stop,
         ) = carry
 
@@ -979,6 +1041,7 @@ def flint_bo_jax(
                 nfp_rat,
                 nfl_rat,
                 delta_theta_rat,
+                n_gap,
                 stop,
             ) = _carry
 
@@ -999,6 +1062,7 @@ def flint_bo_jax(
                 nfp_rat_new,
                 nfl_rat_new,
                 delta_theta_rat_new,
+                n_gap_new,
             ) = update_rational(
                 n_new,
                 theta_d_min_new,
@@ -1010,6 +1074,7 @@ def flint_bo_jax(
                 nfp_rat,
                 nfl_rat,
                 delta_theta_rat,
+                n_gap,
             )
 
             stop_new = jnp.where(
@@ -1039,6 +1104,7 @@ def flint_bo_jax(
                 nfp_rat_new,
                 nfl_rat_new,
                 delta_theta_rat_new,
+                n_gap_new,
                 stop_new,
             )
 
@@ -1063,6 +1129,7 @@ def flint_bo_jax(
         nfp_rat,
         nfl_rat,
         delta_theta_rat,
+        n_gap,
         stop,
     )
 
@@ -1086,6 +1153,7 @@ def flint_bo_jax(
         nfp_rat,
         nfl_rat,
         delta_theta_rat,
+        n_gap,
         stop,
     ) = final_carry
 
@@ -1233,6 +1301,10 @@ def flint_bo_jax(
         "bigint": bigint,
         "nintfp": nintfp,
         "hit_rat": hit_rat,
+        "n_iota": n_iota,
+        "m_iota": m_iota,
+        "n_gap": n_gap,
+        "final_n": jnp.where(hit_rat == 1, nfp_rat * (nfl_rat + 1), nintfp),
         "nfp_rat": nfp_rat,
         "nfl_rat": nfl_rat,
     }

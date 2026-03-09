@@ -71,6 +71,8 @@ class BoozerData:
     curr_pol: Array | np.ndarray
     curr_tor: Array | np.ndarray
     nfp: int
+    pprime: Array | np.ndarray | None = None
+    sqrtg00: Array | np.ndarray | None = None
 
     def tree_flatten(self):
         return _split_static(self, static_fields=("nfp",))

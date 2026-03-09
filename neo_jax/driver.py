@@ -14,6 +14,7 @@ from .data_models import BoozerData
 from .grids import prepare_grids
 from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
 from .io import read_boozmn
+from .legacy import LegacyNeoWriter, build_fortran_line
 from .results import NeoResults, NeoSurfaceResult
 from .surface import init_surface
 from .data_models import NeoOutputs
@@ -213,14 +214,37 @@ def _write_diagnostic_files(
     diag_path = f"{path_prefix}diagnostic.dat"
     with open(diag_path, "w", encoding="utf-8") as handle:
         for i_idx, icount, ipa, add_on in events:
-            handle.write(f"{i_idx:8d} {icount:8d} {ipa:8d} {add_on:20.10e}\n")
+            handle.write(
+                build_fortran_line(
+                    (int(i_idx), int(icount), int(ipa)),
+                    int_width=8,
+                    reals=(float(add_on),),
+                    real_width=20,
+                    real_digits=10,
+                    real_letter="E",
+                )
+                + "\n"
+            )
 
     add_path = f"{path_prefix}diagnostic_add.dat"
     with open(add_path, "w", encoding="utf-8") as handle:
         handle.write(
-            f"{psi_ind:8d} {int(meta['istepc']):8d} {int(meta['npart']):8d} {int(meta['max_class']):8d}"
-            f" {float(meta['b_min']):20.10e} {float(meta['b_max']):20.10e} {float(meta['bmref']):20.10e}"
-            f" {float(meta['coeps']):20.10e} {float(meta['y2']):20.10e} {float(meta['y3']):20.10e}\n"
+            build_fortran_line(
+                (int(psi_ind), int(meta["istepc"]), int(meta["npart"]), int(meta["max_class"])),
+                int_width=8,
+                reals=(
+                    float(meta["b_min"]),
+                    float(meta["b_max"]),
+                    float(meta["bmref"]),
+                    float(meta["coeps"]),
+                    float(meta["y2"]),
+                    float(meta["y3"]),
+                ),
+                real_width=20,
+                real_digits=10,
+                real_letter="E",
+            )
+            + "\n"
         )
 
 
@@ -239,12 +263,16 @@ def _write_diagnostic_bigint(
     diag_path = f"{path_prefix}diagnostic_bigint.dat"
     with open(diag_path, "a", encoding="utf-8") as handle:
         handle.write(
-            f"{psi_ind:8d} {int(multra):8d} {int(hit_rat):8d} {int(nintfp):8d}"
-            f" {float(y2):20.10e} {float(y3):20.10e} {float(coeps):20.10e}"
+            build_fortran_line(
+                (int(psi_ind), int(multra), int(hit_rat), int(nintfp)),
+                int_width=8,
+                reals=(float(y2), float(y3), float(coeps), *[float(val) for val in bigint]),
+                real_width=20,
+                real_digits=10,
+                real_letter="E",
+            )
+            + "\n"
         )
-        for val in bigint:
-            handle.write(f" {float(val):20.10e}")
-        handle.write("\n")
 
 
 class DiagnosticLogger:
@@ -273,16 +301,37 @@ class DiagnosticLogger:
                 ipa_val = int(ipa_np[idx])
                 self.max_class = max(self.max_class, ipa_val)
                 handle.write(
-                    f"{int(idx + 1):8d} {int(icount_np[idx]):8d} {ipa_val:8d} {float(add_on_np[idx]):20.10e}\n"
+                    build_fortran_line(
+                        (int(idx + 1), int(icount_np[idx]), ipa_val),
+                        int_width=8,
+                        reals=(float(add_on_np[idx]),),
+                        real_width=20,
+                        real_digits=10,
+                        real_letter="E",
+                    )
+                    + "\n"
                 )
 
     def write_add(self, *, psi_ind: int, npart: int, meta: Dict[str, float]) -> None:
         add_path = f"{self.path_prefix}diagnostic_add.dat"
         with open(add_path, "w", encoding="utf-8") as handle:
             handle.write(
-                f"{psi_ind:8d} {int(self.istepc):8d} {int(npart):8d} {int(self.max_class):8d}"
-                f" {float(meta['b_min']):20.10e} {float(meta['b_max']):20.10e} {float(meta['bmref']):20.10e}"
-                f" {float(meta['coeps']):20.10e} {float(meta['y2']):20.10e} {float(meta['y3']):20.10e}\n"
+                build_fortran_line(
+                    (int(psi_ind), int(self.istepc), int(npart), int(self.max_class)),
+                    int_width=8,
+                    reals=(
+                        float(meta["b_min"]),
+                        float(meta["b_max"]),
+                        float(meta["bmref"]),
+                        float(meta["coeps"]),
+                        float(meta["y2"]),
+                        float(meta["y3"]),
+                    ),
+                    real_width=20,
+                    real_digits=10,
+                    real_letter="E",
+                )
+                + "\n"
             )
 
     def write_bigint(
@@ -365,8 +414,18 @@ def run_neo_from_boozer(
     *,
     use_jax: bool = True,
     progress: bool = False,
+    extension: str | None = None,
+    legacy_mode: bool = False,
 ) -> NeoResults:
+    if control.calc_cur != 0:
+        raise NotImplementedError("calc_cur=1 is not implemented in NEO_JAX.")
+
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
+    legacy_writer = LegacyNeoWriter(extension=extension, progress=progress) if legacy_mode else None
+    if legacy_writer is not None:
+        legacy_writer.prepare_run()
+        if control.write_output_files:
+            legacy_writer.write_static_files(booz=booz, grid=grid)
 
     max_m_mode = control.max_m_mode if control.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
     max_n_mode = control.max_n_mode if control.max_n_mode > 0 else int(np.max(np.abs(booz.ixn)))
@@ -439,6 +498,8 @@ def run_neo_from_boozer(
             iota=jnp.asarray(booz.iota[surf_idx]),
             grid=grid,
         )
+        if legacy_writer is not None and control.write_output_files:
+            legacy_writer.write_surface_files(surface.fields)
 
         env = RhsEnv(
             splines=surface.splines,
@@ -451,7 +512,8 @@ def run_neo_from_boozer(
         )
 
         if use_jax:
-            if write_diagnostic and diag_backend == "jax":
+            use_python_loop = bool(control.write_integrate)
+            if write_diagnostic and diag_backend == "jax" and not use_python_loop:
                 if progress:
                     print("NEO_JAX: write_diagnostic enabled; using JAX backend with diagnostic callback")
                 logger = DiagnosticLogger()
@@ -476,7 +538,7 @@ def run_neo_from_boozer(
                 etamax = float(surface.b_max / surface.bmref)
                 heta = (etamax - etamin) / (params.npart - 1)
                 coeps = float(np.pi * rt0 * rt0 * heta / (8.0 * np.sqrt(2.0)))
-                psi_ind_diag = int(control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1)
+                psi_ind_diag = int(local_idx + 1)
                 if force_psi1 and (control.fluxs_arr is not None and len(control.fluxs_arr) == 1):
                     psi_ind_diag = 1
                 logger.write_add(
@@ -504,16 +566,20 @@ def run_neo_from_boozer(
             else:
                 if write_diagnostic and progress:
                     print("NEO_JAX: write_diagnostic enabled; using Python-loop backend to emit diagnostic.dat")
-                out = flint_bo(
-                    surface,
-                    params,
-                    env,
-                    nfp=booz.nfp,
-                    rt0=rt0,
-                    diagnostic=write_diagnostic,
-                    diagnostic_trap=write_trap_debug,
-                    diagnostic_snapshot=diagnostic_snapshot,
-                ) if write_diagnostic else flint_bo_jax_fn(surface, params, env, nfp=booz.nfp, rt0=rt0)
+                if write_diagnostic or use_python_loop:
+                    out = flint_bo(
+                        surface,
+                        params,
+                        env,
+                        nfp=booz.nfp,
+                        rt0=rt0,
+                        diagnostic=write_diagnostic,
+                        diagnostic_trap=write_trap_debug,
+                        diagnostic_snapshot=diagnostic_snapshot,
+                        collect_convergence=bool(control.write_integrate),
+                    )
+                else:
+                    out = flint_bo_jax_fn(surface, params, env, nfp=booz.nfp, rt0=rt0)
         else:
             out = flint_bo(
                 surface,
@@ -524,6 +590,7 @@ def run_neo_from_boozer(
                 diagnostic=write_diagnostic,
                 diagnostic_trap=write_trap_debug,
                 diagnostic_snapshot=diagnostic_snapshot,
+                collect_convergence=bool(control.write_integrate),
             )
 
         if control.ref_swi == 1:
@@ -567,7 +634,7 @@ def run_neo_from_boozer(
         if write_diagnostic:
             diagnostic_events = out.pop("diagnostic_events", None)
             diagnostic_meta = out.pop("diagnostic_meta", None)
-            psi_ind_diag = int(flux_index)
+            psi_ind_diag = int(local_idx + 1)
             if force_psi1 and (control.fluxs_arr is not None and len(control.fluxs_arr) == 1):
                 psi_ind_diag = 1
             if diagnostic_events is not None and diagnostic_meta is not None:
@@ -589,6 +656,14 @@ def run_neo_from_boozer(
                 if progress:
                     print("NEO_JAX: wrote diagnostic.dat, diagnostic_add.dat, diagnostic_bigint.dat")
 
+        if legacy_writer is not None and control.write_integrate:
+            convergence_history = out.get("convergence_history")
+            if convergence_history is not None:
+                legacy_writer.write_conver(convergence_history)
+
+        if legacy_writer is not None and extension is not None:
+            legacy_writer.append_neolog(psi_ind=local_idx + 1, out=out, epstot=epstot)
+
         results.append(result)
         if progress:
             print(
@@ -605,6 +680,7 @@ def run_neo_from_boozmn(
     use_jax: bool = True,
     progress: bool = False,
     extension: str | None = None,
+    legacy_mode: bool = False,
 ) -> NeoResults:
     booz = read_boozmn(
         boozmn_path,
@@ -613,4 +689,11 @@ def run_neo_from_boozmn(
         fluxs_arr=control.fluxs_arr,
         extension=extension,
     )
-    return run_neo_from_boozer(booz, control, use_jax=use_jax, progress=progress)
+    return run_neo_from_boozer(
+        booz,
+        control,
+        use_jax=use_jax,
+        progress=progress,
+        extension=extension,
+        legacy_mode=legacy_mode,
+    )

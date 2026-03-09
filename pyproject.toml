@@ -20,6 +20,8 @@ dependencies = [
 
 [project.scripts]
 neo-jax = "neo_jax.cli:main"
+xneo = "neo_jax.cli:main"
+xneo_jax = "neo_jax.cli:main"
 
 [project.optional-dependencies]
 dev = [
