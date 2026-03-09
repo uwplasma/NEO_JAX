@@ -7,13 +7,43 @@ NEO_JAX validation is organized into three layers:
   Fortran outputs for ``R``, ``Z``, ``B``, and derived quantities.
 - Integration parity: field-line integrals and trapped-particle sums reproduce
   the reference ``neo_out`` results on curated fixtures.
-- End-to-end parity: the CLI output matches ``xneo`` within numerical tolerance.
+- End-to-end parity: the CLI output matches ``xneo`` file-by-file on the
+  supported legacy cases.
 
 Current reference cases include:
 
 - ``ORBITS`` (tests/fixtures/orbits)
 - ``NCSX`` tutorial example (tests/fixtures/ncsx)
 - ``LandremanPaul2021_QA_lowres`` (tests/fixtures/landreman_qa_lowres)
+- a synthetic one-surface ORBITS legacy case used to validate
+  ``neo_out.*``, ``neolog.*``, ``diagnostic*.dat``, ``conver.dat``, and the
+  legacy ``*_arr.dat`` dumps against the real ``xneo`` executable
+
+Legacy CLI parity
+-----------------
+
+The CLI regression coverage in ``tests/regression/test_cli_legacy.py`` runs the
+reference executable from ``~/bin/xneo`` (or ``NEO_REFERENCE_BIN``) and compares
+its outputs directly to the JAX CLI.
+
+Current checks:
+
+- exact text equality for:
+  - ``neo_out.*``
+  - ``neolog.*``
+  - ``diagnostic.dat``
+  - ``diagnostic_add.dat``
+  - ``diagnostic_bigint.dat``
+  - ``conver.dat``
+- numerical equality, up to floating-point roundoff, for:
+  - ``dimension.dat``
+  - ``es_arr.dat``
+  - all legacy ``*_arr.dat`` geometry dumps
+
+Supported legacy scope:
+
+- ``calc_cur = 0`` parity is tested and supported
+- ``calc_cur = 1`` is not yet ported in the CLI layer
 
 Precision
 ---------

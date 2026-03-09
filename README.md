@@ -14,11 +14,89 @@ pip install -e .
 neo-jax ORBITS --boozmn tests/fixtures/orbits/boozmn_ORBITS.nc --verbose
 ```
 
+The package also installs legacy-compatible entrypoints:
+
+```bash
+xneo
+xneo_jax
+python -m neo_jax
+```
+
 If you prefer not to install, run from the repo root with:
 
 ```bash
 PYTHONPATH=. python examples/ncsx_epsilon_effective_plot.py
 ```
+
+## Legacy `xneo` Compatibility
+
+`neo_jax` now supports the same terminal workflow as STELLOPT's `xneo` for the
+effective-ripple solve (`calc_cur = 0`). The goal is that an existing legacy
+control file can be run with the JAX executable and produce the same output
+files as the reference code.
+
+Legacy invocation:
+
+```bash
+xneo ORBITS
+xneo_jax ORBITS
+python -m neo_jax ORBITS
+```
+
+Control-file lookup follows the same search order as STELLOPT:
+
+1. `neo_param.<extension>`
+2. `neo_param.in`
+3. `neo_in.<extension>`
+4. if no extension is given: `neo.in`
+
+For `inp_swi = 0`, the CLI follows the legacy `boozmn_<extension>.nc`
+convention used by STELLOPT. For nonzero `inp_swi`, it resolves the input from
+`IN_FILE` in the control file.
+
+What the legacy CLI writes:
+
+- main output: `neo_out.*`
+- log file: `neolog.*`
+- optional diagnostic files: `diagnostic.dat`, `diagnostic_add.dat`,
+  `diagnostic_bigint.dat`
+- optional integration history: `conver.dat`
+- optional geometry dumps: `dimension.dat`, `theta_arr.dat`, `phi_arr.dat`,
+  `rmnc_arr.dat`, `bmnc_arr.dat`, `b_s_arr.dat`, and the other legacy array
+  files controlled by `WRITE_OUTPUT_FILES`
+
+Compatibility scope:
+
+- supported: `xneo`-style epsilon-effective runs (`calc_cur = 0`)
+- not yet supported: `calc_cur = 1` parallel-current output path
+
+How the compatibility layer is implemented:
+
+- `neo_jax/cli.py` mirrors the legacy command-line contract and control-file
+  search logic.
+- `neo_jax/legacy.py` reproduces the Fortran text formatting used in
+  `neo_out.*`, `neolog.*`, `diagnostic*.dat`, and `conver.dat`.
+- `neo_jax/driver.py` writes the same auxiliary files that STELLOPT writes when
+  `WRITE_OUTPUT_FILES`, `WRITE_INTEGRATE`, or `WRITE_DIAGNOSTIC` are enabled.
+- The solver still calls the same JAX/Python backend used by the public API, so
+  the terminal interface and Python interface stay numerically aligned.
+
+How it is tested:
+
+- `tests/regression/test_cli_legacy.py` runs the real reference executable from
+  `~/bin/xneo` (or `NEO_REFERENCE_BIN`) and compares its outputs against the
+  JAX CLI.
+- The test suite covers:
+  - a real dense fixture: `LandremanPaul2021_QA_lowres`
+  - a synthetic one-surface ORBITS legacy case that exercises `neo_out`,
+    `neolog`, `diagnostic*.dat`, `conver.dat`, and all legacy array dumps
+
+Current comparison status:
+
+- `neo_out.*`, `diagnostic*.dat`, `conver.dat`, and `neolog.*` match the
+  reference text output exactly on the legacy parity cases.
+- The legacy array dumps (`*_arr.dat`, `dimension.dat`, `theta_arr.dat`,
+  `phi_arr.dat`) are numerically identical to within floating-point roundoff.
 
 ## Simple Python API
 

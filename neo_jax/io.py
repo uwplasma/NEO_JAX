@@ -151,11 +151,13 @@ def read_boozmn(
         iota_b = np.array(ds.variables["iota_b"][:], dtype=float)
         buco_b = np.array(ds.variables["buco_b"][:], dtype=float)
         bvco_b = np.array(ds.variables["bvco_b"][:], dtype=float)
+        pres_b = np.array(ds.variables["pres_b"][:], dtype=float) if "pres_b" in ds.variables else None
 
         rmnc_raw = np.array(ds.variables["rmnc_b"][:], dtype=float)
         zmns_raw = np.array(ds.variables["zmns_b"][:], dtype=float)
         pmns_raw = np.array(ds.variables["pmns_b"][:], dtype=float)
         bmnc_raw = np.array(ds.variables["bmnc_b"][:], dtype=float)
+        gmn_raw = np.array(ds.variables["gmn_b"][:], dtype=float) if "gmn_b" in ds.variables else None
 
         if "jlist" in ds.variables:
             jlist = np.array(ds.variables["jlist"][:], dtype=int)
@@ -167,6 +169,7 @@ def read_boozmn(
     zmns_pack = _transpose_if_needed(zmns_raw, pack_len)
     pmns_pack = _transpose_if_needed(pmns_raw, pack_len)
     bmnc_pack = _transpose_if_needed(bmnc_raw, pack_len)
+    gmn_pack = _transpose_if_needed(gmn_raw, pack_len) if gmn_raw is not None else None
 
     max_m = max_m_mode if max_m_mode > 0 else mboz_b - 1
     max_n = max_n_mode if max_n_mode > 0 else nboz_b * nfp
@@ -174,6 +177,8 @@ def read_boozmn(
 
     ixm = ixm_b[mode_mask]
     ixn = ixn_b[mode_mask]
+    mode0 = np.where((ixm_b == 0) & (ixn_b == 0))[0]
+    mode0_idx = int(mode0[0]) if len(mode0) else None
 
     pack_index = {int(surf): idx for idx, surf in enumerate(jlist)}
 
@@ -190,6 +195,8 @@ def read_boozmn(
     iota = []
     curr_pol = []
     curr_tor = []
+    pprime = []
+    sqrtg00 = []
 
     hs = 1.0 / (ns_b - 1)
     for surf in surfaces:
@@ -206,6 +213,14 @@ def read_boozmn(
         iota.append(iota_b[surf - 1])
         curr_pol.append(bvco_b[surf - 1])
         curr_tor.append(buco_b[surf - 1])
+        if pres_b is not None and surf < ns_b:
+            pprime.append((pres_b[surf] - pres_b[surf - 1]) / hs)
+        else:
+            pprime.append(0.0)
+        if gmn_pack is not None and mode0_idx is not None:
+            sqrtg00.append(float(gmn_pack[pack_idx, mode0_idx]))
+        else:
+            sqrtg00.append(0.0)
 
     return BoozerData(
         rmnc=np.asarray(rmnc),
@@ -219,6 +234,8 @@ def read_boozmn(
         curr_pol=np.asarray(curr_pol),
         curr_tor=np.asarray(curr_tor),
         nfp=nfp,
+        pprime=np.asarray(pprime),
+        sqrtg00=np.asarray(sqrtg00),
     )
 
 

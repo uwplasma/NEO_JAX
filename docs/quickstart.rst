@@ -34,7 +34,7 @@ Executable examples are included in ``examples/``:
 - ``examples/ncsx_autodiff_Rmajor_optimization.py``: autodiff demo that adjusts
   ``Rmajor`` to reduce epsilon effective (toy example).
 - ``examples/epsilon_effective_scale_optimization.py``: toy optimization that
-  scales |B| to reduce epsilon effective (autodiff demo).
+  scales ``|B|`` to reduce epsilon effective (autodiff demo).
 - ``examples/qh_epsilon_effective_aspect_optimization.py``: QH warm-start
   optimization (epsilon effective + aspect ratio).
 
