@@ -244,6 +244,19 @@ def _assert_neolog_close(ref_path: Path, got_path: Path, *, rtol: float, atol: f
         assert np.isclose(ref_val, got_val, rtol=rtol, atol=atol)
 
 
+def _assert_conver_matches_xneo_prefix(ref_path: Path, got_path: Path, *, atol: float = 1e-12) -> None:
+    ref = np.asarray(
+        [[_parse_legacy_float_token(token) for token in line.split()] for line in ref_path.read_text().splitlines() if line.strip()],
+        dtype=float,
+    )
+    got = np.asarray(
+        [[_parse_legacy_float_token(token) for token in line.split()] for line in got_path.read_text().splitlines() if line.strip()],
+        dtype=float,
+    )
+    assert ref.shape == got.shape
+    assert np.allclose(ref[:, :4], got[:, :4], rtol=0.0, atol=atol)
+
+
 @pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
 def test_cli_landreman_matches_xneo(tmp_path: Path) -> None:
     fixture = REPO / "tests" / "fixtures" / "landreman_qa_lowres"
@@ -377,6 +390,7 @@ def test_cli_orbits_fast_fixture_matches_xneo(tmp_path: Path) -> None:
     _copy_fixture_case(tmp_path, fixture_dir=fixture, extension=extension, control_name=f"neo_in.{extension}")
     ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
     _assert_exact_text(ref_dir, jax_dir, [f"neo_out.{extension}", f"neolog.{extension}"])
+    _assert_conver_matches_xneo_prefix(ref_dir / "conver.dat", jax_dir / "conver.dat")
 
 
 @pytest.mark.skipif(not RUN_SLOW, reason="Set NEO_JAX_RUN_SLOW=1 to run full NCSX fixture parity.")
@@ -487,3 +501,41 @@ def test_cli_progress_logging_and_quiet_flag(tmp_path: Path) -> None:
     assert "NEO_JAX: surface 1/1" in verbose_run.stdout
     assert "NEO_JAX: wrote neo_out.LOG_MINI" in verbose_run.stdout
     assert quiet_run.stdout.strip() == ""
+
+
+def test_cli_ipmax_debug_dump(tmp_path: Path) -> None:
+    extension = "IPMAX_MINI"
+    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
+    control_text = _make_control(
+        out_file=f"neo_out.{extension}",
+        surfaces=[96],
+        theta_n=6,
+        phi_n=6,
+        npart=6,
+        multra=1,
+        nstep_per=6,
+        nstep_min=10,
+        nstep_max=16,
+        no_bins=8,
+        write_integrate=1,
+        cur_file=f"neo_cur.{extension}",
+    )
+    case_dir = _copy_single_cli_case(tmp_path, extension=extension, booz_src=booz_src, control_text=control_text)
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO)
+    env["NEO_JAX_WRITE_IPMAX_DEBUG"] = "1"
+
+    subprocess.run(
+        ["python", "-m", "neo_jax", extension, "--quiet"],
+        cwd=case_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=True,
+    )
+
+    debug_path = case_dir / "diagnostic_ipmax_jax.dat"
+    assert debug_path.exists()
+    assert debug_path.read_text().strip() != ""

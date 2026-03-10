@@ -84,8 +84,8 @@ legacy files that STELLOPT writes:
 
 The Fortran-style formatting used in the text files is implemented in
 ``neo_jax.legacy`` so that ``neo_out.*``, ``neolog.*``, ``diagnostic*.dat``,
-``neo_cur.*``, and ``conver.dat`` match the STELLOPT text output exactly on the
-parity cases. ``current.dat`` follows the same token layout and special-value
+``neo_cur.*``, and the covered ``conver.dat`` parity cases match the STELLOPT
+text output. ``current.dat`` follows the same token layout and special-value
 formatting (including gfortran's omitted exponent letter for some 3-digit
 exponents) and is validated numerically token-by-token against the reference
 binary.
@@ -143,6 +143,17 @@ overrides:
 - ``--verbose``: print extra progress information
 - ``--quiet``: suppress the default NEO_JAX progress messages
 
+Debugging aids
+--------------
+
+For convergence-history debugging, set ``NEO_JAX_WRITE_IPMAX_DEBUG=1`` before
+running the CLI. NEO_JAX will write ``diagnostic_ipmax_jax.dat`` in the working
+directory with one line per trapped-amplitude update that feeds
+``conver.dat``.
+
+This dump is intended for parity debugging of the dense ``WRITE_INTEGRATE=1``
+cases and is exercised by the CLI regression suite.
+
 Note that control-file ``WRITE_PROGRESS`` is honored by default, so legacy runs
 still print progress when the control file requests it. In addition, NEO_JAX
 prints its own high-level status messages by default so long JAX or parity
@@ -160,6 +171,7 @@ against the JAX CLI on multiple geometries and control-file layouts:
 - synthetic ORBITS ``calc_cur = 1`` case with ``current.dat``
 - NCSX mini case
 - control-file precedence checks for ``neo_param.*`` vs ``neo_in.*``
+- optional IPMAX debug-dump coverage for the convergence logger
 
 Additional full-fixture ORBITS and NCSX CLI parity tests are available behind
 ``NEO_JAX_RUN_SLOW=1``.

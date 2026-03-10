@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -411,13 +412,48 @@ class DiagnosticLogger:
 
 class ConvergenceLogger:
     def __init__(self) -> None:
+        self._adimax = 0.0
+        self._aditot = 0.0
+        self._step_log_path = None
+        step_log = os.getenv("NEO_JAX_WRITE_IPMAX_DEBUG", "").strip()
+        if step_log and step_log.lower() not in {"0", "false", "no", "off"}:
+            self._step_log_path = step_log if step_log not in {"1", "true", "yes", "on"} else "diagnostic_ipmax_jax.dat"
+            Path(self._step_log_path).write_text("", encoding="utf-8")
         self.rows: list[tuple[float, float, float, float, float]] = []
 
     def callback(self, row) -> None:
         vals = np.asarray(row, dtype=float).reshape(-1)
         self.rows.append(tuple(float(v) for v in vals))
 
+    def period_callback(self, row) -> None:
+        vals = np.asarray(row, dtype=float).reshape(-1)
+        n_val, epstot, y3, y3npart, y2 = (float(v) for v in vals)
+        ctrone = 0.0 if y2 == 0.0 else self._aditot / y2
+        self.rows.append((n_val, epstot, y3, y3npart, ctrone))
+
+    def step_callback(self, step_index, substep_index, ipmax, isw, ipa, p_i) -> None:
+        ipmax_val = int(np.asarray(ipmax).reshape(()))
+        isw_np = np.asarray(isw, dtype=int).reshape(-1)
+        ipa_np = np.asarray(ipa, dtype=int).reshape(-1)
+        p_i_np = np.asarray(p_i, dtype=float).reshape(-1)
+        adimax_idx = 0
+        for idx, isw_val in enumerate(isw_np):
+            if isw_val == 2 and ipa_np[idx] == 1:
+                self._adimax = float(p_i_np[idx])
+                adimax_idx = idx + 1
+        if ipmax_val == 1:
+            self._aditot += self._adimax
+            if self._step_log_path is not None:
+                with Path(self._step_log_path).open("a", encoding="utf-8") as handle:
+                    handle.write(
+                        f"{int(np.asarray(step_index).reshape(())):8d} {int(np.asarray(substep_index).reshape(())):8d}"
+                        f" {adimax_idx:8d} {self._adimax:20.10e} {self._aditot:20.10e}"
+                        f" {float(p_i_np[-1]):20.10e}\n"
+                    )
+
     def reset(self) -> None:
+        self._adimax = 0.0
+        self._aditot = 0.0
         self.rows = []
 
 
@@ -493,6 +529,8 @@ def run_neo_from_boozer(
                 "diagnostic_snapshot",
                 "diagnostic_snapshot_callback",
                 "convergence_callback",
+                "convergence_period_callback",
+                "convergence_step_callback",
                 "convergence_reset_callback",
                 "strict_parity",
             ),
@@ -618,7 +656,13 @@ def run_neo_from_boozer(
                         env,
                         nfp=booz.nfp,
                         rt0=rt0,
-                        convergence_callback=None if convergence_logger is None else convergence_logger.callback,
+                        convergence_callback=None,
+                        convergence_period_callback=None
+                        if convergence_logger is None
+                        else convergence_logger.period_callback,
+                        convergence_step_callback=None
+                        if convergence_logger is None
+                        else convergence_logger.step_callback,
                         convergence_reset_callback=None if convergence_logger is None else convergence_logger.reset,
                         strict_parity=legacy_mode,
                     )

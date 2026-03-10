@@ -92,6 +92,8 @@ How the compatibility layer is implemented:
 - `neo_jax/driver.py` writes the same auxiliary files that STELLOPT writes when
   `WRITE_OUTPUT_FILES`, `WRITE_INTEGRATE`, `WRITE_DIAGNOSTIC`, or
   `WRITE_CUR_INTE` are enabled.
+- `NEO_JAX_WRITE_IPMAX_DEBUG=1` writes `diagnostic_ipmax_jax.dat`, a per-step
+  dump of the trapped-event amplitude used while building `conver.dat`.
 - `neo_jax/current.py` ports the legacy `flint_cur` / `calccur` path to JAX so
   `neo_cur.*` and `current.dat` are produced by the same CLI entrypoint.
 - The solver still calls the same JAX/Python backend used by the public API, so
@@ -115,8 +117,12 @@ How it is tested:
 
 Current comparison status:
 
-- `neo_out.*`, `neo_cur.*`, `diagnostic*.dat`, `conver.dat`, and `neolog.*`
-  match the reference text output exactly on the legacy parity cases.
+- `neo_out.*`, `neo_cur.*`, `diagnostic*.dat`, and `neolog.*` match the
+  reference text output exactly on the legacy parity cases.
+- `conver.dat` matches exactly on the synthetic ORBITS parity case. On the full
+  `ORBITS_FAST` fixture, columns 1-4 match exactly; the fifth column is traced
+  with `diagnostic_ipmax_jax.dat` because the STELLOPT binary's text output on
+  that dense case does not follow its own traced `aditot / p_bm2` state.
 - `current.dat` matches token-by-token, including `NaN`/`Infinity` placement,
   with tight floating-point tolerances to account for backend-level roundoff in
   the intermediate current history.
@@ -215,7 +221,7 @@ reflects solver cost rather than terminal logging overhead.
 | `LandremanPaul2021_QA_lowres` | Pass | 2.24 | 16.15 | 7.21x | 25.0 | 1471.8 | 58.83x |
 | `ORBITS_MINI` | Pass | 0.05 | 18.66 | 373.20x | 14.6 | 1285.9 | 87.83x |
 | `ORBITS_CURINT` | Pass | 0.33 | 6.67 | 20.21x | 14.6 | 624.4 | 42.70x |
-| `ORBITS_FAST` | Pass (`neo_out` / `neolog`) | 0.10 | 8.61 | 86.10x | 15.0 | 756.6 | 50.33x |
+| `ORBITS_FAST` | Pass (`neo_out` / `neolog` / `conver[:4]`) | 0.10 | 8.61 | 86.10x | 15.0 | 756.6 | 50.33x |
 | `NCSX_MINI` | Pass | 0.06 | 5.62 | 93.67x | 35.0 | 581.8 | 16.64x |
 | `ncsx_c09r00_free_fast` | Pass at `rtol≈5e-3` | 2.30 | 12.96 | 5.63x | 38.0 | 1307.3 | 34.43x |
 
@@ -229,6 +235,9 @@ Notes:
 - ``ORBITS_FAST`` is now practical again in legacy mode because ``WRITE_INTEGRATE=1``
   uses the JAX solver plus a convergence callback instead of forcing the full
   Python-loop backend.
+- The dense ``ORBITS_FAST`` regression now checks ``conver.dat`` columns 1-4 in
+  CI and exposes ``NEO_JAX_WRITE_IPMAX_DEBUG=1`` for step-by-step parity
+  debugging of the remaining fifth-column discrepancy.
 
 | Metric | NEO (Fortran) | NEO_JAX (JAX) | Notes |
 | --- | --- | --- | --- |

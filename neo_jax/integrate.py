@@ -623,6 +623,8 @@ def flint_bo_jax(
     diagnostic_snapshot: tuple[int, int] | None = None,
     diagnostic_snapshot_callback=None,
     convergence_callback=None,
+    convergence_period_callback=None,
+    convergence_step_callback=None,
     convergence_reset_callback=None,
     strict_parity: bool = False,
 ):
@@ -872,6 +874,17 @@ def flint_bo_jax(
 
                 snap_cond = (step_index == snap_n) & (j == snap_j)
                 _ = jax.lax.cond(snap_cond, _emit_snap, lambda _: None, operand=None)
+            if convergence_step_callback is not None:
+                jax.debug.callback(
+                    convergence_step_callback,
+                    step_index + 1,
+                    j + 1,
+                    state.ipmax,
+                    state.isw,
+                    state.ipa,
+                    p_i,
+                    ordered=True,
+                )
 
             if strict_parity:
                 state, iswst, p_i, p_h, bigint, adimax = _process_trapped(
@@ -933,10 +946,22 @@ def flint_bo_jax(
         )
 
     def emit_convergence(n_val, bigint_val, y_val, aditot_val):
-        if convergence_callback is None:
-            return
-        row = convergence_row(n_val, bigint_val, y_val, aditot_val)
-        jax.debug.callback(convergence_callback, row, ordered=True)
+        if convergence_callback is not None:
+            row = convergence_row(n_val, bigint_val, y_val, aditot_val)
+            jax.debug.callback(convergence_callback, row, ordered=True)
+        if convergence_period_callback is not None:
+            epspar_check = coeps * bigint_val * y_val[1] / (y_val[2] * y_val[2])
+            epstot_check = jnp.sum(epspar_check)
+            period_row = jnp.asarray(
+                [
+                    n_val.astype(y_val.dtype),
+                    epstot_check,
+                    y_val[3],
+                    y_val[NPQ + npart - 1] / y_val[1],
+                    y_val[1],
+                ]
+            )
+            jax.debug.callback(convergence_period_callback, period_row, ordered=True)
 
     def update_theta_min(n_val, theta, theta_d_min, n_iota, m_iota, iota_bar_fp):
         twopi = 2.0 * jnp.pi
