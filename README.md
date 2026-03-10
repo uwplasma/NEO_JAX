@@ -45,6 +45,10 @@ xneo_jax ORBITS
 python -m neo_jax ORBITS
 ```
 
+Unlike the STELLOPT binary, `neo_jax` prints explicit progress messages by
+default so a long parity run does not look stalled. Use `--quiet` if you want
+the legacy file outputs without the extra terminal logging.
+
 Control-file lookup follows the same search order as STELLOPT:
 
 1. `neo_param.<extension>`
@@ -75,6 +79,8 @@ Compatibility scope:
 - control-file lookup parity for `neo_param.<ext>`, `neo_param.in`,
   and `neo_in.<ext>`
 - legacy Boozer filename resolution via `boozmn_<extension>.nc`
+- default CLI progress logging, with `--quiet` available for benchmarking or
+  silent batch runs
 
 How the compatibility layer is implemented:
 
@@ -197,6 +203,29 @@ See `docs/index.rst` for the table of contents.
 ## NCSX Parity Snapshot
 
 ![NCSX epstot parity](docs/assets/ncsx_epstot_compare.png)
+
+## Legacy CLI Benchmark Snapshot
+
+Measured on this workstation with ``/usr/bin/time -l`` using the STELLOPT
+reference binary ``~/bin/xneo`` and ``python -m neo_jax --quiet`` so the table
+reflects solver cost rather than terminal logging overhead.
+
+| Case | Parity status | `xneo` runtime (s) | `neo_jax` runtime (s) | Runtime ratio | `xneo` max RSS (MiB) | `neo_jax` max RSS (MiB) | Memory ratio |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `LandremanPaul2021_QA_lowres` | Pass | 2.24 | 16.15 | 7.21x | 25.0 | 1471.8 | 58.83x |
+| `ORBITS_MINI` | Pass | 0.05 | 18.66 | 373.20x | 14.6 | 1285.9 | 87.83x |
+| `ORBITS_CURINT` | Pass | 0.33 | 6.67 | 20.21x | 14.6 | 624.4 | 42.70x |
+| `NCSX_MINI` | Pass | 0.06 | 5.62 | 93.67x | 35.0 | 581.8 | 16.64x |
+| `ncsx_c09r00_free_fast` | Delta on last surface | 2.41 | 13.47 | 5.59x | 37.9 | 1305.7 | 34.42x |
+
+Notes:
+
+- ``ncsx_c09r00_free_fast`` is kept as a slow tracked parity target. The
+  current last-surface ``epstot`` values are
+  ``0.7159689869E-03`` (`xneo`) vs ``0.7123614767E-03`` (`neo_jax`).
+- ``ORBITS_FAST`` is intentionally kept in the slow-parity bucket rather than
+  this benchmark table because ``WRITE_INTEGRATE=1`` forces the parity-preserving
+  Python integration path and is substantially slower than the mini cases on CPU.
 
 | Metric | NEO (Fortran) | NEO_JAX (JAX) | Notes |
 | --- | --- | --- | --- |

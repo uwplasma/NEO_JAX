@@ -514,6 +514,11 @@ def run_neo_from_boozer(
 
         if use_jax:
             use_python_loop = bool(control.write_integrate)
+            if progress:
+                if use_python_loop:
+                    print("NEO_JAX: solving epsilon effective with the Python parity backend")
+                else:
+                    print("NEO_JAX: solving epsilon effective with the JAX backend")
             if write_diagnostic and diag_backend == "jax" and not use_python_loop:
                 if progress:
                     print("NEO_JAX: write_diagnostic enabled; using JAX backend with diagnostic callback")
@@ -658,6 +663,8 @@ def run_neo_from_boozer(
                     print("NEO_JAX: wrote diagnostic.dat, diagnostic_add.dat, diagnostic_bigint.dat")
 
         if control.calc_cur:
+            if progress:
+                print("NEO_JAX: solving parallel current")
             cur_params = CurrentParams(
                 npart_cur=control.npart_cur,
                 alpha_cur=control.alpha_cur,

@@ -89,17 +89,44 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("--no-jax", action="store_true", help="Force the Python backend")
     parser.add_argument("--output", help="Override the main NEO output filename")
     parser.add_argument("--verbose", action="store_true", help="Print additional progress information")
+    parser.add_argument("--quiet", action="store_true", help="Suppress NEO_JAX progress messages")
     parser.set_defaults(jax=True)
     args = parser.parse_args(argv)
 
     control_path = Path(args.control) if args.control else resolve_control_path(args.extension)
     control = read_control(control_path)
 
-    progress = bool(control.write_progress) or bool(args.verbose)
+    progress = not bool(args.quiet)
     boozmn_path = _resolve_boozmn_for_xneo(control, args.extension, args.boozmn)
+    surface_count = len(control.fluxs_arr) if control.fluxs_arr else "all"
+    backend = "JAX" if bool(args.jax) and not bool(args.no_jax) else "Python"
+    output_path = Path(args.output) if args.output else Path(control.out_file)
 
     if progress:
-        print(f"NEO_JAX: control={control_path} boozmn={boozmn_path}")
+        print("NEO_JAX: starting legacy CLI solve")
+        print(f"NEO_JAX: control={control_path}")
+        print(f"NEO_JAX: boozmn={boozmn_path}")
+        print(
+            "NEO_JAX: mode="
+            f"{'calc_cur=1 (epsilon effective + parallel current)' if control.calc_cur else 'calc_cur=0 (epsilon effective)'}"
+        )
+        print(
+            "NEO_JAX: surfaces="
+            f"{surface_count} theta_n={control.theta_n} phi_n={control.phi_n} "
+            f"npart={control.npart} backend={backend}"
+        )
+        if control.write_output_files or control.write_integrate or control.write_diagnostic or control.write_cur_inte:
+            print(
+                "NEO_JAX: legacy extras="
+                f"write_output_files={control.write_output_files} "
+                f"write_integrate={control.write_integrate} "
+                f"write_diagnostic={control.write_diagnostic} "
+                f"write_cur_inte={control.write_cur_inte}"
+            )
+        if control.write_integrate:
+            print("NEO_JAX: WRITE_INTEGRATE=1 forces the parity-preserving Python integration path.")
+        if control.calc_cur:
+            print(f"NEO_JAX: current output will be written to {control.cur_file}")
 
     use_jax = bool(args.jax) and not bool(args.no_jax)
     results = run_neo_from_boozmn(
@@ -112,11 +139,18 @@ def main(argv: List[str] | None = None) -> int:
     )
 
     lines = [_format_line(result, control.eout_swi) for result in results]
-    output_path = Path(args.output) if args.output else Path(control.out_file)
     _write_lines(output_path, lines)
 
     if progress:
         print(f"NEO_JAX: wrote {output_path}")
+        if control.calc_cur:
+            print(f"NEO_JAX: wrote {control.cur_file}")
+        if control.write_cur_inte:
+            print("NEO_JAX: wrote current.dat")
+        if control.write_integrate:
+            print("NEO_JAX: wrote conver.dat")
+        if control.write_diagnostic:
+            print("NEO_JAX: wrote diagnostic.dat, diagnostic_add.dat, diagnostic_bigint.dat")
         for line in lines:
             print(line)
 
