@@ -129,6 +129,20 @@ Using a current-enabled ORBITS case:
 Both commands will read the same control file and write the same
 ``neo_out.*`` / ``neo_cur.*`` outputs.
 
+Progress logging
+----------------
+
+NEO_JAX prints high-level status lines by default so long runs do not look
+stalled. In addition to the control file, Boozer file, solve mode, and surface
+count, the CLI also reports the active JAX runtime:
+
+.. code-block:: text
+
+   NEO_JAX: surfaces=10 theta_n=64 phi_n=64 npart=40 backend=JAX
+   NEO_JAX: jax_runtime=gpu (2 devices: NVIDIA RTX A4000, NVIDIA RTX A4000)
+
+Use ``--quiet`` to suppress these messages for batch jobs or benchmarking.
+
 Optional arguments
 ------------------
 
@@ -172,6 +186,13 @@ against the JAX CLI on multiple geometries and control-file layouts:
 - NCSX mini case
 - control-file precedence checks for ``neo_param.*`` vs ``neo_in.*``
 - optional IPMAX debug-dump coverage for the convergence logger
+
+Optional GPU smoke coverage lives in ``tests/regression/test_gpu_smoke.py``.
+When ``NEO_JAX_RUN_GPU=1`` is set on a machine with a visible JAX GPU backend,
+that test file runs both:
+
+- a legacy CLI CPU-vs-GPU comparison on a one-surface ORBITS case
+- a public Python API CPU-vs-GPU comparison through ``run_neo(...)``
 
 Additional full-fixture ORBITS and NCSX CLI parity tests are available behind
 ``NEO_JAX_RUN_SLOW=1``.

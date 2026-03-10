@@ -46,8 +46,21 @@ python -m neo_jax ORBITS
 ```
 
 Unlike the STELLOPT binary, `neo_jax` prints explicit progress messages by
-default so a long parity run does not look stalled. Use `--quiet` if you want
-the legacy file outputs without the extra terminal logging.
+default so a long parity run does not look stalled. The CLI reports the control
+file, Boozer file, solve mode, surface count, selected backend, and the active
+JAX runtime, for example:
+
+```text
+NEO_JAX: starting legacy CLI solve
+NEO_JAX: control=neo_in.ORBITS
+NEO_JAX: boozmn=boozmn_ORBITS.nc
+NEO_JAX: mode=calc_cur=0 (epsilon effective)
+NEO_JAX: surfaces=10 theta_n=64 phi_n=64 npart=40 backend=JAX
+NEO_JAX: jax_runtime=gpu (2 devices: NVIDIA RTX A4000, NVIDIA RTX A4000)
+```
+
+Use `--quiet` if you want the legacy file outputs without the extra terminal
+logging.
 
 Control-file lookup follows the same search order as STELLOPT:
 
@@ -81,6 +94,8 @@ Compatibility scope:
 - legacy Boozer filename resolution via `boozmn_<extension>.nc`
 - default CLI progress logging, with `--quiet` available for benchmarking or
   silent batch runs
+- runtime backend reporting (`cpu`, `gpu`, etc.) so long JAX compiles are
+  clearly visible in terminal output
 
 How the compatibility layer is implemented:
 
@@ -104,6 +119,9 @@ How it is tested:
 - `tests/regression/test_cli_legacy.py` runs the real reference executable from
   `~/bin/xneo` (or `NEO_REFERENCE_BIN`) and compares its outputs against the
   JAX CLI.
+- `tests/regression/test_gpu_smoke.py` adds optional CPU-vs-GPU smoke coverage
+  for both the legacy CLI and the public Python API when
+  `NEO_JAX_RUN_GPU=1` is set on a machine with a visible JAX GPU backend.
 - The test suite covers:
   - a real dense fixture: `LandremanPaul2021_QA_lowres`
   - a synthetic one-surface ORBITS legacy case that exercises `neo_out`,
@@ -128,6 +146,8 @@ Current comparison status:
   the intermediate current history.
 - The legacy array dumps (`*_arr.dat`, `dimension.dat`, `theta_arr.dat`,
   `phi_arr.dat`) are numerically identical to within floating-point roundoff.
+- GPU execution is now validated separately on the ``office`` workstation for
+  both ``python -m neo_jax`` and the Python API; see the GPU table below.
 
 ## Simple Python API
 
@@ -233,11 +253,42 @@ Notes:
   The current last-surface ``epstot`` values are
   ``0.7159689869E-03`` (`xneo`) vs ``0.7123614767E-03`` (`neo_jax`).
 - ``ORBITS_FAST`` is now practical again in legacy mode because ``WRITE_INTEGRATE=1``
-  uses the JAX solver plus a convergence callback instead of forcing the full
-  Python-loop backend.
+  uses the JAX solver plus a convergence callback in the default path instead
+  of forcing the full Python-loop backend.
 - The dense ``ORBITS_FAST`` regression now checks ``conver.dat`` columns 1-4 in
   CI and exposes ``NEO_JAX_WRITE_IPMAX_DEBUG=1`` for step-by-step parity
   debugging of the remaining fifth-column discrepancy.
+
+## GPU Validation Snapshot
+
+Validated on ``office`` (Pop!_OS, 2x NVIDIA RTX A4000, JAX 0.6.2) with:
+
+```bash
+env NEO_JAX_RUN_GPU=1 JAX_PLATFORM_NAME=gpu python -m pytest -q \
+  tests/regression/test_gpu_smoke.py
+```
+
+That GPU smoke suite checks:
+
+- legacy CLI output parity between CPU and GPU on a one-surface ORBITS case
+- Python API parity between CPU and GPU for ``run_neo(..., use_jax=True, jax_surface_scan=True)``
+- progress logging includes the active JAX runtime so GPU runs do not look hung
+- the user-facing ``examples/ncsx_epsilon_effective_plot.py`` script was also
+  run on the same GPU host with ``MPLBACKEND=Agg`` and completed successfully
+  while writing ``examples/ncsx_eps_eff_vs_s.png``
+
+Cold-run timing on the same ``office`` host:
+
+| Path | Case | CPU runtime (s) | GPU runtime (s) | CPU max RSS (MiB) | GPU max RSS (MiB) | Notes |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Legacy CLI | `LandremanPaul2021_QA_lowres` | 39.41 | 95.71 | 1908.4 | 1966.4 | Cold launch, includes JIT compile |
+| Python API | ORBITS single-surface smoke | 15.56 first / 8.99 reuse | 25.37 first / 14.06 reuse | n/a | n/a | `run_neo(..., jax_surface_scan=True)` |
+
+At the current problem sizes, the GPU path is functional and parity-checked,
+but still compile-bound. On these small and medium legacy solves it is not yet
+faster than the CPU path. The GPU backend is still important for the larger
+JIT-native VMEC→Boozer→NEO workflows, where batching and reuse matter more than
+single-shot CLI latency.
 
 | Metric | NEO (Fortran) | NEO_JAX (JAX) | Notes |
 | --- | --- | --- | --- |
