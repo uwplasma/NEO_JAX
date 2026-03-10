@@ -141,9 +141,12 @@ overrides:
 - ``--jax``: prefer the JAX backend when compatible
 - ``--no-jax``: force the Python backend
 - ``--verbose``: print extra progress information
+- ``--quiet``: suppress the default NEO_JAX progress messages
 
 Note that control-file ``WRITE_PROGRESS`` is honored by default, so legacy runs
-still print progress when the control file requests it.
+still print progress when the control file requests it. In addition, NEO_JAX
+prints its own high-level status messages by default so long JAX or parity
+runs do not look hung. Use ``--quiet`` to suppress those messages.
 
 Testing
 -------
