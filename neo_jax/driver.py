@@ -409,6 +409,18 @@ class DiagnosticLogger:
         self.snapshot_written = True
 
 
+class ConvergenceLogger:
+    def __init__(self) -> None:
+        self.rows: list[tuple[float, float, float, float, float]] = []
+
+    def callback(self, row) -> None:
+        vals = np.asarray(row, dtype=float).reshape(-1)
+        self.rows.append(tuple(float(v) for v in vals))
+
+    def reset(self) -> None:
+        self.rows = []
+
+
 def run_neo_from_boozer(
     booz: BoozerData,
     control: ControlParams,
@@ -472,7 +484,19 @@ def run_neo_from_boozer(
 
     flint_bo_jax_fn = flint_bo_jax
     if use_jax and not write_diagnostic and not disable_jit:
-        flint_bo_jax_fn = jax.jit(flint_bo_jax, static_argnames=("params",))
+        flint_bo_jax_fn = jax.jit(
+            flint_bo_jax,
+            static_argnames=(
+                "params",
+                "diagnostic_callback",
+                "diagnostic_trap_callback",
+                "diagnostic_snapshot",
+                "diagnostic_snapshot_callback",
+                "convergence_callback",
+                "convergence_reset_callback",
+                "strict_parity",
+            ),
+        )
 
     for local_idx, surf_idx in enumerate(surf_indices):
         if progress:
@@ -513,7 +537,8 @@ def run_neo_from_boozer(
         )
 
         if use_jax:
-            use_python_loop = bool(control.write_integrate)
+            use_python_loop = False
+            convergence_logger = None
             if progress:
                 if use_python_loop:
                     print("NEO_JAX: solving epsilon effective with the Python parity backend")
@@ -585,7 +610,21 @@ def run_neo_from_boozer(
                         collect_convergence=bool(control.write_integrate),
                     )
                 else:
-                    out = flint_bo_jax_fn(surface, params, env, nfp=booz.nfp, rt0=rt0)
+                    if control.write_integrate:
+                        convergence_logger = ConvergenceLogger()
+                    out = flint_bo_jax_fn(
+                        surface,
+                        params,
+                        env,
+                        nfp=booz.nfp,
+                        rt0=rt0,
+                        convergence_callback=None if convergence_logger is None else convergence_logger.callback,
+                        convergence_reset_callback=None if convergence_logger is None else convergence_logger.reset,
+                        strict_parity=legacy_mode,
+                    )
+                    jnp.asarray(out["y2"]).block_until_ready()
+                    if convergence_logger is not None:
+                        out["convergence_history"] = convergence_logger.rows
         else:
             out = flint_bo(
                 surface,
