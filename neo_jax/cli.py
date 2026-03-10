@@ -80,6 +80,23 @@ def _resolve_boozmn_for_xneo(control, extension: str | None, override: str | Non
     return resolve_boozmn_path(control.in_file, extension)
 
 
+def _describe_jax_runtime() -> str:
+    """Return a concise runtime summary for progress logging."""
+    try:
+        import jax
+
+        devices = jax.devices()
+        backend = jax.default_backend()
+        if not devices:
+            return f"{backend} (no devices reported)"
+        sample = ", ".join(getattr(dev, "device_kind", dev.platform) for dev in devices[:2])
+        if len(devices) > 2:
+            sample += ", ..."
+        return f"{backend} ({len(devices)} device{'s' if len(devices) != 1 else ''}: {sample})"
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        return f"unavailable ({exc})"
+
+
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="NEO_JAX CLI with legacy xneo-compatible defaults.")
     parser.add_argument("extension", nargs="?", help="Legacy NEO input extension (same as xneo)")
@@ -115,6 +132,8 @@ def main(argv: List[str] | None = None) -> int:
             f"{surface_count} theta_n={control.theta_n} phi_n={control.phi_n} "
             f"npart={control.npart} backend={backend}"
         )
+        if backend == "JAX":
+            print(f"NEO_JAX: jax_runtime={_describe_jax_runtime()}")
         if control.write_output_files or control.write_integrate or control.write_diagnostic or control.write_cur_inte:
             print(
                 "NEO_JAX: legacy extras="
@@ -124,7 +143,7 @@ def main(argv: List[str] | None = None) -> int:
                 f"write_cur_inte={control.write_cur_inte}"
             )
         if control.write_integrate:
-            print("NEO_JAX: WRITE_INTEGRATE=1 forces the parity-preserving Python integration path.")
+            print("NEO_JAX: WRITE_INTEGRATE=1 enabled; writing conver.dat from the parity solve.")
         if control.calc_cur:
             print(f"NEO_JAX: current output will be written to {control.cur_file}")
 

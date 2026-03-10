@@ -577,6 +577,7 @@ def run_neo_from_boozer(
         if use_jax:
             use_python_loop = False
             convergence_logger = None
+            use_host_convergence = False
             if progress:
                 if use_python_loop:
                     print("NEO_JAX: solving epsilon effective with the Python parity backend")
@@ -650,18 +651,21 @@ def run_neo_from_boozer(
                 else:
                     if control.write_integrate:
                         convergence_logger = ConvergenceLogger()
+                        use_host_convergence = convergence_logger._step_log_path is not None
                     out = flint_bo_jax_fn(
                         surface,
                         params,
                         env,
                         nfp=booz.nfp,
                         rt0=rt0,
-                        convergence_callback=None,
+                        convergence_callback=None
+                        if convergence_logger is None or use_host_convergence
+                        else convergence_logger.callback,
                         convergence_period_callback=None
-                        if convergence_logger is None
+                        if convergence_logger is None or not use_host_convergence
                         else convergence_logger.period_callback,
                         convergence_step_callback=None
-                        if convergence_logger is None
+                        if convergence_logger is None or not use_host_convergence
                         else convergence_logger.step_callback,
                         convergence_reset_callback=None if convergence_logger is None else convergence_logger.reset,
                         strict_parity=legacy_mode,

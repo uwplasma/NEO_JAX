@@ -51,6 +51,9 @@ Current checks:
   - exact ``neo_out.*`` / ``neolog.*`` parity on ``ORBITS_FAST``
   - exact ``conver.dat`` columns 1-4 parity on ``ORBITS_FAST``
   - approximately ``rtol=5e-3`` parity on ``ncsx_c09r00_free_fast``
+- optional GPU smoke parity:
+  - CLI CPU-vs-GPU agreement on a one-surface ORBITS case
+  - Python API CPU-vs-GPU agreement through ``run_neo(...)``
 
 For the dense ``ORBITS_FAST`` case, NEO_JAX also exposes
 ``NEO_JAX_WRITE_IPMAX_DEBUG=1`` to emit ``diagnostic_ipmax_jax.dat``. That
@@ -143,3 +146,57 @@ Tips:
 - Use ``JAX_ENABLE_X64=1`` to match Fortran parity expectations.
 - If you see out-of-memory errors, lower ``XLA_PYTHON_CLIENT_MEM_FRACTION`` or
   set ``XLA_PYTHON_CLIENT_PREALLOCATE=false``.
+
+GPU validation on ``office``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+NEO_JAX was revalidated on March 10, 2026 on the ``office`` workstation
+(``pop-os``) with 2x NVIDIA RTX A4000 GPUs and JAX 0.6.2 in
+``/home/rjorge/venvs/vmec_jax_gpu_bench``.
+
+The GPU smoke suite is:
+
+.. code-block:: bash
+
+   env NEO_JAX_RUN_GPU=1 JAX_PLATFORM_NAME=gpu python -m pytest -q \
+     tests/regression/test_gpu_smoke.py
+
+That test file verifies:
+
+- the legacy CLI produces the same one-surface ORBITS ``neo_out.*`` values on
+  CPU and GPU
+- the Python API produces the same ORBITS effective-ripple result on CPU and
+  GPU
+- the default CLI progress log reports the active JAX runtime
+
+In addition, the user-facing ``examples/ncsx_epsilon_effective_plot.py`` script
+was run on the same GPU host with ``MPLBACKEND=Agg`` and produced
+``examples/ncsx_eps_eff_vs_s.png`` successfully.
+
+Measured cold-run snapshots on ``office``:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Path
+     - Case
+     - CPU
+     - GPU
+     - CPU RSS MiB
+     - GPU RSS MiB
+   * - Legacy CLI
+     - ``LandremanPaul2021_QA_lowres``
+     - ``39.41 s``
+     - ``95.71 s``
+     - ``1908.4``
+     - ``1966.4``
+   * - Python API
+     - ORBITS single-surface smoke
+     - ``15.56 s first / 8.99 s reuse``
+     - ``25.37 s first / 14.06 s reuse``
+     - n/a
+     - n/a
+
+At the current problem sizes, the GPU path is functional and parity-checked but
+still compile-bound. For the legacy CLI and the small ORBITS API smoke, the GPU
+is slower than CPU because compile and launch overhead dominate the solve.

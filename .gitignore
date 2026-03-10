@@ -25,3 +25,15 @@ __pycache__/
 # OS
 .DS_Store
 examples/ncsx_eps_eff_vs_s.png
+
+# Legacy CLI / debug outputs generated in the repository root
+/neo_out.*
+/neo_cur.*
+/neolog.*
+/conver.dat
+/current.dat
+/diagnostic*.dat
+/*_arr.dat
+/dimension.dat
+/theta_arr.dat
+/phi_arr.dat

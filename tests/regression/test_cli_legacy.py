@@ -498,6 +498,7 @@ def test_cli_progress_logging_and_quiet_flag(tmp_path: Path) -> None:
     )
 
     assert "NEO_JAX: starting legacy CLI solve" in verbose_run.stdout
+    assert "NEO_JAX: jax_runtime=cpu" in verbose_run.stdout
     assert "NEO_JAX: surface 1/1" in verbose_run.stdout
     assert "NEO_JAX: wrote neo_out.LOG_MINI" in verbose_run.stdout
     assert quiet_run.stdout.strip() == ""

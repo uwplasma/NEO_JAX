@@ -12,7 +12,8 @@ NEO_JAX also ships an ``xneo``-compatible CLI. The same ``neo_in.*`` /
 ``python -m neo_jax`` while keeping the legacy file naming conventions
 (``neo_out.*``, ``neo_cur.*``, ``neolog.*``, ``diagnostic*.dat``,
 ``current.dat``, and the auxiliary ``*_arr.dat`` dumps). See :doc:`cli` and
-:doc:`validation` for the exact compatibility contract and parity coverage.
+:doc:`validation` for the exact compatibility contract, GPU smoke coverage,
+and parity limits on the dense legacy fixtures.
 
 .. toctree::
    :maxdepth: 2
