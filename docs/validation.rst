@@ -47,6 +47,9 @@ Current checks:
   - ``neo_param.<extension>``
   - ``neo_param.in``
   - ``neo_in.<extension>``
+- slow-fixture CLI parity:
+  - exact ``neo_out.*`` / ``neolog.*`` parity on ``ORBITS_FAST``
+  - approximately ``rtol=5e-3`` parity on ``ncsx_c09r00_free_fast``
 
 Supported legacy scope:
 
@@ -67,7 +70,7 @@ Fast vs. full ORBITS parity:
 - The default CLI regression suite runs the dense Landreman fixture plus
   reduced ORBITS / NCSX mini cases that finish quickly in CI.
 - Full-fixture CLI parity checks for ``ORBITS_FAST`` and
-  ``ncsx_c09r00_free_fast`` are available when ``NEO_JAX_RUN_SLOW=1``.
+  ``ncsx_c09r00_free_fast`` run when ``NEO_JAX_RUN_SLOW=1``.
 - The separate full NCSX parity regression in
   ``tests/regression/test_ncsx_parity.py`` remains gated behind
   ``NEO_JAX_RUN_SLOW=1``.

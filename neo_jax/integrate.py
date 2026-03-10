@@ -463,6 +463,8 @@ def flint_bo(
     # Rational surface correction
     if hit_rat == 1:
         if exist_first_ratfl == 0:
+            if collect_convergence and convergence_history is not None:
+                convergence_history = []
             bigint = jnp.zeros(multra)
             adimax = jnp.array(0.0)
             aditot = jnp.array(0.0)
@@ -620,6 +622,9 @@ def flint_bo_jax(
     diagnostic_trap_callback=None,
     diagnostic_snapshot: tuple[int, int] | None = None,
     diagnostic_snapshot_callback=None,
+    convergence_callback=None,
+    convergence_reset_callback=None,
+    strict_parity: bool = False,
 ):
     """JAX-friendly integration loop with rational-surface correction."""
     if rt0 is None:
@@ -809,7 +814,10 @@ def flint_bo_jax(
 
         def inner_step(j, inner):
             phi, y, state, iswst, bigint, adimax, aditot = inner
-            phi, y, state = rk4_step_inline(phi, y, state)
+            if strict_parity:
+                phi, y, state = rk4_step(phi, y, state, env, hphi)
+            else:
+                phi, y, state = rk4_step_inline(phi, y, state)
             p_i = y[NPQ : NPQ + npart]
             p_h = y[NPQ + npart : NPQ + 2 * npart]
             if diagnostic_callback is not None and emit_diag:
@@ -865,34 +873,39 @@ def flint_bo_jax(
                 snap_cond = (step_index == snap_n) & (j == snap_j)
                 _ = jax.lax.cond(snap_cond, _emit_snap, lambda _: None, operand=None)
 
-            # Inline trapped-particle update to improve fusion in scan body.
-            mask2 = state.isw == 2
-            m_cl = jnp.clip(state.ipa, 1, multra).astype(state.ipa.dtype)
+            if strict_parity:
+                state, iswst, p_i, p_h, bigint, adimax = _process_trapped(
+                    state, iswst, p_i, p_h, bigint, adimax, multra
+                )
+            else:
+                # Inline trapped-particle update to improve fusion in scan body.
+                mask2 = state.isw == 2
+                m_cl = jnp.clip(state.ipa, 1, multra).astype(state.ipa.dtype)
 
-            def body(i, carry):
-                bigint_acc, adimax_acc = carry
-
-                def add_fn(carry):
+                def body(i, carry):
                     bigint_acc, adimax_acc = carry
-                    safe_pi = jnp.where(p_i[i] == 0, jnp.array(1.0, dtype=p_i.dtype), p_i[i])
-                    add_on = (p_h[i] * p_h[i]) / safe_pi * iswst[i]
-                    idx = m_cl[i] - 1
-                    bigint_acc = bigint_acc.at[idx].add(add_on)
-                    adimax_acc = jnp.where(state.ipa[i] == 1, p_i[i], adimax_acc)
-                    return bigint_acc, adimax_acc
 
-                return jax.lax.cond(mask2[i], add_fn, lambda c: c, carry)
+                    def add_fn(carry):
+                        bigint_acc, adimax_acc = carry
+                        safe_pi = jnp.where(p_i[i] == 0, jnp.array(1.0, dtype=p_i.dtype), p_i[i])
+                        add_on = (p_h[i] * p_h[i]) / safe_pi * iswst[i]
+                        idx = m_cl[i] - 1
+                        bigint_acc = bigint_acc.at[idx].add(add_on)
+                        adimax_acc = jnp.where(state.ipa[i] == 1, p_i[i], adimax_acc)
+                        return bigint_acc, adimax_acc
 
-            bigint, adimax = jax.lax.fori_loop(0, p_i.shape[0], body, (bigint, adimax))
+                    return jax.lax.cond(mask2[i], add_fn, lambda c: c, carry)
 
-            iswst = jnp.where(mask2, 1, iswst)
-            p_h = jnp.where(mask2, 0.0, p_h)
-            p_i = jnp.where(mask2, 0.0, p_i)
-            zero_int = jnp.zeros_like(state.isw)
-            isw = jnp.where(mask2, zero_int, state.isw)
-            icount = jnp.where(mask2, zero_int, state.icount)
-            ipa = jnp.where(mask2, zero_int, state.ipa)
-            state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
+                bigint, adimax = jax.lax.fori_loop(0, p_i.shape[0], body, (bigint, adimax))
+
+                iswst = jnp.where(mask2, 1, iswst)
+                p_h = jnp.where(mask2, 0.0, p_h)
+                p_i = jnp.where(mask2, 0.0, p_i)
+                zero_int = jnp.zeros_like(state.isw)
+                isw = jnp.where(mask2, zero_int, state.isw)
+                icount = jnp.where(mask2, zero_int, state.icount)
+                ipa = jnp.where(mask2, zero_int, state.ipa)
+                state = RhsState(isw, ipa, icount, state.ipmax, state.pard0)
 
             y = y.at[NPQ : NPQ + npart].set(p_i)
             y = y.at[NPQ + npart : NPQ + 2 * npart].set(p_h)
@@ -905,6 +918,25 @@ def flint_bo_jax(
             return (phi, y, state, iswst, bigint, adimax, aditot)
 
         return jax.lax.fori_loop(0, params.nstep_per, inner_step, carry)
+
+    def convergence_row(n_val, bigint_val, y_val, aditot_val):
+        epspar_check = coeps * bigint_val * y_val[1] / (y_val[2] * y_val[2])
+        epstot_check = jnp.sum(epspar_check)
+        return jnp.asarray(
+            [
+                n_val.astype(y_val.dtype),
+                epstot_check,
+                y_val[3],
+                y_val[NPQ + npart - 1] / y_val[1],
+                aditot_val / y_val[1],
+            ]
+        )
+
+    def emit_convergence(n_val, bigint_val, y_val, aditot_val):
+        if convergence_callback is None:
+            return
+        row = convergence_row(n_val, bigint_val, y_val, aditot_val)
+        jax.debug.callback(convergence_callback, row, ordered=True)
 
     def update_theta_min(n_val, theta, theta_d_min, n_iota, m_iota, iota_bar_fp):
         twopi = 2.0 * jnp.pi
@@ -1051,6 +1083,7 @@ def flint_bo_jax(
                 n,
             )
             n_new = n + 1
+            emit_convergence(n_new.astype(y.dtype), bigint, y, aditot)
             theta = y[0]
             theta_d_min_new, n_iota_new, m_iota_new, iota_bar_fp_new = update_theta_min(
                 n_new, theta, theta_d_min, n_iota, m_iota, iota_bar_fp
@@ -1163,6 +1196,13 @@ def flint_bo_jax(
     y3npart = y[NPQ + npart - 1]
 
     def rational_correction(_):
+        if convergence_reset_callback is not None:
+            def _reset(_):
+                jax.debug.callback(convergence_reset_callback, ordered=True)
+                return None
+
+            _ = jax.lax.cond(exist_first_ratfl == 0, _reset, lambda _: None, operand=None)
+
         def reset_accumulators(_):
             zero_bigint = jnp.zeros_like(bigint)
             return zero_bigint, jnp.array(0.0), jnp.array(0.0), jnp.array(0.0), jnp.array(0.0), jnp.array(0.0)
@@ -1225,6 +1265,7 @@ def flint_bo_jax(
                     False,
                     n_idx,
                 )
+                emit_convergence((nfl * nfp_rat + n_idx + 1).astype(y_l.dtype), bigint_s, y_l, aditot_s)
 
                 return (n_idx + 1, phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s)
 
