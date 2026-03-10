@@ -18,6 +18,8 @@ Current reference cases include:
 - a synthetic one-surface ORBITS legacy case used to validate
   ``neo_out.*``, ``neolog.*``, ``diagnostic*.dat``, ``conver.dat``, and the
   legacy ``*_arr.dat`` dumps against the real ``xneo`` executable
+- a synthetic one-surface ORBITS ``calc_cur = 1`` case used to validate
+  ``neo_cur.*`` and ``current.dat`` against the real ``xneo`` executable
 
 Legacy CLI parity
 -----------------
@@ -30,6 +32,7 @@ Current checks:
 
 - exact text equality for:
   - ``neo_out.*``
+  - ``neo_cur.*``
   - ``neolog.*``
   - ``diagnostic.dat``
   - ``diagnostic_add.dat``
@@ -39,11 +42,16 @@ Current checks:
   - ``dimension.dat``
   - ``es_arr.dat``
   - all legacy ``*_arr.dat`` geometry dumps
+  - ``current.dat`` token streams, including matching ``NaN`` / ``Infinity`` masks and tight tolerances on finite values
+- control-file search-order parity for:
+  - ``neo_param.<extension>``
+  - ``neo_param.in``
+  - ``neo_in.<extension>``
 
 Supported legacy scope:
 
 - ``calc_cur = 0`` parity is tested and supported
-- ``calc_cur = 1`` is not yet ported in the CLI layer
+- ``calc_cur = 1`` parity is tested and supported
 
 Precision
 ---------
@@ -56,13 +64,13 @@ You can override this behavior by setting either:
 
 Fast vs. full ORBITS parity:
 
-- The default regression test uses the reduced ``ORBITS_FAST`` fixture
-  (2 surfaces, 25x25 grid) for quick CI runs.
-- Set ``NEO_JAX_ORBITS_FULL=1`` to run the full ORBITS parity test overnight.
-- ``neo_in.ncsx_c09r00_free_fast`` provides a reduced NCSX parity test that runs
-  by default in CI (4 surfaces, 64x64 grid).
-- The full NCSX parity regression remains gated behind ``NEO_JAX_RUN_SLOW=1`` to
-  avoid running the slow-path integrator in standard CI.
+- The default CLI regression suite runs the dense Landreman fixture plus
+  reduced ORBITS / NCSX mini cases that finish quickly in CI.
+- Full-fixture CLI parity checks for ``ORBITS_FAST`` and
+  ``ncsx_c09r00_free_fast`` are available when ``NEO_JAX_RUN_SLOW=1``.
+- The separate full NCSX parity regression in
+  ``tests/regression/test_ncsx_parity.py`` remains gated behind
+  ``NEO_JAX_RUN_SLOW=1``.
 
 Planned metrics:
 

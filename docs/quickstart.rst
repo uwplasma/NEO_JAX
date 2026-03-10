@@ -23,7 +23,14 @@ To emulate ``xneo``, you can use the CLI:
 
 .. code-block:: bash
 
-   neo-jax ORBITS --boozmn boozmn_ORBITS.nc --verbose
+   xneo ORBITS
+   xneo_jax ORBITS
+   python -m neo_jax ORBITS
+
+This legacy mode honors the same control-file lookup rules as STELLOPT
+(``neo_param.<ext>``, ``neo_param.in``, then ``neo_in.<ext>``) and writes the
+same legacy output filenames, including ``neo_cur.*`` / ``current.dat`` when
+``calc_cur = 1``.
 
 Examples
 --------

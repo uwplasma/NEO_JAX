@@ -30,10 +30,12 @@ PYTHONPATH=. python examples/ncsx_epsilon_effective_plot.py
 
 ## Legacy `xneo` Compatibility
 
-`neo_jax` now supports the same terminal workflow as STELLOPT's `xneo` for the
-effective-ripple solve (`calc_cur = 0`). The goal is that an existing legacy
-control file can be run with the JAX executable and produce the same output
-files as the reference code.
+`neo_jax` now supports the same terminal workflow as STELLOPT's `xneo`,
+including both the effective-ripple solve (`calc_cur = 0`) and the
+parallel-current path (`calc_cur = 1`). The intent is simple: if you already
+have a working legacy NEO case, you should be able to point the same control
+file at `neo_jax` and keep the same filenames, CLI invocation, and output-file
+layout.
 
 Legacy invocation:
 
@@ -58,6 +60,8 @@ What the legacy CLI writes:
 
 - main output: `neo_out.*`
 - log file: `neolog.*`
+- parallel-current summary when `calc_cur = 1`: `neo_cur.*`
+- optional parallel-current integration history: `current.dat`
 - optional diagnostic files: `diagnostic.dat`, `diagnostic_add.dat`,
   `diagnostic_bigint.dat`
 - optional integration history: `conver.dat`
@@ -67,17 +71,23 @@ What the legacy CLI writes:
 
 Compatibility scope:
 
-- supported: `xneo`-style epsilon-effective runs (`calc_cur = 0`)
-- not yet supported: `calc_cur = 1` parallel-current output path
+- supported: `calc_cur = 0` and `calc_cur = 1`
+- control-file lookup parity for `neo_param.<ext>`, `neo_param.in`,
+  and `neo_in.<ext>`
+- legacy Boozer filename resolution via `boozmn_<extension>.nc`
 
 How the compatibility layer is implemented:
 
 - `neo_jax/cli.py` mirrors the legacy command-line contract and control-file
   search logic.
 - `neo_jax/legacy.py` reproduces the Fortran text formatting used in
-  `neo_out.*`, `neolog.*`, `diagnostic*.dat`, and `conver.dat`.
+  `neo_out.*`, `neo_cur.*`, `neolog.*`, `diagnostic*.dat`, `current.dat`, and
+  `conver.dat`.
 - `neo_jax/driver.py` writes the same auxiliary files that STELLOPT writes when
-  `WRITE_OUTPUT_FILES`, `WRITE_INTEGRATE`, or `WRITE_DIAGNOSTIC` are enabled.
+  `WRITE_OUTPUT_FILES`, `WRITE_INTEGRATE`, `WRITE_DIAGNOSTIC`, or
+  `WRITE_CUR_INTE` are enabled.
+- `neo_jax/current.py` ports the legacy `flint_cur` / `calccur` path to JAX so
+  `neo_cur.*` and `current.dat` are produced by the same CLI entrypoint.
 - The solver still calls the same JAX/Python backend used by the public API, so
   the terminal interface and Python interface stay numerically aligned.
 
@@ -90,11 +100,20 @@ How it is tested:
   - a real dense fixture: `LandremanPaul2021_QA_lowres`
   - a synthetic one-surface ORBITS legacy case that exercises `neo_out`,
     `neolog`, `diagnostic*.dat`, `conver.dat`, and all legacy array dumps
+  - a one-surface ORBITS `calc_cur = 1` case that checks `neo_cur.*` exactly
+    and `current.dat` token-by-token against the STELLOPT executable
+  - control-file precedence checks for `neo_param.<extension>` and
+    `neo_param.in`
+  - optional slow full-fixture parity checks for `ORBITS_FAST` and
+    `ncsx_c09r00_free_fast` when `NEO_JAX_RUN_SLOW=1`
 
 Current comparison status:
 
-- `neo_out.*`, `diagnostic*.dat`, `conver.dat`, and `neolog.*` match the
-  reference text output exactly on the legacy parity cases.
+- `neo_out.*`, `neo_cur.*`, `diagnostic*.dat`, `conver.dat`, and `neolog.*`
+  match the reference text output exactly on the legacy parity cases.
+- `current.dat` matches token-by-token, including `NaN`/`Infinity` placement,
+  with tight floating-point tolerances to account for backend-level roundoff in
+  the intermediate current history.
 - The legacy array dumps (`*_arr.dat`, `dimension.dat`, `theta_arr.dat`,
   `phi_arr.dat`) are numerically identical to within floating-point roundoff.
 
