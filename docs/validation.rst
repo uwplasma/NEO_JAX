@@ -37,7 +37,7 @@ Current checks:
   - ``diagnostic.dat``
   - ``diagnostic_add.dat``
   - ``diagnostic_bigint.dat``
-  - ``conver.dat``
+  - ``conver.dat`` on the synthetic ORBITS parity case
 - numerical equality, up to floating-point roundoff, for:
   - ``dimension.dat``
   - ``es_arr.dat``
@@ -49,7 +49,14 @@ Current checks:
   - ``neo_in.<extension>``
 - slow-fixture CLI parity:
   - exact ``neo_out.*`` / ``neolog.*`` parity on ``ORBITS_FAST``
+  - exact ``conver.dat`` columns 1-4 parity on ``ORBITS_FAST``
   - approximately ``rtol=5e-3`` parity on ``ncsx_c09r00_free_fast``
+
+For the dense ``ORBITS_FAST`` case, NEO_JAX also exposes
+``NEO_JAX_WRITE_IPMAX_DEBUG=1`` to emit ``diagnostic_ipmax_jax.dat``. That
+debug trace is used to compare the per-step trapped-amplitude history against
+the STELLOPT solver when investigating the remaining ``conver.dat`` fifth-column
+discrepancy.
 
 Supported legacy scope:
 
