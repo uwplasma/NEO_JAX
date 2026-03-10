@@ -10,6 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from .control import ControlParams
+from .current import CurrentParams, flint_cur_jax
 from .data_models import BoozerData
 from .grids import prepare_grids
 from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
@@ -417,15 +418,14 @@ def run_neo_from_boozer(
     extension: str | None = None,
     legacy_mode: bool = False,
 ) -> NeoResults:
-    if control.calc_cur != 0:
-        raise NotImplementedError("calc_cur=1 is not implemented in NEO_JAX.")
-
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
     legacy_writer = LegacyNeoWriter(extension=extension, progress=progress) if legacy_mode else None
     if legacy_writer is not None:
         legacy_writer.prepare_run()
         if control.write_output_files:
             legacy_writer.write_static_files(booz=booz, grid=grid)
+        if control.calc_cur:
+            legacy_writer.prepare_current_run(control.cur_file)
 
     max_m_mode = control.max_m_mode if control.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
     max_n_mode = control.max_n_mode if control.max_n_mode > 0 else int(np.max(np.abs(booz.ixn)))
@@ -497,6 +497,7 @@ def run_neo_from_boozer(
             curr_tor=jnp.asarray(booz.curr_tor[surf_idx]),
             iota=jnp.asarray(booz.iota[surf_idx]),
             grid=grid,
+            calc_cur=bool(control.calc_cur),
         )
         if legacy_writer is not None and control.write_output_files:
             legacy_writer.write_surface_files(surface.fields)
@@ -655,6 +656,24 @@ def run_neo_from_boozer(
                 )
                 if progress:
                     print("NEO_JAX: wrote diagnostic.dat, diagnostic_add.dat, diagnostic_bigint.dat")
+
+        if control.calc_cur:
+            cur_params = CurrentParams(
+                npart_cur=control.npart_cur,
+                alpha_cur=control.alpha_cur,
+                nstep_per=control.nstep_per,
+                nfp=booz.nfp,
+                write_cur_inte=bool(control.write_cur_inte),
+            )
+            flint_cur_fn = flint_cur_jax
+            if use_jax and not disable_jit:
+                flint_cur_fn = jax.jit(flint_cur_jax, static_argnames=("params",))
+            current_out = flint_cur_fn(surface, cur_params, env)
+            out["current"] = current_out
+            if legacy_writer is not None:
+                legacy_writer.append_current(cur_file=control.cur_file, psi_ind=local_idx + 1, current_out=current_out)
+                if control.write_cur_inte and current_out.get("history_rows") is not None:
+                    legacy_writer.write_current_history(current_out["history_rows"])
 
         if legacy_writer is not None and control.write_integrate:
             convergence_history = out.get("convergence_history")

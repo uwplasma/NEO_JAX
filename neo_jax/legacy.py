@@ -32,14 +32,21 @@ def _normalize_mantissa(value: float, digits: int) -> tuple[float, int]:
 
 def format_fortran_real(value: float, *, width: int, digits: int, letter: str = "E") -> str:
     """Format a real number like Fortran ``Ew.d`` / ``Dw.d`` output."""
-    if not math.isfinite(value):
-        return f"{value:>{width}}"
+    if math.isnan(value):
+        return "NaN".rjust(width)
+    if math.isinf(value):
+        return ("Infinity" if value > 0 else "-Infinity").rjust(width)
 
     mantissa, exponent = _normalize_mantissa(float(value), digits)
     sign = "-" if math.copysign(1.0, value) < 0.0 and value != 0.0 else " "
     exp_sign = "+" if exponent >= 0 else "-"
-    exp_digits = f"{abs(exponent):02d}"
-    body = f"{abs(mantissa):.{digits}f}{letter}{exp_sign}{exp_digits}"
+    exp_width = max(2, len(str(abs(exponent))))
+    exp_digits = f"{abs(exponent):0{exp_width}d}"
+    # gfortran drops the exponent letter once a 3-digit exponent would overflow
+    # an ``Ew.d`` field, e.g. ``E17.10`` becomes ``0.1234567890+101``.
+    include_letter = 1 + 2 + digits + 1 + 1 + exp_width <= width
+    exp_token = f"{letter}{exp_sign}{exp_digits}" if include_letter else f"{exp_sign}{exp_digits}"
+    body = f"{abs(mantissa):.{digits}f}{exp_token}"
     return f"{sign}{body}".rjust(width)
 
 
@@ -106,6 +113,10 @@ class LegacyNeoWriter:
         """Reset per-run legacy files that Fortran recreates at startup."""
         if self.extension is not None:
             self._path(f"neolog.{self.extension}").write_text("", encoding="utf-8")
+
+    def prepare_current_run(self, cur_file: str) -> None:
+        """Reset the main current output file for a new run."""
+        self._path(cur_file).write_text("", encoding="utf-8")
 
     def write_static_files(self, *, booz, grid: Mapping[str, object]) -> None:
         self._progress("dimension.dat")
@@ -218,3 +229,37 @@ class LegacyNeoWriter:
         with path.open("a", encoding="utf-8") as handle:
             handle.write(line)
             handle.write("\n")
+
+    def append_current(self, *, cur_file: str, psi_ind: int, current_out: Mapping[str, object]) -> None:
+        line = build_fortran_line(
+            (int(psi_ind),),
+            int_width=8,
+            reals=(
+                float(current_out["lambda_b"]),
+                float(current_out["lambda_ps1"]),
+                float(current_out["lambda_ps2"]),
+                float(current_out["lambda_b1"]),
+                float(current_out["lambda_b2"]),
+            ),
+            real_width=17,
+            real_digits=10,
+            real_letter="E",
+        )
+        with self._path(cur_file).open("a", encoding="utf-8") as handle:
+            handle.write(line)
+            handle.write("\n")
+
+    def write_current_history(self, rows) -> None:
+        lines = []
+        for row in np.asarray(rows):
+            lines.append(
+                build_fortran_line(
+                    (int(round(float(row[0]))),),
+                    int_width=8,
+                    reals=[float(val) for val in row[1:]],
+                    real_width=17,
+                    real_digits=10,
+                    real_letter="E",
+                )
+            )
+        _write_lines(self._path("current.dat"), lines)

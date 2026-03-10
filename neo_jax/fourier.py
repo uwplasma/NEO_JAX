@@ -395,6 +395,7 @@ def derived_quantities(
 
     kg = (curr_tor * b_pb - curr_pol * b_tb) / fac
     pard = b_pb + iota * b_tb
+    bqtphi = isqrg * (p_pb + iota * p_tb)
 
     return {
         "gtbtb": gtbtb,
@@ -404,4 +405,5 @@ def derived_quantities(
         "sqrg11": sqrg11,
         "kg": kg,
         "pard": pard,
+        "bqtphi": bqtphi,
     }
