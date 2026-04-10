@@ -220,6 +220,7 @@ def flint_bo(
     diagnostic_snapshot: tuple[int, int] | None = None,
     diagnostic_snapshot_path: str = "diagnostic_snapshot.dat",
     collect_convergence: bool = False,
+    skip_rational_correction: bool = False,
 ):
     """Python-loop port of flint_bo.f90 (not yet JIT-optimized)."""
     if rt0 is None:
@@ -461,7 +462,7 @@ def flint_bo(
     y3npart = y[NPQ + npart - 1]
 
     # Rational surface correction
-    if hit_rat == 1:
+    if hit_rat == 1 and not skip_rational_correction:
         if exist_first_ratfl == 0:
             if collect_convergence and convergence_history is not None:
                 convergence_history = []
@@ -627,6 +628,7 @@ def flint_bo_jax(
     convergence_step_callback=None,
     convergence_reset_callback=None,
     strict_parity: bool = False,
+    skip_rational_correction: bool = False,
 ):
     """JAX-friendly integration loop with rational-surface correction."""
     if rt0 is None:
@@ -1331,7 +1333,7 @@ def flint_bo_jax(
     def rational_skip(_):
         return bigint, aditot, y2, y3, y4, y3npart
 
-    do_rational = (hit_rat == 1) & (nfp_rat > 0)
+    do_rational = (hit_rat == 1) & (nfp_rat > 0) & jnp.logical_not(jnp.asarray(skip_rational_correction))
     bigint, aditot, y2, y3, y4, y3npart = jax.lax.cond(
         do_rational, rational_correction, rational_skip, operand=None
     )

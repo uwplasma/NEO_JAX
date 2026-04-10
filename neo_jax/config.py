@@ -13,11 +13,19 @@ class NeoConfig:
     """High-level configuration for NEO_JAX runs.
 
     Surface selections may be specified as:
+
     - Integers (1-based NEO surface indices), or
     - Floats in [0, 1], interpreted as normalized toroidal flux ``s``.
 
-    ``max_rational_field_periods`` is a fail-fast safeguard for near-zero-iota
-    surfaces. Set it to ``0`` to disable the guard explicitly.
+    ``max_rational_field_periods`` is a safeguard for near-zero-iota surfaces.
+    Set it to ``0`` to disable the guard explicitly.
+
+    ``rational_surface_policy`` controls what happens if the estimated
+    rational-surface correction exceeds that limit:
+
+    - ``"error"``: fail fast with a detailed diagnostic (default)
+    - ``"approximate"``: skip the expensive rational-surface correction and
+      return the base integration result with explicit diagnostics
     """
 
     surfaces: Sequence[int | float] | None = None
@@ -34,6 +42,7 @@ class NeoConfig:
     nstep_max: int = 500
     calc_nstep_max: int = 0
     max_rational_field_periods: Optional[int] = 100_000
+    rational_surface_policy: str = "error"
     ref_swi: int = 2
     write_progress: bool = False
     write_diagnostic: bool = False

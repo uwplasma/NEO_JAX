@@ -171,9 +171,9 @@ nfp_rat ~= ceil(1 / acc_req / |iota|)
 which can jump into the `10^5`-`10^7` field-period range. At that point the run
 looks hung because the requested work is enormous.
 
-NEO_JAX now fails fast on those cases with a detailed diagnostic instead of
-silently running for an unbounded amount of time. The new fixtures live in
-`/Users/rogerio/local/tests/NEO_JAX/tests/fixtures/constellaration`.
+NEO_JAX now defaults to failing fast on those cases with a detailed diagnostic
+instead of silently running for an unbounded amount of time. The new fixtures
+live in `/Users/rogerio/local/tests/NEO_JAX/tests/fixtures/constellaration`.
 
 Default safeguard:
 
@@ -193,6 +193,28 @@ or
 
 ```bash
 export NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0
+```
+
+If you want a controlled approximation instead of an error, use:
+
+```python
+config = NeoConfig(
+    surfaces=[...],
+    max_rational_field_periods=100_000,
+    rational_surface_policy="approximate",
+)
+```
+
+In approximate mode, NEO_JAX still does the base integration but skips the
+expensive rational-surface correction once the preflight estimate exceeds the
+configured limit. The returned result includes explicit diagnostics such as
+`approximation_used`, `approximation_note`, `estimated_rational_field_periods`,
+and `rational_surface_policy`.
+
+For CLI or environment-driven runs, the same policy can be selected with:
+
+```bash
+export NEO_JAX_RATIONAL_SURFACE_POLICY=approximate
 ```
 
 ## Simple Python API

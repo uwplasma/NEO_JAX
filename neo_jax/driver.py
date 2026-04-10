@@ -46,6 +46,7 @@ def run_neo_from_boozer_jax(
     *,
     skip_fourier_mask: bool = False,
     max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
+    rational_surface_policy: str | None = None,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
     booz = BoozerData(
@@ -82,6 +83,7 @@ def run_neo_from_boozer_jax(
         flux_indices = [idx + 1 for idx in surf_indices]
 
     work_limit = _resolve_max_rational_field_periods(max_rational_field_periods)
+    policy = _resolve_rational_surface_policy(rational_surface_policy)
     if work_limit is not None:
         for local_idx, surf_idx in enumerate(surf_indices):
             work = _estimate_rational_work(
@@ -92,6 +94,11 @@ def run_neo_from_boozer_jax(
                 multra=control.multra,
             )
             if work["field_periods"] > work_limit:
+                if policy == "approximate":
+                    raise RuntimeError(
+                        "JAX surface scan does not support rational_surface_policy='approximate'. "
+                        "Call run_neo(..., jax_surface_scan=False, rational_surface_policy='approximate') instead."
+                    )
                 flux_index = flux_indices[local_idx]
                 _raise_rational_work_limit(
                     flux_index=flux_index,
@@ -212,6 +219,9 @@ def run_neo_from_boozer_jax(
         "barept": barept,
         "yps": yps,
         "flux_index": flux_indices_j,
+        "rational_surface_policy": policy,
+        "max_rational_field_periods": work_limit if work_limit is not None else 0,
+        "approximation_used": jnp.zeros_like(s_vals, dtype=bool),
     }
 
     return NeoOutputs(
@@ -248,6 +258,18 @@ def _resolve_max_rational_field_periods(value: int | None) -> int | None:
     return DEFAULT_MAX_RATIONAL_FIELD_PERIODS
 
 
+def _resolve_rational_surface_policy(value: str | None) -> str:
+    policy = (value or os.getenv("NEO_JAX_RATIONAL_SURFACE_POLICY", "error")).strip().lower()
+    if policy in {"", "error"}:
+        return "error"
+    if policy in {"approximate", "approx", "loosen_acc_req"}:
+        return "approximate"
+    raise ValueError(
+        "Unsupported rational_surface_policy="
+        f"{value!r}. Expected 'error' or 'approximate'."
+    )
+
+
 def _estimate_rational_work(iota: float, acc_req: float, *, nstep_per: int, npart: int, multra: int) -> Dict[str, float]:
     abs_iota = abs(float(iota))
     safe_iota = max(abs_iota, 1.0e-16)
@@ -278,6 +300,8 @@ def _surface_preflight_message(
     b_max: float,
     work: Dict[str, float],
     work_limit: int | None,
+    policy: str,
+    approximation_note: str | None = None,
 ) -> list[str]:
     lines = [
         (
@@ -300,9 +324,12 @@ def _surface_preflight_message(
             f"approx_rational_field_periods={int(work['field_periods'])} "
             f"approx_substeps={int(work['substeps'])} "
             f"approx_eta_paths={int(work['eta_paths'])} "
-            f"limit={work_limit if work_limit is not None else 'disabled'}"
+            f"limit={work_limit if work_limit is not None else 'disabled'} "
+            f"policy={policy}"
         ),
     ]
+    if approximation_note is not None:
+        lines.append(f"NEO_JAX: approximation {approximation_note}")
     return lines
 
 
@@ -322,10 +349,13 @@ def _raise_rational_work_limit(
         f"which exceeds max_rational_field_periods={work_limit}. "
         "This is not an infinite loop: the Boozer surface has very small |iota|, "
         "so the legacy NEO rational correction would require an enormous number of "
-        "field periods. To override the safeguard, set "
+        "field periods. To override the safeguard entirely, set "
         "NeoConfig(max_rational_field_periods=0) or "
-        "NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0. To reduce the workload, loosen "
-        "acc_req, reduce the surface set, or avoid near-zero-iota surfaces."
+        "NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0. For a controlled fallback that "
+        "skips the rational correction after the base integration, set "
+        "NeoConfig(rational_surface_policy='approximate'). To reduce the "
+        "workload, loosen acc_req, reduce the surface set, or avoid near-zero-iota "
+        "surfaces."
     )
 
 
@@ -589,6 +619,7 @@ def run_neo_from_boozer(
     extension: str | None = None,
     legacy_mode: bool = False,
     max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
+    rational_surface_policy: str | None = None,
 ) -> NeoResults:
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
     legacy_writer = LegacyNeoWriter(extension=extension, progress=progress) if legacy_mode else None
@@ -625,6 +656,7 @@ def run_neo_from_boozer(
         calc_nstep_max=control.calc_nstep_max,
     )
     work_limit = _resolve_max_rational_field_periods(max_rational_field_periods)
+    policy = _resolve_rational_surface_policy(rational_surface_policy)
 
     results: List[NeoSurfaceResult] = []
     r_eff = 0.0
@@ -658,6 +690,7 @@ def run_neo_from_boozer(
                 "convergence_step_callback",
                 "convergence_reset_callback",
                 "strict_parity",
+                "skip_rational_correction",
             ),
         )
 
@@ -692,6 +725,20 @@ def run_neo_from_boozer(
             npart=control.npart,
             multra=control.multra,
         )
+        surface_params = params
+        skip_rational_correction = False
+        approximation_note = None
+        pending_limit_error = False
+        if work_limit is not None and work["field_periods"] > work_limit:
+            if policy == "approximate":
+                skip_rational_correction = True
+                approximation_note = (
+                    "skipping the expensive rational-surface correction after the "
+                    f"base integration because the estimated field periods "
+                    f"({int(work['field_periods'])}) exceed the limit ({work_limit})"
+                )
+            else:
+                pending_limit_error = True
         if progress:
             for line in _surface_preflight_message(
                 local_idx=local_idx,
@@ -707,9 +754,11 @@ def run_neo_from_boozer(
                 b_max=float(surface.b_max),
                 work=work,
                 work_limit=work_limit,
+                policy=policy,
+                approximation_note=approximation_note,
             ):
                 print(line)
-        if work_limit is not None and work["field_periods"] > work_limit:
+        if pending_limit_error:
             _raise_rational_work_limit(
                 flux_index=flux_index,
                 s_val=float(booz.es[surf_idx]),
@@ -745,10 +794,11 @@ def run_neo_from_boozer(
                 logger = DiagnosticLogger()
                 out = flint_bo_jax(
                     surface,
-                    params,
+                    surface_params,
                     env,
                     nfp=booz.nfp,
                     rt0=rt0,
+                    skip_rational_correction=skip_rational_correction,
                     diagnostic_callback=logger.callback,
                     diagnostic_trap_callback=logger.trap_callback if write_trap_debug else None,
                     diagnostic_snapshot=(
@@ -762,14 +812,14 @@ def run_neo_from_boozer(
                 jnp.asarray(out["bigint"]).block_until_ready()
                 etamin = float(surface.b_min / surface.bmref)
                 etamax = float(surface.b_max / surface.bmref)
-                heta = (etamax - etamin) / (params.npart - 1)
+                heta = (etamax - etamin) / (surface_params.npart - 1)
                 coeps = float(np.pi * rt0 * rt0 * heta / (8.0 * np.sqrt(2.0)))
                 psi_ind_diag = int(local_idx + 1)
                 if force_psi1 and (control.fluxs_arr is not None and len(control.fluxs_arr) == 1):
                     psi_ind_diag = 1
                 logger.write_add(
                     psi_ind=psi_ind_diag,
-                    npart=params.npart,
+                    npart=surface_params.npart,
                     meta={
                         "b_min": float(surface.b_min),
                         "b_max": float(surface.b_max),
@@ -781,7 +831,7 @@ def run_neo_from_boozer(
                 )
                 logger.write_bigint(
                     psi_ind=psi_ind_diag,
-                    multra=params.multra,
+                    multra=surface_params.multra,
                     hit_rat=int(out["hit_rat"]),
                     nintfp=int(out["nintfp"]),
                     y2=float(out["y2"]),
@@ -795,7 +845,7 @@ def run_neo_from_boozer(
                 if write_diagnostic or use_python_loop:
                     out = flint_bo(
                         surface,
-                        params,
+                        surface_params,
                         env,
                         nfp=booz.nfp,
                         rt0=rt0,
@@ -803,6 +853,7 @@ def run_neo_from_boozer(
                         diagnostic_trap=write_trap_debug,
                         diagnostic_snapshot=diagnostic_snapshot,
                         collect_convergence=bool(control.write_integrate),
+                        skip_rational_correction=skip_rational_correction,
                     )
                 else:
                     if control.write_integrate:
@@ -810,10 +861,11 @@ def run_neo_from_boozer(
                         use_host_convergence = convergence_logger._step_log_path is not None
                     out = flint_bo_jax_fn(
                         surface,
-                        params,
+                        surface_params,
                         env,
                         nfp=booz.nfp,
                         rt0=rt0,
+                        skip_rational_correction=skip_rational_correction,
                         convergence_callback=None
                         if convergence_logger is None or use_host_convergence
                         else convergence_logger.callback,
@@ -832,7 +884,7 @@ def run_neo_from_boozer(
         else:
             out = flint_bo(
                 surface,
-                params,
+                surface_params,
                 env,
                 nfp=booz.nfp,
                 rt0=rt0,
@@ -840,6 +892,7 @@ def run_neo_from_boozer(
                 diagnostic_trap=write_trap_debug,
                 diagnostic_snapshot=diagnostic_snapshot,
                 collect_convergence=bool(control.write_integrate),
+                skip_rational_correction=skip_rational_correction,
             )
 
         if control.ref_swi == 1:
@@ -854,6 +907,18 @@ def run_neo_from_boozer(
         scale = (b_ref / float(surface.bmref)) ** 2 * (r_ref / rt0) ** 2
         epstot = float(out["epstot"] * scale)
         epspar = np.asarray(out["epspar"]) * scale
+        out["rational_surface_policy"] = policy
+        out["max_rational_field_periods"] = work_limit if work_limit is not None else 0
+        out["requested_acc_req"] = float(control.acc_req)
+        out["effective_acc_req"] = float(surface_params.acc_req)
+        out["approximation_used"] = bool(skip_rational_correction)
+        out["approximation_note"] = approximation_note or ""
+        out["estimated_rational_field_periods"] = int(work["field_periods"])
+        if skip_rational_correction and progress:
+            print(
+                "NEO_JAX: approximate rational correction enabled "
+                "(skipping expensive rational-surface correction)"
+            )
 
         s = float(booz.es[surf_idx])
         if local_idx == 0:
@@ -950,6 +1015,7 @@ def run_neo_from_boozmn(
     extension: str | None = None,
     legacy_mode: bool = False,
     max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
+    rational_surface_policy: str | None = None,
 ) -> NeoResults:
     booz = read_boozmn(
         boozmn_path,
@@ -966,4 +1032,5 @@ def run_neo_from_boozmn(
         extension=extension,
         legacy_mode=legacy_mode,
         max_rational_field_periods=max_rational_field_periods,
+        rational_surface_policy=rational_surface_policy,
     )

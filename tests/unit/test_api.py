@@ -115,6 +115,15 @@ def test_results_alias_access():
     assert np.isclose(results["r_eff"][0], results.r_eff[0])
 
 
+def test_jax_surface_scan_normalizes_error_policy() -> None:
+    boozmn = _orbits_fast_paths()
+    config = NeoConfig(surfaces=[64], theta_n=25, phi_n=25, rational_surface_policy="ERROR")
+    results = run_neo(boozmn, config=config, use_jax=True, jax_surface_scan=True)
+
+    assert not isinstance(results, NeoResults)
+    assert np.asarray(results.eps_eff).shape == (1,)
+
+
 def test_build_surface_problem_maps_s():
     boozmn = _orbits_fast_paths()
     booz = load_boozmn(boozmn)

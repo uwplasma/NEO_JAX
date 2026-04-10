@@ -11,7 +11,12 @@ import numpy as np
 from .config import NeoConfig
 from .control import ControlParams
 from .data_models import BoozerData
-from .driver import run_neo_from_boozer, run_neo_from_boozmn, run_neo_from_boozer_jax
+from .driver import (
+    _resolve_rational_surface_policy,
+    run_neo_from_boozer,
+    run_neo_from_boozmn,
+    run_neo_from_boozer_jax,
+)
 from .io import booz_xform_to_boozerdata, read_boozmn, read_boozmn_metadata
 from .results import NeoResults
 from .data_models import NeoOutputs
@@ -77,6 +82,7 @@ def run_boozmn(
     ctrl = _control_from_config(cfg)
     if progress is None:
         progress = cfg.write_progress
+    rational_surface_policy = _resolve_rational_surface_policy(cfg.rational_surface_policy)
     if jax_surface_scan:
         booz = read_boozmn(
             str(boozmn_path),
@@ -84,13 +90,28 @@ def run_boozmn(
             max_n_mode=cfg.max_n_mode,
             fluxs_arr=cfg.surfaces,
         )
-        return run_neo_from_boozer_jax(booz, ctrl, max_rational_field_periods=cfg.max_rational_field_periods)
+        if rational_surface_policy != "error":
+            return run_neo_from_boozer(
+                booz,
+                ctrl,
+                use_jax=use_jax,
+                progress=progress,
+                max_rational_field_periods=cfg.max_rational_field_periods,
+                rational_surface_policy=rational_surface_policy,
+            )
+        return run_neo_from_boozer_jax(
+            booz,
+            ctrl,
+            max_rational_field_periods=cfg.max_rational_field_periods,
+            rational_surface_policy=rational_surface_policy,
+        )
     return run_neo_from_boozmn(
         str(boozmn_path),
         ctrl,
         use_jax=use_jax,
         progress=progress,
         max_rational_field_periods=cfg.max_rational_field_periods,
+        rational_surface_policy=rational_surface_policy,
     )
 
 
@@ -121,14 +142,30 @@ def run_boozer(
     ctrl = _control_from_config(cfg)
     if progress is None:
         progress = cfg.write_progress
+    rational_surface_policy = _resolve_rational_surface_policy(cfg.rational_surface_policy)
     if jax_surface_scan:
-        return run_neo_from_boozer_jax(booz, ctrl, max_rational_field_periods=cfg.max_rational_field_periods)
+        if rational_surface_policy != "error":
+            return run_neo_from_boozer(
+                booz,
+                ctrl,
+                use_jax=use_jax,
+                progress=progress,
+                max_rational_field_periods=cfg.max_rational_field_periods,
+                rational_surface_policy=rational_surface_policy,
+            )
+        return run_neo_from_boozer_jax(
+            booz,
+            ctrl,
+            max_rational_field_periods=cfg.max_rational_field_periods,
+            rational_surface_policy=rational_surface_policy,
+        )
     return run_neo_from_boozer(
         booz,
         ctrl,
         use_jax=use_jax,
         progress=progress,
         max_rational_field_periods=cfg.max_rational_field_periods,
+        rational_surface_policy=rational_surface_policy,
     )
 
 

@@ -89,6 +89,13 @@ preflight estimate and no work limit.
 - the exception message explains that the requested rational correction is too large
 - ``progress=True`` prints the detailed preflight diagnostic before aborting
 - the same safeguard applies to the JAX surface-scan backend
+- ``rational_surface_policy="approximate"`` returns a finite controlled result
+  with explicit approximation diagnostics
+- approximate-mode JAX and Python per-surface backends stay close on the same
+  low-resolution pathological case
+- requesting ``jax_surface_scan=True`` with approximate mode falls back to the
+  per-surface path instead of trying to support approximation inside the scan
+  backend
 
 Precision
 ---------

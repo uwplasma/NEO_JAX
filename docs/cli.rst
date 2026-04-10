@@ -174,12 +174,23 @@ running the CLI. NEO_JAX will write ``diagnostic_ipmax_jax.dat`` in the working
 directory with one line per trapped-amplitude update that feeds
 ``conver.dat``.
 
-For near-zero-``|iota|`` surfaces, NEO_JAX also enforces a fail-fast work
+For near-zero-``|iota|`` surfaces, NEO_JAX also enforces a preflight work
 limit. If the estimated rational-surface correction would require too many
-field periods, the CLI aborts with a detailed explanation rather than appearing
-to hang. The default limit is controlled by
-``NEO_JAX_MAX_RATIONAL_FIELD_PERIODS`` and defaults to ``100000``. Set the
+field periods, the default policy is to abort with a detailed explanation
+rather than appearing to hang. The default limit is controlled by
+``NEO_JAX_MAX_RATIONAL_FIELD_PERIODS`` and defaults to ``100000``. Set that
 environment variable to ``0`` to disable the safeguard explicitly.
+
+You can also request a controlled fallback instead of an error by setting:
+
+.. code-block:: bash
+
+   export NEO_JAX_RATIONAL_SURFACE_POLICY=approximate
+
+In approximate mode, NEO_JAX still performs the base integration but skips the
+expensive rational-surface correction if the preflight estimate exceeds the
+configured field-period limit. The returned diagnostics record that the
+approximation was used and include the estimated rational workload.
 
 This dump is intended for parity debugging of the dense ``WRITE_INTEGRATE=1``
 cases and is exercised by the CLI regression suite.
