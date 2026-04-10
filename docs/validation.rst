@@ -15,6 +15,8 @@ Current reference cases include:
 - ``ORBITS`` (tests/fixtures/orbits)
 - ``NCSX`` tutorial example (tests/fixtures/ncsx)
 - ``LandremanPaul2021_QA_lowres`` (tests/fixtures/landreman_qa_lowres)
+- ``constellaration`` low-``|iota|`` fixtures
+  (tests/fixtures/constellaration)
 - a synthetic one-surface ORBITS legacy case used to validate
   ``neo_out.*``, ``neolog.*``, ``diagnostic*.dat``, ``conver.dat``, and the
   legacy ``*_arr.dat`` dumps against the real ``xneo`` executable
@@ -65,6 +67,28 @@ Supported legacy scope:
 
 - ``calc_cur = 0`` parity is tested and supported
 - ``calc_cur = 1`` parity is tested and supported
+
+Low-``|iota|`` regression coverage
+----------------------------------
+
+The ``constellaration`` fixtures reported by Misha Padidar contain surfaces with
+very small rotational transform. For these cases, the legacy rational-surface
+correction implies
+
+.. code-block:: text
+
+   nfp_rat ~= ceil(1 / acc_req / |iota|)
+
+which can climb to millions of field periods. Prior to the safeguard added in
+April 2026, these runs could look like infinite loops because there was no
+preflight estimate and no work limit.
+
+``tests/regression/test_constellaration_guard.py`` now verifies that:
+
+- both reported Boozer files fail fast instead of hanging
+- the exception message explains that the requested rational correction is too large
+- ``progress=True`` prints the detailed preflight diagnostic before aborting
+- the same safeguard applies to the JAX surface-scan backend
 
 Precision
 ---------

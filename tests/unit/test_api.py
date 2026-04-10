@@ -46,7 +46,9 @@ def test_run_neo_boozer_matches_boozmn():
 def test_run_booz_xform_dict():
     boozmn = _orbits_fast_paths()
     # booz_xform-style data uses 1..ns indexing; use packed surfaces (1,2).
-    config = NeoConfig(surfaces=[1, 2], theta_n=25, phi_n=25)
+    # Disable the low-|iota| work guard for this packed-surface API smoke test:
+    # the first packed booz_xform surface can map to iota≈0 in this fixture.
+    config = NeoConfig(surfaces=[1, 2], theta_n=25, phi_n=25, max_rational_field_periods=0)
 
     import netCDF4
 

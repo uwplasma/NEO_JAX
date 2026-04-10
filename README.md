@@ -62,6 +62,14 @@ NEO_JAX: jax_runtime=gpu (2 devices: NVIDIA RTX A4000, NVIDIA RTX A4000)
 Use `--quiet` if you want the legacy file outputs without the extra terminal
 logging.
 
+The progress output is now more detailed for both the CLI and the Python API:
+
+- surface number and resolved flux index
+- `s`, `sqrt(s)`, and `iota`
+- resolution (`theta_n`, `phi_n`, `npart`, `multra`, `nstep_*`)
+- Boozer geometry summary (`nfp`, number of modes, `B00`, `Bmin`, `Bmax`)
+- a preflight estimate of rational-surface work
+
 Control-file lookup follows the same search order as STELLOPT:
 
 1. `neo_param.<extension>`
@@ -148,6 +156,44 @@ Current comparison status:
   `phi_arr.dat`) are numerically identical to within floating-point roundoff.
 - GPU execution is now validated separately on the ``office`` workstation for
   both ``python -m neo_jax`` and the Python API; see the GPU table below.
+
+## Low-|iota| Safeguard
+
+Misha Padidar reported two Boozer files for which `run_neo(..., use_jax=True)`
+appeared to hang indefinitely. The audit showed that the solver was not in an
+true infinite loop. Instead, those surfaces have extremely small `|iota|`, so
+the legacy NEO rational-surface correction estimates
+
+```text
+nfp_rat ~= ceil(1 / acc_req / |iota|)
+```
+
+which can jump into the `10^5`-`10^7` field-period range. At that point the run
+looks hung because the requested work is enormous.
+
+NEO_JAX now fails fast on those cases with a detailed diagnostic instead of
+silently running for an unbounded amount of time. The new fixtures live in
+`/Users/rogerio/local/tests/NEO_JAX/tests/fixtures/constellaration`.
+
+Default safeguard:
+
+- `NeoConfig(max_rational_field_periods=100000)`
+- `NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=100000` for CLI / environment-driven runs
+
+Disable explicitly only if you really want to allow the long run:
+
+```python
+config = NeoConfig(
+    surfaces=[...],
+    max_rational_field_periods=0,
+)
+```
+
+or
+
+```bash
+export NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0
+```
 
 ## Simple Python API
 

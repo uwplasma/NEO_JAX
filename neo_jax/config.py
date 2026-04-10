@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Optional, Sequence
 
 from .control import ControlParams
 
@@ -15,9 +15,12 @@ class NeoConfig:
     Surface selections may be specified as:
     - Integers (1-based NEO surface indices), or
     - Floats in [0, 1], interpreted as normalized toroidal flux ``s``.
+
+    ``max_rational_field_periods`` is a fail-fast safeguard for near-zero-iota
+    surfaces. Set it to ``0`` to disable the guard explicitly.
     """
 
-    surfaces: Sequence[int] | None = None
+    surfaces: Sequence[int | float] | None = None
     theta_n: int = 64
     phi_n: int = 64
     max_m_mode: int = 0
@@ -30,6 +33,7 @@ class NeoConfig:
     nstep_min: int = 200
     nstep_max: int = 500
     calc_nstep_max: int = 0
+    max_rational_field_periods: Optional[int] = 100_000
     ref_swi: int = 2
     write_progress: bool = False
     write_diagnostic: bool = False

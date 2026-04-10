@@ -84,8 +84,14 @@ def run_boozmn(
             max_n_mode=cfg.max_n_mode,
             fluxs_arr=cfg.surfaces,
         )
-        return run_neo_from_boozer_jax(booz, ctrl)
-    return run_neo_from_boozmn(str(boozmn_path), ctrl, use_jax=use_jax, progress=progress)
+        return run_neo_from_boozer_jax(booz, ctrl, max_rational_field_periods=cfg.max_rational_field_periods)
+    return run_neo_from_boozmn(
+        str(boozmn_path),
+        ctrl,
+        use_jax=use_jax,
+        progress=progress,
+        max_rational_field_periods=cfg.max_rational_field_periods,
+    )
 
 
 def run_boozer(
@@ -116,8 +122,14 @@ def run_boozer(
     if progress is None:
         progress = cfg.write_progress
     if jax_surface_scan:
-        return run_neo_from_boozer_jax(booz, ctrl)
-    return run_neo_from_boozer(booz, ctrl, use_jax=use_jax, progress=progress)
+        return run_neo_from_boozer_jax(booz, ctrl, max_rational_field_periods=cfg.max_rational_field_periods)
+    return run_neo_from_boozer(
+        booz,
+        ctrl,
+        use_jax=use_jax,
+        progress=progress,
+        max_rational_field_periods=cfg.max_rational_field_periods,
+    )
 
 
 def run_booz_xform(

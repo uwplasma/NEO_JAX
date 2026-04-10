@@ -141,6 +141,15 @@ count, the CLI also reports the active JAX runtime:
    NEO_JAX: surfaces=10 theta_n=64 phi_n=64 npart=40 backend=JAX
    NEO_JAX: jax_runtime=gpu (2 devices: NVIDIA RTX A4000, NVIDIA RTX A4000)
 
+Each surface now also prints a preflight summary before the solve starts:
+
+.. code-block:: text
+
+   NEO_JAX: surface 1/10 index=2 s=0.005000 sqrt(s)=0.070711 iota=8.944971e-05
+   NEO_JAX: resolution theta_n=64 phi_n=64 npart=40 multra=2 nstep_per=20 nstep_min=200 nstep_max=500
+   NEO_JAX: geometry nfp=1 nmodes=2048 B00=1.171188e+01 Bmin=2.595699e+00 Bmax=1.171188e+01
+   NEO_JAX: preflight approx_rational_field_periods=558974 approx_substeps=11179480 approx_eta_paths=894358400 limit=100000
+
 Use ``--quiet`` to suppress these messages for batch jobs or benchmarking.
 
 Optional arguments
@@ -164,6 +173,13 @@ For convergence-history debugging, set ``NEO_JAX_WRITE_IPMAX_DEBUG=1`` before
 running the CLI. NEO_JAX will write ``diagnostic_ipmax_jax.dat`` in the working
 directory with one line per trapped-amplitude update that feeds
 ``conver.dat``.
+
+For near-zero-``|iota|`` surfaces, NEO_JAX also enforces a fail-fast work
+limit. If the estimated rational-surface correction would require too many
+field periods, the CLI aborts with a detailed explanation rather than appearing
+to hang. The default limit is controlled by
+``NEO_JAX_MAX_RATIONAL_FIELD_PERIODS`` and defaults to ``100000``. Set the
+environment variable to ``0`` to disable the safeguard explicitly.
 
 This dump is intended for parity debugging of the dense ``WRITE_INTEGRATE=1``
 cases and is exercised by the CLI regression suite.

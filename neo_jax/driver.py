@@ -21,6 +21,8 @@ from .results import NeoResults, NeoSurfaceResult
 from .surface import init_surface
 from .data_models import NeoOutputs
 
+DEFAULT_MAX_RATIONAL_FIELD_PERIODS = 100_000
+
 
 def compute_reference(booz: BoozerData) -> Dict[str, float]:
     m0_idx = np.where((booz.ixm == 0) & (booz.ixn == 0))[0][0]
@@ -43,6 +45,7 @@ def run_neo_from_boozer_jax(
     control: ControlParams,
     *,
     skip_fourier_mask: bool = False,
+    max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
     booz = BoozerData(
@@ -77,6 +80,26 @@ def run_neo_from_boozer_jax(
     else:
         surf_indices = list(range(booz.rmnc.shape[0]))
         flux_indices = [idx + 1 for idx in surf_indices]
+
+    work_limit = _resolve_max_rational_field_periods(max_rational_field_periods)
+    if work_limit is not None:
+        for local_idx, surf_idx in enumerate(surf_indices):
+            work = _estimate_rational_work(
+                float(booz.iota[surf_idx]),
+                control.acc_req,
+                nstep_per=control.nstep_per,
+                npart=control.npart,
+                multra=control.multra,
+            )
+            if work["field_periods"] > work_limit:
+                flux_index = flux_indices[local_idx]
+                _raise_rational_work_limit(
+                    flux_index=flux_index,
+                    s_val=float(booz.es[surf_idx]),
+                    iota=float(booz.iota[surf_idx]),
+                    work=work,
+                    work_limit=work_limit,
+                )
 
     surf_indices_j = jnp.asarray(surf_indices, dtype=jnp.int32)
     flux_indices_j = jnp.asarray(flux_indices, dtype=jnp.int32)
@@ -204,6 +227,106 @@ def run_neo_from_boozer_jax(
 def _env_flag(name: str) -> bool:
     value = os.getenv(name, "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _env_optional_int(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    value = int(raw)
+    return None if value <= 0 else value
+
+
+def _resolve_max_rational_field_periods(value: int | None) -> int | None:
+    if value is not None:
+        return None if value <= 0 else int(value)
+    env_value = _env_optional_int("NEO_JAX_MAX_RATIONAL_FIELD_PERIODS")
+    if env_value is not None:
+        return env_value
+    if os.getenv("NEO_JAX_MAX_RATIONAL_FIELD_PERIODS", "").strip() in {"0", "-1"}:
+        return None
+    return DEFAULT_MAX_RATIONAL_FIELD_PERIODS
+
+
+def _estimate_rational_work(iota: float, acc_req: float, *, nstep_per: int, npart: int, multra: int) -> Dict[str, float]:
+    abs_iota = abs(float(iota))
+    safe_iota = max(abs_iota, 1.0e-16)
+    safe_acc = max(float(acc_req), 1.0e-16)
+    field_periods = int(np.ceil(1.0 / safe_acc / safe_iota))
+    substeps = int(field_periods * max(int(nstep_per), 1))
+    eta_paths = int(substeps * max(int(npart), 1) * max(int(multra), 1))
+    return {
+        "abs_iota": abs_iota,
+        "field_periods": field_periods,
+        "substeps": substeps,
+        "eta_paths": eta_paths,
+    }
+
+
+def _surface_preflight_message(
+    *,
+    local_idx: int,
+    total: int,
+    flux_index: int,
+    s_val: float,
+    iota: float,
+    nmodes: int,
+    booz_nfp: int,
+    control: ControlParams,
+    bmref: float,
+    b_min: float,
+    b_max: float,
+    work: Dict[str, float],
+    work_limit: int | None,
+) -> list[str]:
+    lines = [
+        (
+            f"NEO_JAX: surface {local_idx + 1}/{total} index={flux_index} "
+            f"s={s_val:.6f} sqrt(s)={np.sqrt(max(s_val, 0.0)):.6f} iota={iota:.6e}"
+        ),
+        (
+            "NEO_JAX: resolution "
+            f"theta_n={control.theta_n} phi_n={control.phi_n} npart={control.npart} "
+            f"multra={control.multra} nstep_per={control.nstep_per} "
+            f"nstep_min={control.nstep_min} nstep_max={control.nstep_max}"
+        ),
+        (
+            "NEO_JAX: geometry "
+            f"nfp={booz_nfp} nmodes={nmodes} "
+            f"B00={bmref:.6e} Bmin={b_min:.6e} Bmax={b_max:.6e}"
+        ),
+        (
+            "NEO_JAX: preflight "
+            f"approx_rational_field_periods={int(work['field_periods'])} "
+            f"approx_substeps={int(work['substeps'])} "
+            f"approx_eta_paths={int(work['eta_paths'])} "
+            f"limit={work_limit if work_limit is not None else 'disabled'}"
+        ),
+    ]
+    return lines
+
+
+def _raise_rational_work_limit(
+    *,
+    flux_index: int,
+    s_val: float,
+    iota: float,
+    work: Dict[str, float],
+    work_limit: int,
+) -> None:
+    raise RuntimeError(
+        "NEO_JAX aborted before integration because the estimated rational-surface "
+        f"correction is too large on surface index {flux_index} (s={s_val:.6f}, "
+        f"iota={iota:.6e}). Estimated field periods={int(work['field_periods'])}, "
+        f"substeps={int(work['substeps'])}, eta-path evaluations~={int(work['eta_paths'])}, "
+        f"which exceeds max_rational_field_periods={work_limit}. "
+        "This is not an infinite loop: the Boozer surface has very small |iota|, "
+        "so the legacy NEO rational correction would require an enormous number of "
+        "field periods. To override the safeguard, set "
+        "NeoConfig(max_rational_field_periods=0) or "
+        "NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0. To reduce the workload, loosen "
+        "acc_req, reduce the surface set, or avoid near-zero-iota surfaces."
+    )
 
 
 def _write_diagnostic_files(
@@ -465,6 +588,7 @@ def run_neo_from_boozer(
     progress: bool = False,
     extension: str | None = None,
     legacy_mode: bool = False,
+    max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
 ) -> NeoResults:
     grid = prepare_grids(control.theta_n, control.phi_n, booz.nfp)
     legacy_writer = LegacyNeoWriter(extension=extension, progress=progress) if legacy_mode else None
@@ -500,6 +624,7 @@ def run_neo_from_boozer(
         no_bins=control.no_bins,
         calc_nstep_max=control.calc_nstep_max,
     )
+    work_limit = _resolve_max_rational_field_periods(max_rational_field_periods)
 
     results: List[NeoSurfaceResult] = []
     r_eff = 0.0
@@ -537,8 +662,7 @@ def run_neo_from_boozer(
         )
 
     for local_idx, surf_idx in enumerate(surf_indices):
-        if progress:
-            print(f"NEO_JAX: surface {local_idx + 1}/{len(surf_indices)} (index {surf_idx + 1})")
+        flux_index = control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1
         coeffs = {
             "rmnc": jnp.asarray(booz.rmnc[surf_idx]),
             "zmns": jnp.asarray(booz.zmns[surf_idx]),
@@ -561,6 +685,38 @@ def run_neo_from_boozer(
             grid=grid,
             calc_cur=bool(control.calc_cur),
         )
+        work = _estimate_rational_work(
+            float(booz.iota[surf_idx]),
+            control.acc_req,
+            nstep_per=control.nstep_per,
+            npart=control.npart,
+            multra=control.multra,
+        )
+        if progress:
+            for line in _surface_preflight_message(
+                local_idx=local_idx,
+                total=len(surf_indices),
+                flux_index=flux_index,
+                s_val=float(booz.es[surf_idx]),
+                iota=float(booz.iota[surf_idx]),
+                nmodes=int(len(booz.ixm)),
+                booz_nfp=int(booz.nfp),
+                control=control,
+                bmref=float(surface.bmref),
+                b_min=float(surface.b_min),
+                b_max=float(surface.b_max),
+                work=work,
+                work_limit=work_limit,
+            ):
+                print(line)
+        if work_limit is not None and work["field_periods"] > work_limit:
+            _raise_rational_work_limit(
+                flux_index=flux_index,
+                s_val=float(booz.es[surf_idx]),
+                iota=float(booz.iota[surf_idx]),
+                work=work,
+                work_limit=work_limit,
+            )
         if legacy_writer is not None and control.write_output_files:
             legacy_writer.write_surface_files(surface.fields)
 
@@ -706,7 +862,6 @@ def run_neo_from_boozer(
             dpsi = s - float(booz.es[surf_indices[local_idx - 1]])
         r_eff = r_eff + float(out["drdpsi"] * dpsi)
 
-        flux_index = control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1
         result = NeoSurfaceResult(
             flux_index=flux_index,
             s=s,
@@ -794,6 +949,7 @@ def run_neo_from_boozmn(
     progress: bool = False,
     extension: str | None = None,
     legacy_mode: bool = False,
+    max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
 ) -> NeoResults:
     booz = read_boozmn(
         boozmn_path,
@@ -809,4 +965,5 @@ def run_neo_from_boozmn(
         progress=progress,
         extension=extension,
         legacy_mode=legacy_mode,
+        max_rational_field_periods=max_rational_field_periods,
     )
