@@ -190,7 +190,13 @@ You can also request a controlled fallback instead of an error by setting:
 In approximate mode, NEO_JAX still performs the base integration but skips the
 expensive rational-surface correction if the preflight estimate exceeds the
 configured field-period limit. The returned diagnostics record that the
-approximation was used and include the estimated rational workload.
+approximation was used and include the estimated rational workload. The CLI
+also prints that an approximate result is being used and points to
+``NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0`` for the full exact legacy run.
+
+To reduce the chance of entering this regime, avoid surfaces with
+near-zero ``|iota|`` when possible, or loosen ``acc_req`` for exploratory
+runs.
 
 This dump is intended for parity debugging of the dense ``WRITE_INTEGRATE=1``
 cases and is exercised by the CLI regression suite.

@@ -157,30 +157,43 @@ Current comparison status:
 - GPU execution is now validated separately on the ``office`` workstation for
   both ``python -m neo_jax`` and the Python API; see the GPU table below.
 
-## Low-|iota| Safeguard
+## Low-|iota| Surfaces
 
-Misha Padidar reported two Boozer files for which `run_neo(..., use_jax=True)`
-appeared to hang indefinitely. The audit showed that the solver was not in an
-true infinite loop. Instead, those surfaces have extremely small `|iota|`, so
-the legacy NEO rational-surface correction estimates
+For surfaces with very small rotational transform `|iota|`, the legacy NEO
+rational-surface correction can become extremely expensive:
 
 ```text
 nfp_rat ~= ceil(1 / acc_req / |iota|)
 ```
 
-which can jump into the `10^5`-`10^7` field-period range. At that point the run
-looks hung because the requested work is enormous.
+Physically, very small `|iota|` means a field line can require many field
+periods to sample the rational structure. Numerically, that makes the legacy
+correction cost explode and a run can look stalled even though it is still
+making progress.
 
-NEO_JAX now defaults to failing fast on those cases with a detailed diagnostic
-instead of silently running for an unbounded amount of time. The new fixtures
-live in `/Users/rogerio/local/tests/NEO_JAX/tests/fixtures/constellaration`.
+NEO_JAX therefore preflights the estimated rational-correction workload:
 
-Default safeguard:
+- default guarded behavior:
+  `NeoConfig(max_rational_field_periods=100000)`
+- CLI / environment knob:
+  `NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=100000`
+- controlled approximate fallback:
+  `rational_surface_policy="approximate"`
+- full exact legacy behavior, even if very slow:
+  `max_rational_field_periods=0`
 
-- `NeoConfig(max_rational_field_periods=100000)`
-- `NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=100000` for CLI / environment-driven runs
+Approximate mode keeps the base integration and skips only the expensive
+rational-surface correction once the preflight estimate exceeds the configured
+limit. The returned diagnostics record that approximation was used.
 
-Disable explicitly only if you really want to allow the long run:
+To avoid this regime in practice:
+
+- avoid surfaces with `|iota|` very close to zero
+- loosen `acc_req` if exact rational-surface resolution is not required
+- reduce the surface set when exploring a new equilibrium
+- inspect the reported preflight estimate before launching dense runs
+
+To force the exact long run:
 
 ```python
 config = NeoConfig(
@@ -195,32 +208,15 @@ or
 export NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0
 ```
 
-If you want a controlled approximation instead of an error, use:
-
-```python
-config = NeoConfig(
-    surfaces=[...],
-    max_rational_field_periods=100_000,
-    rational_surface_policy="approximate",
-)
-```
-
-In approximate mode, NEO_JAX still does the base integration but skips the
-expensive rational-surface correction once the preflight estimate exceeds the
-configured limit. The returned result includes explicit diagnostics such as
-`approximation_used`, `approximation_note`, `estimated_rational_field_periods`,
-and `rational_surface_policy`.
-
-Previously validated parity cases such as ORBITS, NCSX, and
-LandremanPaul2021_QA_lowres are unchanged by default. The new logic only
-changes behavior when the preflight estimate exceeds
-`max_rational_field_periods`, and the approximate fallback remains opt-in.
-
 For CLI or environment-driven runs, the same policy can be selected with:
 
 ```bash
 export NEO_JAX_RATIONAL_SURFACE_POLICY=approximate
 ```
+
+Previously validated parity cases such as ORBITS, NCSX, and
+LandremanPaul2021_QA_lowres remain on the unchanged path unless the preflight
+estimate exceeds the configured limit.
 
 ## Simple Python API
 

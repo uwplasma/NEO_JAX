@@ -71,17 +71,16 @@ Supported legacy scope:
 Low-``|iota|`` regression coverage
 ----------------------------------
 
-The ``constellaration`` fixtures reported by Misha Padidar contain surfaces with
-very small rotational transform. For these cases, the legacy rational-surface
-correction implies
+The ``constellaration`` fixtures contain surfaces with very small rotational
+transform. For these cases, the legacy rational-surface correction implies
 
 .. code-block:: text
 
    nfp_rat ~= ceil(1 / acc_req / |iota|)
 
-which can climb to millions of field periods. Prior to the safeguard added in
-April 2026, these runs could look like infinite loops because there was no
-preflight estimate and no work limit.
+so the required field-period count can become enormous. Physically, this is the
+near-zero-``|iota|`` regime. Numerically, it can make the legacy correction
+look hung simply because the requested work is very large.
 
 ``tests/regression/test_constellaration_guard.py`` now verifies that:
 
@@ -102,6 +101,16 @@ legacy CLI outputs, and the public API continue to exercise the unchanged
 paths. Approximate mode is opt-in, and the default safeguard does not alter
 those existing cases unless the preflight rational-work estimate actually
 exceeds the configured limit.
+
+Operational guidance:
+
+- keep the default safeguard for validation and parity work
+- use ``rational_surface_policy="approximate"`` when a controlled fallback is
+  more useful than an early error
+- set ``max_rational_field_periods=0`` only when you explicitly want the full
+  exact legacy correction, even if it may take hours
+- avoid surfaces with ``|iota|`` near zero, or loosen ``acc_req``, when
+  scanning new equilibria
 
 Precision
 ---------

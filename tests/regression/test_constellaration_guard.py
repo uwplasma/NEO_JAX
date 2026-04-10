@@ -95,6 +95,33 @@ def test_constellaration_approximate_mode_returns_controlled_result() -> None:
     assert "skipping the expensive rational-surface correction" in results[0].diagnostics["approximation_note"]
 
 
+def test_constellaration_approximate_mode_reports_exact_knob(capsys: pytest.CaptureFixture[str]) -> None:
+    config = NeoConfig(
+        surfaces=[1.0e-4],
+        theta_n=8,
+        phi_n=8,
+        npart=6,
+        multra=1,
+        nstep_per=4,
+        nstep_min=20,
+        nstep_max=40,
+        no_bins=8,
+        acc_req=0.05,
+        max_rational_field_periods=12_000,
+        rational_surface_policy="approximate",
+    )
+    run_neo(
+        FIXTURE_DIR / "boozmn_constellaration_DAEZXsnvNQp3dpxbrdiUW7t.nc",
+        config=config,
+        use_jax=True,
+        progress=True,
+    )
+
+    out = capsys.readouterr().out
+    assert "approximate rational correction enabled" in out
+    assert "max_rational_field_periods=0" in out
+
+
 def test_constellaration_approximate_mode_matches_between_backends() -> None:
     config = NeoConfig(
         surfaces=[1.0e-4],

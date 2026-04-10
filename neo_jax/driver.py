@@ -917,7 +917,10 @@ def run_neo_from_boozer(
         if skip_rational_correction and progress:
             print(
                 "NEO_JAX: approximate rational correction enabled "
-                "(skipping expensive rational-surface correction)"
+                "(skipping expensive rational-surface correction). "
+                "For the full exact legacy correction, rerun with "
+                "max_rational_field_periods=0 or "
+                "NEO_JAX_MAX_RATIONAL_FIELD_PERIODS=0."
             )
 
         s = float(booz.es[surf_idx])
