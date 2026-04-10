@@ -211,6 +211,11 @@ configured limit. The returned result includes explicit diagnostics such as
 `approximation_used`, `approximation_note`, `estimated_rational_field_periods`,
 and `rational_surface_policy`.
 
+Previously validated parity cases such as ORBITS, NCSX, and
+LandremanPaul2021_QA_lowres are unchanged by default. The new logic only
+changes behavior when the preflight estimate exceeds
+`max_rational_field_periods`, and the approximate fallback remains opt-in.
+
 For CLI or environment-driven runs, the same policy can be selected with:
 
 ```bash

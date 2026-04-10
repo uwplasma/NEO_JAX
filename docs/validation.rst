@@ -97,6 +97,12 @@ preflight estimate and no work limit.
   per-surface path instead of trying to support approximation inside the scan
   backend
 
+The broader parity suites for ORBITS, NCSX, LandremanPaul2021_QA_lowres, the
+legacy CLI outputs, and the public API continue to exercise the unchanged
+paths. Approximate mode is opt-in, and the default safeguard does not alter
+those existing cases unless the preflight rational-work estimate actually
+exceeds the configured limit.
+
 Precision
 ---------
 
