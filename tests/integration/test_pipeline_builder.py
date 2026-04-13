@@ -13,7 +13,10 @@ def test_build_vmec_boozer_neo_jax():
     from vmec_jax.driver import load_example
     from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
 
-    example = load_example("circular_tokamak", with_wout=True)
+    try:
+        example = load_example("circular_tokamak", with_wout=True)
+    except FileNotFoundError:
+        pytest.skip("vmec_jax example data is not installed in this environment")
     if example.state is None or example.wout is None:
         pytest.skip("No reference VMEC state available")
 
