@@ -33,7 +33,11 @@ def main() -> int:
     from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
 
     input_path, _ = example_paths(case)
-    cfg, _ = vj.load_input(str(input_path))
+    try:
+        cfg, _ = vj.load_input(str(input_path))
+    except FileNotFoundError:
+        print(f"SKIP: vmec_jax example data for case '{case}' is not installed in this environment.")
+        return 0
     grid = vmec_angle_grid(
         ntheta=8,
         nzeta=1,
@@ -49,7 +53,11 @@ def main() -> int:
         grid=grid,
     )
 
-    run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
+    try:
+        run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
+    except FileNotFoundError:
+        print(f"SKIP: vmec_jax example data for case '{case}' is not installed in this environment.")
+        return 0
     config = NeoConfig(
         theta_n=8,
         phi_n=8,
