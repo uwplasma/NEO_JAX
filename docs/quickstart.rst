@@ -1,8 +1,11 @@
 Quickstart
 ==========
 
-File-based workflow (boozmn)
-----------------------------
+This page shows the three quickest ways to start using NEO_JAX: from a
+``boozmn`` file, from the command line, and from an in-memory geometry object.
+
+Python API from ``boozmn``
+--------------------------
 
 The simplest workflow is to read a ``boozmn`` file and run the solver with a
 high-level config.
@@ -23,14 +26,25 @@ To emulate ``xneo``, you can use the CLI:
 
 .. code-block:: bash
 
-   xneo ORBITS
-   xneo_jax ORBITS
-   python -m neo_jax ORBITS
+   xneo example_case
+   xneo_jax example_case
+   python -m neo_jax example_case
 
-This legacy mode honors the same control-file lookup rules as STELLOPT
-(``neo_param.<ext>``, ``neo_param.in``, then ``neo_in.<ext>``) and writes the
-same legacy output filenames, including ``neo_cur.*`` / ``current.dat`` when
-``calc_cur = 1``.
+This interface reads the standard control-file layouts and output filenames for
+file-based NEO workflows. See :doc:`cli` for the full command-line contract.
+
+In-memory geometry workflow
+---------------------------
+
+If you already have a Boozer object or booz_xform-style mapping, pass it
+directly:
+
+.. code-block:: python
+
+   from neo_jax import NeoConfig, run_neo
+
+   config = NeoConfig(surfaces=[1, 2, 3], theta_n=64, phi_n=64)
+   results = run_neo(booz_obj, config=config)
 
 Examples
 --------
@@ -91,3 +105,16 @@ For a JAX-native VMECâ†’Boozer adapter plus JAX surface scan (no NumPy in VMECâ†
 use :func:`neo_jax.run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun`.
 
 See :doc:`vmec_boozer` for the required data interface and mapping details.
+
+Low-``|iota|`` note
+-------------------
+
+If the requested geometry contains surfaces with very small ``|iota|``, the
+exact rational-surface correction can be extremely expensive. NEO_JAX therefore
+supports:
+
+- fail-fast guarded execution (default)
+- a controlled fallback with ``rational_surface_policy="approximate"``
+- the full exact long run with ``max_rational_field_periods=0``
+
+See :doc:`configuration` and :doc:`numerics` for the details.

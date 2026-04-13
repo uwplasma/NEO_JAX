@@ -1,8 +1,8 @@
 User API Guide
 ==============
 
-This page summarizes the high-level, user-friendly API introduced to make
-NEO_JAX easy to use without manual control files.
+This page covers the main Python entrypoints for NEO_JAX and the data objects
+they exchange.
 
 Quick start
 -----------
@@ -25,26 +25,64 @@ supporting vector access by name:
 
 .. code-block:: python
 
-   eps_eff = results.epsilon_effective      # array over surfaces
-   epspar = results["epsilon_effective_by_class"]  # stacked by surface
+   eps_eff = results.epsilon_effective
+   epspar = results["epsilon_effective_by_class"]
+   r_eff = results.r_eff
+   diag0 = results[0].diagnostics
 
 Aliases are supported for common names (``epstot`` → ``epsilon_effective``).
+
+The most important result fields are:
+
+- ``epsilon_effective``:
+  total :math:`\epsilon_{\mathrm{eff}}^{3/2}` over surfaces
+- ``epsilon_effective_by_class``:
+  trapped-class contributions
+- ``s``, ``sqrt_s``, ``r_eff``:
+  radial coordinate options for plotting and analysis
+- ``iota``, ``b_ref``, ``r_ref``:
+  surface metadata and scaling quantities
+- ``diagnostics``:
+  per-surface dictionary of additional solver metadata
+
+Main entrypoints
+----------------
+
+The public API revolves around a few convenience functions:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Function
+     - Purpose
+   * - :func:`neo_jax.run_neo`
+     - General entrypoint accepting a ``boozmn`` path, ``BoozerData``, or
+       booz_xform-style object.
+   * - :func:`neo_jax.run_boozmn`
+     - Convenience wrapper for file-based ``boozmn`` input.
+   * - :func:`neo_jax.run_boozer`
+     - Run directly on a :class:`neo_jax.BoozerData` instance.
+   * - :func:`neo_jax.run_booz_xform`
+     - Run on a booz_xform-style mapping or object.
+   * - :func:`neo_jax.build_surface_problem`
+     - Construct a single-surface bundle for advanced custom workflows.
 
 Configuration parameters
 ------------------------
 
-The main solver parameters live in :class:`neo_jax.NeoConfig`:
+Solver settings live in :class:`neo_jax.NeoConfig`. The most important fields
+for scientific use are:
 
-- ``npart``: number of ``eta`` grid points (pitch parameter sampling).
-- ``multra``: number of trapped-particle classes to resolve.
-- ``nstep_per``: RK4 steps per field period.
-- ``nstep_min`` / ``nstep_max``: minimum/maximum number of field periods to
-  integrate before convergence checks.
-- ``acc_req``: accuracy requirement for rational-surface handling.
-- ``no_bins``: bins used for rational-surface coverage.
+- resolution: ``theta_n``, ``phi_n``
+- pitch-grid and class controls: ``npart``, ``multra``
+- field-line integration controls:
+  ``nstep_per``, ``nstep_min``, ``nstep_max``, ``acc_req``, ``no_bins``
+- radial selection: ``surfaces``
+- low-``|iota|`` behavior:
+  ``max_rational_field_periods`` and ``rational_surface_policy``
 
-These map directly to the legacy NEO control file and can be overridden in
-examples or custom workflows.
+See :doc:`configuration` for a full control summary.
 
 Radial coordinates
 ------------------
@@ -167,3 +205,18 @@ the nearest available surface in the Boozer grid.
 
    config = NeoConfig(surfaces=[0.2, 0.5, 0.8])
    results = run_neo("boozmn.nc", config=config)
+
+Choosing between Python and JAX backends
+----------------------------------------
+
+The API exposes both execution modes:
+
+- ``use_jax=True`` selects the compiled JAX implementation
+- ``use_jax=False`` uses the Python-loop implementation
+- ``jax_surface_scan=True`` batches surfaces in the JAX path when supported
+
+This makes it straightforward to move between:
+
+- easy debugging in Python mode
+- reproducible one-off solves in standard JAX mode
+- repeated compiled solves in batched JAX mode

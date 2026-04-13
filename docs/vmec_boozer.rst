@@ -1,5 +1,5 @@
-VMEC and Boozer Interfaces
-==========================
+Geometry Inputs and Pipelines
+=============================
 
 NEO operates in Boozer coordinates, where the magnetic field can be written in
 contravariant and covariant forms,
@@ -9,8 +9,13 @@ contravariant and covariant forms,
    \mathbf{B} = \nabla \psi \times \nabla \theta_B + \iota \nabla \phi_B \times \nabla \psi
    = I(\psi) \nabla \phi_B + G(\psi) \nabla \theta_B + B_\psi \nabla \psi.
 
-This representation is the basis for the BOOZ_XFORM transformation and the
-``boozmn`` file format used by NEO. :cite:`booz-xform-jax,stelopt-neo-docs`
+This representation is the basis for the Boozer transform and the ``boozmn``
+file format consumed by NEO_JAX. :cite:`booz-xform-jax,stelopt-neo-docs`
+
+.. image:: assets/neo_jax_pipeline.svg
+   :alt: File-based and in-memory geometry paths into NEO_JAX
+   :align: center
+   :width: 92%
 
 Required data for NEO
 ---------------------
@@ -38,7 +43,20 @@ The standard ``boozmn`` netCDF file (from BOOZ_XFORM) provides arrays such as
    \lambda_{mn} = - \mathrm{pmns\_b}_{mn} \frac{n_{\mathrm{fp}}}{2\pi}.
 
 The Boozer currents are mapped as ``curr_pol = bvco_b`` and
-``curr_tor = buco_b``. The NEO_JAX reader mirrors this mapping.
+``curr_tor = buco_b``. The file reader also computes the normalized toroidal
+flux coordinate
+
+.. math::
+
+   s = \frac{j - 1.5}{n_{s,b}-1},
+
+which is the radial coordinate surfaced in the public API.
+
+The main file-based reader is:
+
+.. literalinclude:: ../neo_jax/io.py
+   :language: python
+   :pyobject: read_boozmn
 
 End-to-end JAX pipeline
 -----------------------
@@ -98,10 +116,11 @@ Example: vmec_jax → booz_xform_jax → neo_jax
        neo_config=config,
    )
 
-Notes:
+Operational notes:
 
 - For accurate surface mapping, it is recommended to let the Boozer step
   compute all VMEC half-grid surfaces and use the NEO surface selection
   (``NeoConfig.surfaces``) to pick the subset.
-- The pipeline avoids file I/O and returns JAX arrays, but full end-to-end JIT
-  across vmec_jax is still in progress; see ``PLAN.md`` for roadmap details.
+- The in-memory path avoids file I/O entirely.
+- The JAX-native path is the preferred route for repeated solves and
+  differentiation experiments.

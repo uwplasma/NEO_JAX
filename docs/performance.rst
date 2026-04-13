@@ -1,6 +1,12 @@
 Performance
 ===========
 
+Performance in NEO_JAX is dominated by three costs:
+
+- Fourier reconstruction and spline construction on each surface
+- field-line integration and trapped-particle accumulation
+- JAX compile time when a new static configuration is seen
+
 Fourier Summation Modes
 -----------------------
 

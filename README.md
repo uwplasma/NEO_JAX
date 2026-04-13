@@ -1,8 +1,13 @@
 # NEO_JAX
 
-JAX port of the STELLOPT NEO code for computing effective helical ripple and
-related neoclassical transport diagnostics, with an end-to-end differentiable
-pipeline through VMEC and Boozer transforms.
+Neoclassical transport code for computing effective helical ripple and related
+trapped-particle diagnostics from Boozer-coordinate geometry, with a Python API,
+JAX acceleration, and an end-to-end differentiable pipeline through VMEC and
+Boozer transforms.
+
+The full documentation lives in ``docs/`` and covers the physics model,
+numerics, geometry interfaces, runtime controls, applications, testing, and
+source structure.
 
 ## Quick start
 
@@ -28,12 +33,12 @@ If you prefer not to install, run from the repo root with:
 PYTHONPATH=. python examples/ncsx_epsilon_effective_plot.py
 ```
 
-## Legacy `xneo` Compatibility
+## CLI and file-based workflow
 
 `neo_jax` now supports the same terminal workflow as STELLOPT's `xneo`,
 including both the effective-ripple solve (`calc_cur = 0`) and the
 parallel-current path (`calc_cur = 1`). The intent is simple: if you already
-have a working legacy NEO case, you should be able to point the same control
+have a working NEO input deck, you should be able to point the same control
 file at `neo_jax` and keep the same filenames, CLI invocation, and output-file
 layout.
 

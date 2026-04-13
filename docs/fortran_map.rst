@@ -1,9 +1,9 @@
-Fortran Mapping
-===============
+Reference Crosswalk
+===================
 
-This page maps the original STELLOPT NEO Fortran routines to the JAX
-implementation. It is the authoritative source for ensuring API parity and
-output matching.
+This appendix maps the established STELLOPT NEO routine structure onto the
+current NEO_JAX implementation. It is intended for code readers, validation
+work, and targeted debugging against external reference implementations.
 
 Main Program Flow
 -----------------

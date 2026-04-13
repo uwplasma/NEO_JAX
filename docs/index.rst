@@ -105,6 +105,7 @@ What The Documentation Covers
    numerics
    differentiability
    source_guide
+   fortran_map
    tutorials_orbits
    tutorials_ncsx
    validation
