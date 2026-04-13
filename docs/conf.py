@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(".."))
 
 project = "NEO_JAX"
 author = "UW Plasma"
+html_title = "NEO_JAX Documentation"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -26,6 +27,13 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+html_theme_options = {
+    "source_repository": "https://github.com/uwplasma/NEO_JAX/",
+    "source_branch": "main",
+    "source_directory": "docs/",
+    "navigation_with_keys": True,
+}
 
 bibtex_bibfiles = ["refs.bib"]
 

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">NEO_JAX solver stack</title>
+  <desc id="desc">Workflow from Boozer geometry through surface preparation, JAX integration, and transport outputs.</desc>
+  <rect width="1200" height="360" fill="#f7f6f3"/>
+  <rect x="40" y="70" width="210" height="220" rx="18" fill="#0f766e"/>
+  <rect x="285" y="70" width="210" height="220" rx="18" fill="#0f4c81"/>
+  <rect x="530" y="70" width="210" height="220" rx="18" fill="#8b5e34"/>
+  <rect x="775" y="70" width="180" height="220" rx="18" fill="#7c3f58"/>
+  <rect x="990" y="70" width="170" height="220" rx="18" fill="#2d3748"/>
+  <g fill="#ffffff" font-family="Arial, sans-serif">
+    <text x="145" y="118" font-size="28" text-anchor="middle" font-weight="700">Geometry Inputs</text>
+    <text x="145" y="156" font-size="22" text-anchor="middle">boozmn netCDF</text>
+    <text x="145" y="186" font-size="22" text-anchor="middle">BoozerData</text>
+    <text x="145" y="216" font-size="22" text-anchor="middle">VMEC→Boozer</text>
+
+    <text x="390" y="118" font-size="28" text-anchor="middle" font-weight="700">Surface Setup</text>
+    <text x="390" y="156" font-size="22" text-anchor="middle">Fourier sums</text>
+    <text x="390" y="186" font-size="22" text-anchor="middle">derived geometry</text>
+    <text x="390" y="216" font-size="22" text-anchor="middle">Bmin/Bmax + splines</text>
+
+    <text x="635" y="118" font-size="28" text-anchor="middle" font-weight="700">Integrator</text>
+    <text x="635" y="156" font-size="22" text-anchor="middle">field-line RK4</text>
+    <text x="635" y="186" font-size="22" text-anchor="middle">pitch sampling</text>
+    <text x="635" y="216" font-size="22" text-anchor="middle">trapped classes</text>
+
+    <text x="865" y="118" font-size="28" text-anchor="middle" font-weight="700">JAX</text>
+    <text x="865" y="156" font-size="22" text-anchor="middle">jit</text>
+    <text x="865" y="186" font-size="22" text-anchor="middle">scan</text>
+    <text x="865" y="216" font-size="22" text-anchor="middle">autodiff</text>
+
+    <text x="1075" y="118" font-size="28" text-anchor="middle" font-weight="700">Outputs</text>
+    <text x="1075" y="156" font-size="22" text-anchor="middle">eps_eff</text>
+    <text x="1075" y="186" font-size="22" text-anchor="middle">epspar</text>
+    <text x="1075" y="216" font-size="22" text-anchor="middle">diagnostics</text>
+  </g>
+  <g stroke="#23313f" stroke-width="8" fill="none" stroke-linecap="round">
+    <path d="M250 180 H280"/>
+    <path d="M495 180 H525"/>
+    <path d="M740 180 H770"/>
+    <path d="M955 180 H985"/>
+  </g>
+</svg>
