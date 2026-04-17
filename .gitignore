@@ -9,6 +9,8 @@ __pycache__/
 .build/
 .dist/
 .dist-info/
+/build/
+/dist/
 .venv/
 .venv*/
 

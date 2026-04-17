@@ -4,10 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neo-jax"
-version = "0.1.0"
-description = "JAX port of the STELLOPT NEO code"
+version = "1.0.0"
+description = "Neoclassical transport code for effective ripple and trapped-particle diagnostics in Boozer coordinates"
 readme = "README.md"
 requires-python = ">=3.10"
+keywords = ["stellarator", "neoclassical transport", "effective ripple", "boozmn", "jax", "plasma physics"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Physics",
+]
 
 # Dependencies are minimal at this stage; GPU support is handled by the user's JAX install.
 dependencies = [
@@ -17,6 +27,12 @@ dependencies = [
   "netCDF4>=1.6",
   "scipy>=1.10",
 ]
+
+[project.urls]
+Homepage = "https://github.com/uwplasma/NEO_JAX"
+Documentation = "https://github.com/uwplasma/NEO_JAX/tree/main/docs"
+Repository = "https://github.com/uwplasma/NEO_JAX"
+Issues = "https://github.com/uwplasma/NEO_JAX/issues"
 
 [project.scripts]
 neo-jax = "neo_jax.cli:main"
