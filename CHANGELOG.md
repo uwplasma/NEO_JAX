@@ -8,7 +8,10 @@ Highlights
 
 - Removed version pins from runtime, development, and documentation dependencies.
 - Expanded GitHub Actions CI to Python 3.10, 3.11, and 3.12.
+- Reworked CLI parity tests to use committed ``xneo`` reference fixtures, so
+  parity is checked without needing a local STELLOPT build.
 - Added installed-package CLI smoke coverage in CI.
+- Added a docs build job to GitHub Actions.
 - Added a trusted-publishing workflow for PyPI releases.
 - Documented direct PyPI installation with ``pip install neo-jax``.
 

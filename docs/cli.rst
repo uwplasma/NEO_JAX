@@ -9,7 +9,8 @@ both the effective-ripple and parallel-current solves.
 Installed entrypoints
 ---------------------
 
-After ``pip install -e .``, the following commands are available:
+After ``pip install neo-jax`` (or ``pip install -e .`` from a clone), the
+following commands are available:
 
 .. code-block:: bash
 
@@ -87,8 +88,8 @@ The Fortran-style formatting used in the text files is implemented in
 ``neo_cur.*``, and the covered ``conver.dat`` parity cases match the STELLOPT
 text output. ``current.dat`` follows the same token layout and special-value
 formatting (including gfortran's omitted exponent letter for some 3-digit
-exponents) and is validated numerically token-by-token against the reference
-binary.
+exponents) and is validated numerically token-by-token against committed
+``xneo`` reference fixtures.
 
 Compatibility scope
 -------------------
@@ -210,8 +211,8 @@ Testing
 -------
 
 The CLI parity tests live in ``tests/regression/test_cli_legacy.py``. They run
-the real STELLOPT executable from ``~/bin/xneo`` (or ``NEO_REFERENCE_BIN``)
-against the JAX CLI on multiple geometries and control-file layouts:
+the JAX CLI against committed ``xneo`` reference fixtures on multiple
+geometries and control-file layouts:
 
 - ``LandremanPaul2021_QA_lowres`` dense legacy fixture
 - synthetic ORBITS single-surface case with diagnostics and array dumps
@@ -227,5 +228,5 @@ that test file runs both:
 - a legacy CLI CPU-vs-GPU comparison on a one-surface ORBITS case
 - a public Python API CPU-vs-GPU comparison through ``run_neo(...)``
 
-Additional full-fixture ORBITS and NCSX CLI parity tests are available behind
-``NEO_JAX_RUN_SLOW=1``.
+Additional dense ORBITS and NCSX solver parity tests are available behind
+``NEO_JAX_RUN_SLOW=1`` in the regression suite.

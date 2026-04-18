@@ -141,9 +141,10 @@ How the compatibility layer is implemented:
 
 How it is tested:
 
-- `tests/regression/test_cli_legacy.py` runs the real reference executable from
-  `~/bin/xneo` (or `NEO_REFERENCE_BIN`) and compares its outputs against the
-  JAX CLI.
+- `tests/regression/test_cli_legacy.py` runs the JAX CLI against committed
+  reference outputs that were generated once with the STELLOPT `xneo`
+  executable, so parity is checked in CI without requiring that external
+  binary.
 - `tests/regression/test_gpu_smoke.py` adds optional CPU-vs-GPU smoke coverage
   for both the legacy CLI and the public Python API when
   `NEO_JAX_RUN_GPU=1` is set on a machine with a visible JAX GPU backend.
@@ -161,7 +162,7 @@ How it is tested:
 Current comparison status:
 
 - `neo_out.*`, `neo_cur.*`, `diagnostic*.dat`, and `neolog.*` match the
-  reference text output exactly on the legacy parity cases.
+  stored `xneo` reference text output exactly on the legacy parity cases.
 - `conver.dat` matches exactly on the synthetic ORBITS parity case. On the full
   `ORBITS_FAST` fixture, columns 1-4 match exactly; the fifth column is traced
   with `diagnostic_ipmax_jax.dat` because the STELLOPT binary's text output on

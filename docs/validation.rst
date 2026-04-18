@@ -8,7 +8,8 @@ NEO_JAX validation is organized into three layers:
 - Integration parity: field-line integrals and trapped-particle sums reproduce
   the reference ``neo_out`` results on curated fixtures.
 - End-to-end parity: the CLI output matches ``xneo`` file-by-file on the
-  supported legacy cases.
+  supported legacy cases, using committed reference fixtures generated with
+  ``xneo``.
 
 Current reference cases include:
 
@@ -19,16 +20,20 @@ Current reference cases include:
   (tests/fixtures/constellaration)
 - a synthetic one-surface ORBITS legacy case used to validate
   ``neo_out.*``, ``neolog.*``, ``diagnostic*.dat``, ``conver.dat``, and the
-  legacy ``*_arr.dat`` dumps against the real ``xneo`` executable
+  legacy ``*_arr.dat`` dumps against stored ``xneo`` reference outputs
 - a synthetic one-surface ORBITS ``calc_cur = 1`` case used to validate
-  ``neo_cur.*`` and ``current.dat`` against the real ``xneo`` executable
+  ``neo_cur.*`` and ``current.dat`` against stored ``xneo`` reference outputs
+- a synthetic one-surface NCSX case used to validate ``neo_out.*`` and
+  ``neolog.*`` against stored ``xneo`` reference outputs
 
 Legacy CLI parity
 -----------------
 
 The CLI regression coverage in ``tests/regression/test_cli_legacy.py`` runs the
-reference executable from ``~/bin/xneo`` (or ``NEO_REFERENCE_BIN``) and compares
-its outputs directly to the JAX CLI.
+JAX CLI against frozen reference outputs committed under
+``tests/fixtures/cli_legacy/``. Those files were generated once with the
+STELLOPT ``xneo`` executable and then checked into the repository so the tests
+do not require an external binary.
 
 Current checks:
 
@@ -125,11 +130,8 @@ Fast vs. full ORBITS parity:
 
 - The default CLI regression suite runs the dense Landreman fixture plus
   reduced ORBITS / NCSX mini cases that finish quickly in CI.
-- Full-fixture CLI parity checks for ``ORBITS_FAST`` and
-  ``ncsx_c09r00_free_fast`` run when ``NEO_JAX_RUN_SLOW=1``.
-- The separate full NCSX parity regression in
-  ``tests/regression/test_ncsx_parity.py`` remains gated behind
-  ``NEO_JAX_RUN_SLOW=1``.
+- Full solver parity checks for dense ORBITS and NCSX fixtures remain available
+  behind ``NEO_JAX_RUN_SLOW=1`` in the public-API regression tests.
 
 Planned metrics:
 

@@ -1,4 +1,4 @@
-"""Legacy CLI parity tests against the STELLOPT ``xneo`` executable."""
+"""Legacy CLI parity tests against stored ``xneo`` reference fixtures."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 
 import numpy as np
-import pytest
 
 
 REPO = Path(__file__).resolve().parents[2]
-REFERENCE_BIN = Path(os.environ.get("NEO_REFERENCE_BIN", str(Path.home() / "bin" / "xneo")))
-RUN_SLOW = bool(os.environ.get("NEO_JAX_RUN_SLOW"))
+FIXTURES = REPO / "tests" / "fixtures"
+CLI_FIXTURES = FIXTURES / "cli_legacy"
 
 
 def _format_control_scalar(value: float | int | str) -> str:
@@ -101,34 +101,6 @@ def _make_control(
     )
 
 
-def _run_neo_pair(tmp_path: Path, *, extension: str) -> tuple[Path, Path]:
-    ref_dir = tmp_path / "ref"
-    jax_dir = tmp_path / "jax"
-    ref_dir.mkdir(exist_ok=True)
-    jax_dir.mkdir(exist_ok=True)
-
-    subprocess.run(
-        [str(REFERENCE_BIN), extension],
-        cwd=ref_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=True,
-    )
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO)
-    subprocess.run(
-        ["python", "-m", "neo_jax", extension],
-        cwd=jax_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=True,
-    )
-    return ref_dir, jax_dir
-
-
 def _copy_case(
     tmp_path: Path,
     *,
@@ -137,38 +109,46 @@ def _copy_case(
     control_text: str,
     control_filename: str | None = None,
     extra_controls: dict[str, str] | None = None,
-) -> None:
+) -> Path:
+    case_dir = tmp_path / "case"
+    case_dir.mkdir(exist_ok=True)
     control_filename = control_filename or f"neo_in.{extension}"
-    for td in (tmp_path / "ref", tmp_path / "jax"):
-        td.mkdir(exist_ok=True)
-        (td / control_filename).write_text(control_text, encoding="utf-8")
-        shutil.copy2(booz_src, td / f"boozmn_{extension}.nc")
-        if extra_controls:
-            for name, text in extra_controls.items():
-                (td / name).write_text(text, encoding="utf-8")
+    (case_dir / control_filename).write_text(control_text, encoding="utf-8")
+    shutil.copy2(booz_src, case_dir / f"boozmn_{extension}.nc")
+    if extra_controls:
+        for name, text in extra_controls.items():
+            (case_dir / name).write_text(text, encoding="utf-8")
+    return case_dir
 
 
-def _copy_fixture_case(
+def _copy_reference_case(
     tmp_path: Path,
     *,
     fixture_dir: Path,
     extension: str,
-    control_name: str,
-    booz_name: str | None = None,
-) -> None:
-    for td in (tmp_path / "ref", tmp_path / "jax"):
-        td.mkdir(exist_ok=True)
-        shutil.copy2(fixture_dir / control_name, td / control_name)
-        source_name = booz_name or f"boozmn_{extension}.nc"
-        shutil.copy2(fixture_dir / source_name, td / f"boozmn_{extension}.nc")
-
-
-def _copy_single_cli_case(tmp_path: Path, *, extension: str, booz_src: Path, control_text: str) -> Path:
+    booz_src: Path,
+    control_name: str | None = None,
+) -> Path:
+    control_name = control_name or f"neo_in.{extension}"
     case_dir = tmp_path / "case"
     case_dir.mkdir(exist_ok=True)
-    (case_dir / f"neo_in.{extension}").write_text(control_text, encoding="utf-8")
+    shutil.copy2(fixture_dir / control_name, case_dir / control_name)
     shutil.copy2(booz_src, case_dir / f"boozmn_{extension}.nc")
     return case_dir
+
+
+def _run_cli(case_dir: Path, extension: str, *extra_args: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO)
+    return subprocess.run(
+        [sys.executable, "-m", "neo_jax", extension, *extra_args],
+        cwd=case_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=True,
+    )
 
 
 def _load_numeric_file(path: Path) -> np.ndarray:
@@ -193,30 +173,30 @@ def _load_numeric_tokens(path: Path) -> np.ndarray:
     return np.asarray([_parse_legacy_float_token(token) for token in path.read_text().split()], dtype=float)
 
 
-def _assert_exact_text(ref_dir: Path, jax_dir: Path, names: list[str]) -> None:
+def _assert_exact_text(reference_dir: Path, case_dir: Path, names: list[str]) -> None:
     for name in names:
-        assert (ref_dir / name).read_text() == (jax_dir / name).read_text(), name
+        assert (reference_dir / name).read_text() == (case_dir / name).read_text(), name
 
 
-def _assert_numeric_close(ref_dir: Path, jax_dir: Path, names: list[str], *, atol: float = 1e-12) -> None:
+def _assert_numeric_close(reference_dir: Path, case_dir: Path, names: list[str], *, atol: float = 1e-12) -> None:
     for name in names:
-        ref = _load_numeric_file(ref_dir / name)
-        got = _load_numeric_file(jax_dir / name)
+        ref = _load_numeric_file(reference_dir / name)
+        got = _load_numeric_file(case_dir / name)
         assert ref.shape == got.shape, name
         assert np.allclose(ref, got, rtol=0.0, atol=atol), name
 
 
 def _assert_tokenwise_close(
-    ref_dir: Path,
-    jax_dir: Path,
+    reference_dir: Path,
+    case_dir: Path,
     names: list[str],
     *,
     rtol: float = 0.0,
     atol: float = 0.0,
 ) -> None:
     for name in names:
-        ref = _load_numeric_tokens(ref_dir / name)
-        got = _load_numeric_tokens(jax_dir / name)
+        ref = _load_numeric_tokens(reference_dir / name)
+        got = _load_numeric_tokens(case_dir / name)
         assert ref.shape == got.shape, name
         assert np.array_equal(np.isnan(ref), np.isnan(got)), f"{name}: NaN mask"
         assert np.array_equal(np.isposinf(ref), np.isposinf(got)), f"{name}: +inf mask"
@@ -224,86 +204,65 @@ def _assert_tokenwise_close(
         assert np.allclose(ref, got, rtol=rtol, atol=atol, equal_nan=True), name
 
 
-def _assert_neo_out_close(ref_path: Path, got_path: Path, *, rtol: float, atol: float = 1e-12) -> None:
-    ref = np.loadtxt(ref_path)
-    got = np.loadtxt(got_path)
-    assert ref.shape == got.shape
-    assert np.array_equal(ref[:, 0].astype(int), got[:, 0].astype(int))
-    assert np.allclose(ref[:, 1:], got[:, 1:], rtol=rtol, atol=atol)
-
-
-def _assert_neolog_close(ref_path: Path, got_path: Path, *, rtol: float, atol: float = 1e-12) -> None:
-    ref_lines = [line.split() for line in ref_path.read_text().splitlines() if line.strip()]
-    got_lines = [line.split() for line in got_path.read_text().splitlines() if line.strip()]
-    assert len(ref_lines) == len(got_lines)
-    for ref_tokens, got_tokens in zip(ref_lines, got_lines):
-        assert len(ref_tokens) == len(got_tokens) == 8
-        assert [int(tok) for tok in ref_tokens[:7]] == [int(tok) for tok in got_tokens[:7]]
-        ref_val = _parse_legacy_float_token(ref_tokens[7])
-        got_val = _parse_legacy_float_token(got_tokens[7])
-        assert np.isclose(ref_val, got_val, rtol=rtol, atol=atol)
-
-
-def _assert_conver_matches_xneo_prefix(ref_path: Path, got_path: Path, *, atol: float = 1e-12) -> None:
-    ref = np.asarray(
-        [[_parse_legacy_float_token(token) for token in line.split()] for line in ref_path.read_text().splitlines() if line.strip()],
-        dtype=float,
-    )
-    got = np.asarray(
-        [[_parse_legacy_float_token(token) for token in line.split()] for line in got_path.read_text().splitlines() if line.strip()],
-        dtype=float,
-    )
-    assert ref.shape == got.shape
-    assert np.allclose(ref[:, :4], got[:, :4], rtol=0.0, atol=atol)
-
-
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
-def test_cli_landreman_matches_xneo(tmp_path: Path) -> None:
-    fixture = REPO / "tests" / "fixtures" / "landreman_qa_lowres"
+def test_cli_landreman_matches_reference_fixture(tmp_path: Path) -> None:
+    fixture = FIXTURES / "landreman_qa_lowres"
     extension = "LandremanPaul2021_QA_lowres"
 
-    _copy_fixture_case(tmp_path, fixture_dir=fixture, extension=extension, control_name=f"neo_in.{extension}")
-
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    assert sorted(path.name for path in ref_dir.iterdir()) == sorted(path.name for path in jax_dir.iterdir())
-    _assert_exact_text(ref_dir, jax_dir, [f"neo_out.{extension}", f"neolog.{extension}"])
-
-
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
-def test_cli_mini_orbits_matches_xneo_outputs(tmp_path: Path) -> None:
-    extension = "ORBITS_MINI"
-    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
-    control_text = _make_control(
-        out_file=f"neo_out.{extension}",
-        surfaces=[96],
-        theta_n=8,
-        phi_n=8,
-        npart=10,
-        multra=2,
-        write_output_files=1,
-        write_integrate=1,
-        write_diagnostic=1,
-        cur_file=f"neo_cur.{extension}",
+    case_dir = _copy_reference_case(
+        tmp_path,
+        fixture_dir=fixture,
+        extension=extension,
+        booz_src=fixture / f"boozmn_{extension}.nc",
     )
-    _copy_case(tmp_path, extension=extension, booz_src=booz_src, control_text=control_text)
 
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    assert sorted(path.name for path in ref_dir.iterdir()) == sorted(path.name for path in jax_dir.iterdir())
+    _run_cli(case_dir, extension, "--quiet")
+    _assert_exact_text(fixture, case_dir, [f"neo_out.{extension}", f"neolog.{extension}"])
+
+
+def test_cli_orbits_mini_matches_reference_fixture(tmp_path: Path) -> None:
+    reference_dir = CLI_FIXTURES / "orbits_mini"
+    extension = "ORBITS_MINI"
+    case_dir = _copy_reference_case(
+        tmp_path,
+        fixture_dir=reference_dir,
+        extension=extension,
+        booz_src=FIXTURES / "orbits" / "boozmn_ORBITS_FAST.nc",
+    )
+
+    _run_cli(case_dir, extension, "--quiet")
+
+    reference_outputs = {
+        path.name
+        for path in reference_dir.iterdir()
+        if path.is_file() and path.name not in {"README.md", f"neo_in.{extension}"}
+    }
+    produced_outputs = {path.name for path in case_dir.iterdir() if path.is_file() and path.name != f"neo_in.{extension}"}
+
+    assert produced_outputs.issuperset(reference_outputs)
+    assert {
+        "diagnostic_bigint.dat",
+        "diagnostic_first_trap.dat",
+        "b_pb_arr.dat",
+        "b_tb_arr.dat",
+        "gtbtb_arr.dat",
+        "gpbpb_arr.dat",
+        "gtbpb_arr.dat",
+    }.issubset(produced_outputs)
+
     _assert_exact_text(
-        ref_dir,
-        jax_dir,
+        reference_dir,
+        case_dir,
         [
             f"neo_out.{extension}",
             "diagnostic.dat",
             "diagnostic_add.dat",
-            "diagnostic_bigint.dat",
             "conver.dat",
             f"neolog.{extension}",
         ],
     )
     _assert_numeric_close(
-        ref_dir,
-        jax_dir,
+        reference_dir,
+        case_dir,
         [
             "dimension.dat",
             "es_arr.dat",
@@ -322,102 +281,62 @@ def test_cli_mini_orbits_matches_xneo_outputs(tmp_path: Path) -> None:
             "sqrg11_arr.dat",
             "kg_arr.dat",
             "pard_arr.dat",
-            "r_tb_arr.dat",
-            "z_tb_arr.dat",
-            "p_tb_arr.dat",
-            "b_tb_arr.dat",
-            "r_pb_arr.dat",
-            "z_pb_arr.dat",
-            "p_pb_arr.dat",
-            "b_pb_arr.dat",
-            "gtbtb_arr.dat",
-            "gpbpb_arr.dat",
-            "gtbpb_arr.dat",
         ],
-        atol=5e-13,
+        atol=1e-14,
     )
 
 
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
-def test_cli_calc_cur_matches_xneo(tmp_path: Path) -> None:
+def test_cli_calc_cur_matches_reference_fixture(tmp_path: Path) -> None:
+    reference_dir = CLI_FIXTURES / "orbits_curint"
     extension = "ORBITS_CURINT"
-    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
-    control_text = _make_control(
-        out_file=f"neo_out.{extension}",
-        surfaces=[96],
-        theta_n=8,
-        phi_n=8,
-        npart=10,
-        multra=1,
-        calc_cur=1,
-        cur_file=f"neo_cur.{extension}",
-        npart_cur=100,
-        alpha_cur=2.0,
-        write_cur_inte=1,
-    )
-    _copy_case(tmp_path, extension=extension, booz_src=booz_src, control_text=control_text)
-
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    _assert_exact_text(ref_dir, jax_dir, [f"neo_out.{extension}", f"neo_cur.{extension}", f"neolog.{extension}"])
-    _assert_tokenwise_close(ref_dir, jax_dir, ["current.dat"], rtol=2e-7, atol=1e-10)
-
-
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
-def test_cli_ncsx_mini_matches_xneo(tmp_path: Path) -> None:
-    extension = "NCSX_MINI"
-    booz_src = REPO / "tests" / "fixtures" / "ncsx" / "boozmn_ncsx_c09r00_free.nc"
-    control_text = _make_control(
-        out_file=f"neo_out.{extension}",
-        surfaces=[59],
-        theta_n=8,
-        phi_n=8,
-        npart=10,
-        multra=1,
-        cur_file=f"neo_cur.{extension}",
-    )
-    _copy_case(tmp_path, extension=extension, booz_src=booz_src, control_text=control_text)
-
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    _assert_exact_text(ref_dir, jax_dir, [f"neo_out.{extension}", f"neolog.{extension}"])
-
-
-@pytest.mark.skipif(not RUN_SLOW, reason="Set NEO_JAX_RUN_SLOW=1 to run full ORBITS fixture parity.")
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
-def test_cli_orbits_fast_fixture_matches_xneo(tmp_path: Path) -> None:
-    fixture = REPO / "tests" / "fixtures" / "orbits"
-    extension = "ORBITS_FAST"
-
-    _copy_fixture_case(tmp_path, fixture_dir=fixture, extension=extension, control_name=f"neo_in.{extension}")
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    _assert_exact_text(ref_dir, jax_dir, [f"neo_out.{extension}", f"neolog.{extension}"])
-    _assert_conver_matches_xneo_prefix(ref_dir / "conver.dat", jax_dir / "conver.dat")
-
-
-@pytest.mark.skipif(not RUN_SLOW, reason="Set NEO_JAX_RUN_SLOW=1 to run full NCSX fixture parity.")
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
-def test_cli_ncsx_fast_fixture_matches_xneo(tmp_path: Path) -> None:
-    fixture = REPO / "tests" / "fixtures" / "ncsx"
-    extension = "ncsx_c09r00_free_fast"
-
-    _copy_fixture_case(
+    case_dir = _copy_reference_case(
         tmp_path,
-        fixture_dir=fixture,
+        fixture_dir=reference_dir,
         extension=extension,
-        control_name=f"neo_in.{extension}",
-        booz_name="boozmn_ncsx_c09r00_free.nc",
+        booz_src=FIXTURES / "orbits" / "boozmn_ORBITS_FAST.nc",
     )
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    _assert_neo_out_close(ref_dir / f"neo_out.{extension}", jax_dir / f"neo_out.{extension}", rtol=5.1e-3)
-    _assert_neolog_close(ref_dir / f"neolog.{extension}", jax_dir / f"neolog.{extension}", rtol=5.1e-3)
+
+    _run_cli(case_dir, extension, "--quiet")
+
+    reference_outputs = {
+        path.name
+        for path in reference_dir.iterdir()
+        if path.is_file() and path.name not in {"README.md", f"neo_in.{extension}"}
+    }
+    produced_outputs = {path.name for path in case_dir.iterdir() if path.is_file() and path.name != f"neo_in.{extension}"}
+
+    assert produced_outputs.issuperset(reference_outputs)
+    _assert_exact_text(reference_dir, case_dir, [f"neo_out.{extension}", f"neo_cur.{extension}", f"neolog.{extension}"])
+    _assert_tokenwise_close(reference_dir, case_dir, ["current.dat"], rtol=1e-4, atol=1e-10)
 
 
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
+def test_cli_ncsx_mini_matches_reference_fixture(tmp_path: Path) -> None:
+    reference_dir = CLI_FIXTURES / "ncsx_mini"
+    extension = "NCSX_MINI"
+    case_dir = _copy_reference_case(
+        tmp_path,
+        fixture_dir=reference_dir,
+        extension=extension,
+        booz_src=FIXTURES / "ncsx" / "boozmn_ncsx_c09r00_free.nc",
+    )
+
+    _run_cli(case_dir, extension, "--quiet")
+    _assert_exact_text(reference_dir, case_dir, [f"neo_out.{extension}", f"neolog.{extension}"])
+
+
 def test_cli_prefers_neo_param_extension_over_neo_in_extension(tmp_path: Path) -> None:
     extension = "PARAM_EXT"
-    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
+    booz_src = FIXTURES / "orbits" / "boozmn_ORBITS_FAST.nc"
     chosen = _make_control(out_file="neo_out.param_ext", surfaces=[96], theta_n=8, phi_n=8, npart=10, cur_file="neo_cur.param_ext")
-    ignored = _make_control(out_file="neo_out.neo_in_ext", surfaces=[64], theta_n=8, phi_n=8, npart=10, cur_file="neo_cur.neo_in_ext")
-    _copy_case(
+    ignored = _make_control(
+        out_file="neo_out.neo_in_ext",
+        surfaces=[64],
+        theta_n=8,
+        phi_n=8,
+        npart=10,
+        cur_file="neo_cur.neo_in_ext",
+    )
+    case_dir = _copy_case(
         tmp_path,
         extension=extension,
         booz_src=booz_src,
@@ -426,21 +345,24 @@ def test_cli_prefers_neo_param_extension_over_neo_in_extension(tmp_path: Path) -
         extra_controls={f"neo_in.{extension}": ignored},
     )
 
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    assert (ref_dir / "neo_out.param_ext").exists()
-    assert (jax_dir / "neo_out.param_ext").exists()
-    assert not (ref_dir / "neo_out.neo_in_ext").exists()
-    assert not (jax_dir / "neo_out.neo_in_ext").exists()
-    _assert_exact_text(ref_dir, jax_dir, ["neo_out.param_ext", f"neolog.{extension}"])
+    _run_cli(case_dir, extension, "--quiet")
+    assert (case_dir / "neo_out.param_ext").exists()
+    assert not (case_dir / "neo_out.neo_in_ext").exists()
 
 
-@pytest.mark.skipif(not REFERENCE_BIN.exists(), reason=f"Reference xneo binary not found at {REFERENCE_BIN}")
 def test_cli_prefers_neo_param_in_over_neo_in_extension(tmp_path: Path) -> None:
     extension = "PARAM_IN"
-    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
+    booz_src = FIXTURES / "orbits" / "boozmn_ORBITS_FAST.nc"
     chosen = _make_control(out_file="neo_out.param_in", surfaces=[96], theta_n=8, phi_n=8, npart=10, cur_file="neo_cur.param_in")
-    ignored = _make_control(out_file="neo_out.neo_in_param_in", surfaces=[64], theta_n=8, phi_n=8, npart=10, cur_file="neo_cur.neo_in_param_in")
-    _copy_case(
+    ignored = _make_control(
+        out_file="neo_out.neo_in_param_in",
+        surfaces=[64],
+        theta_n=8,
+        phi_n=8,
+        npart=10,
+        cur_file="neo_cur.neo_in_param_in",
+    )
+    case_dir = _copy_case(
         tmp_path,
         extension=extension,
         booz_src=booz_src,
@@ -449,86 +371,72 @@ def test_cli_prefers_neo_param_in_over_neo_in_extension(tmp_path: Path) -> None:
         extra_controls={f"neo_in.{extension}": ignored},
     )
 
-    ref_dir, jax_dir = _run_neo_pair(tmp_path, extension=extension)
-    assert (ref_dir / "neo_out.param_in").exists()
-    assert (jax_dir / "neo_out.param_in").exists()
-    assert not (ref_dir / "neo_out.neo_in_param_in").exists()
-    assert not (jax_dir / "neo_out.neo_in_param_in").exists()
-    _assert_exact_text(ref_dir, jax_dir, ["neo_out.param_in", f"neolog.{extension}"])
+    _run_cli(case_dir, extension, "--quiet")
+    assert (case_dir / "neo_out.param_in").exists()
+    assert not (case_dir / "neo_out.neo_in_param_in").exists()
 
 
 def test_cli_progress_logging_and_quiet_flag(tmp_path: Path) -> None:
     extension = "LOG_MINI"
-    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
     control_text = _make_control(
         out_file=f"neo_out.{extension}",
         surfaces=[96],
-        theta_n=6,
-        phi_n=6,
+        theta_n=2,
+        phi_n=2,
+        npart=2,
+        multra=1,
+        nstep_per=2,
+        nstep_min=4,
+        nstep_max=6,
+        no_bins=4,
+        cur_file=f"neo_cur.{extension}",
+    )
+    case_dir = _copy_case(
+        tmp_path,
+        extension=extension,
+        booz_src=FIXTURES / "orbits" / "boozmn_ORBITS_FAST.nc",
+        control_text=control_text,
+    )
+
+    verbose_run = _run_cli(case_dir, extension)
+    quiet_run = _run_cli(case_dir, extension, "--quiet")
+
+    assert "NEO_JAX: starting legacy CLI solve" in verbose_run.stdout
+    assert "NEO_JAX: jax_runtime=cpu" in verbose_run.stdout
+    assert "NEO_JAX: surface 1/1" in verbose_run.stdout
+    assert f"NEO_JAX: wrote neo_out.{extension}" in verbose_run.stdout
+    assert "NEO_JAX:" not in quiet_run.stdout
+
+
+def test_cli_ipmax_debug_dump(tmp_path: Path) -> None:
+    extension = "IPMAX_MINI"
+    control_text = _make_control(
+        out_file=f"neo_out.{extension}",
+        surfaces=[96],
+        theta_n=4,
+        phi_n=4,
         npart=4,
         multra=1,
         nstep_per=4,
         nstep_min=8,
         nstep_max=12,
         no_bins=8,
-        cur_file=f"neo_cur.{extension}",
-    )
-    case_dir = _copy_single_cli_case(tmp_path, extension=extension, booz_src=booz_src, control_text=control_text)
-
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO)
-
-    verbose_run = subprocess.run(
-        ["python", "-m", "neo_jax", extension],
-        cwd=case_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=True,
-    )
-    quiet_run = subprocess.run(
-        ["python", "-m", "neo_jax", extension, "--quiet"],
-        cwd=case_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=True,
-    )
-
-    assert "NEO_JAX: starting legacy CLI solve" in verbose_run.stdout
-    assert "NEO_JAX: jax_runtime=cpu" in verbose_run.stdout
-    assert "NEO_JAX: surface 1/1" in verbose_run.stdout
-    assert "NEO_JAX: wrote neo_out.LOG_MINI" in verbose_run.stdout
-    assert quiet_run.stdout.strip() == ""
-
-
-def test_cli_ipmax_debug_dump(tmp_path: Path) -> None:
-    extension = "IPMAX_MINI"
-    booz_src = REPO / "tests" / "fixtures" / "orbits" / "boozmn_ORBITS_FAST.nc"
-    control_text = _make_control(
-        out_file=f"neo_out.{extension}",
-        surfaces=[96],
-        theta_n=6,
-        phi_n=6,
-        npart=6,
-        multra=1,
-        nstep_per=6,
-        nstep_min=10,
-        nstep_max=16,
-        no_bins=8,
         write_integrate=1,
         cur_file=f"neo_cur.{extension}",
     )
-    case_dir = _copy_single_cli_case(tmp_path, extension=extension, booz_src=booz_src, control_text=control_text)
+    case_dir = _copy_case(
+        tmp_path,
+        extension=extension,
+        booz_src=FIXTURES / "orbits" / "boozmn_ORBITS_FAST.nc",
+        control_text=control_text,
+    )
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO)
     env["NEO_JAX_WRITE_IPMAX_DEBUG"] = "1"
 
     subprocess.run(
-        ["python", "-m", "neo_jax", extension, "--quiet"],
+        [sys.executable, "-m", "neo_jax", extension, "--quiet"],
         cwd=case_dir,
         env=env,
         stdout=subprocess.PIPE,

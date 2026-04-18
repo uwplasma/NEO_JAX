@@ -31,8 +31,8 @@ Representative test files include:
    * - ``tests/regression/test_constellaration_guard.py``
      - Low-``|iota|`` safeguards and approximate fallback behavior.
    * - ``tests/regression/test_cli_legacy.py``
-     - CLI file generation, progress logging, reference comparisons, and
-       regression coverage for the file-based workflow.
+     - CLI file generation, progress logging, and parity against committed
+       ``xneo`` reference fixtures for the file-based workflow.
    * - ``tests/regression/test_landreman_qa_lowres_parity.py``
      - Dense QA fixture comparison.
    * - ``tests/regression/test_orbits_parity.py``
@@ -79,7 +79,6 @@ Some checks are intentionally opt-in:
 
 - full slow reference cases behind ``NEO_JAX_RUN_SLOW=1``
 - GPU smoke tests behind ``NEO_JAX_RUN_GPU=1``
-- environment-dependent comparisons that require a reference executable
 
 That separation keeps standard CI fast while still preserving the heavier
 validation workflows for release and benchmarking.
@@ -96,6 +95,9 @@ Reference comparisons
 
 When NEO_JAX is compared against established external reference outputs, the
 goal is to verify correctness of the current implementation on representative
-geometries. Those comparisons are summarized in :doc:`validation`. The testing
-language in NEO_JAX is therefore evidence-driven: reference agreement is part
-of the acceptance story, while the user-facing solver remains NEO_JAX itself.
+geometries. Those comparisons are summarized in :doc:`validation`. The default
+CLI parity suite uses committed ``xneo`` reference fixtures so the checks stay
+fully reproducible on CI and on developer machines without a local STELLOPT
+build. The testing language in NEO_JAX is therefore evidence-driven:
+reference agreement is part of the acceptance story, while the user-facing
+solver remains NEO_JAX itself.
