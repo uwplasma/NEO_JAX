@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.1 - 2026-04-18
+
+Packaging and release-preparation update.
+
+Highlights
+
+- Removed version pins from runtime, development, and documentation dependencies.
+- Expanded GitHub Actions CI to Python 3.10, 3.11, and 3.12.
+- Added installed-package CLI smoke coverage in CI.
+- Added a trusted-publishing workflow for PyPI releases.
+- Documented direct PyPI installation with ``pip install neo-jax``.
+
 ## v1.0.0 - 2026-04-17
 
 NEO_JAX 1.0.0 is the first full GitHub release of the code as a standalone

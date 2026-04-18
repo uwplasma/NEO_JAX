@@ -1,5 +1,11 @@
 # NEO_JAX
 
+Install from PyPI:
+
+```bash
+pip install neo-jax
+```
+
 Neoclassical transport code for computing effective helical ripple and related
 trapped-particle diagnostics from Boozer-coordinate geometry, with a Python API,
 JAX acceleration, and an end-to-end differentiable pipeline through VMEC and
@@ -10,6 +16,12 @@ numerics, geometry interfaces, runtime controls, applications, testing, and
 source structure.
 
 ## Quick start
+
+```bash
+pip install neo-jax
+```
+
+For development from a clone:
 
 ```bash
 pip install -e .

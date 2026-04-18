@@ -4,6 +4,12 @@ Quickstart
 This page shows the three quickest ways to start using NEO_JAX: from a
 ``boozmn`` file, from the command line, and from an in-memory geometry object.
 
+Install from PyPI with:
+
+.. code-block:: bash
+
+   pip install neo-jax
+
 Python API from ``boozmn``
 --------------------------
 

@@ -6,7 +6,13 @@ NEO_JAX is distributed as a standard Python package.
 Base install
 ------------
 
-A standard editable install is:
+Install from PyPI with:
+
+.. code-block:: bash
+
+   pip install neo-jax
+
+For development from a clone, a standard editable install is:
 
 .. code-block:: bash
 

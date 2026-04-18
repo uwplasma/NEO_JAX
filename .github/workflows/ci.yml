@@ -6,7 +6,12 @@ on:
 
 jobs:
   tests:
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
     env:
       JAX_PLATFORM_NAME: cpu
       JAX_ENABLE_X64: "1"
@@ -14,17 +19,41 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+          python -m pip install vmec_jax booz_xform_jax
+      - name: Run tests
+        run: pytest -q
+      - name: Smoke test installed CLI
+        run: |
+          mkdir -p /tmp/neo_jax_cli_smoke
+          cp tests/fixtures/orbits/neo_in.ORBITS /tmp/neo_jax_cli_smoke/
+          cd /tmp/neo_jax_cli_smoke
+          neo-jax ORBITS --boozmn "$GITHUB_WORKSPACE/tests/fixtures/orbits/boozmn_ORBITS.nc" --quiet
+          test -f neo_out.ORBITS
+
+  perf:
+    name: Perf regression check
+    runs-on: ubuntu-latest
+    env:
+      JAX_PLATFORM_NAME: cpu
+      JAX_ENABLE_X64: "1"
+      NEO_JAX_CI_PERF_COMPILE_MAX: "45"
+      NEO_JAX_CI_PERF_REUSE_MAX: "0.3"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-          pip install "vmec_jax @ git+https://github.com/uwplasma/vmec_jax.git"
-          pip install "booz_xform_jax @ git+https://github.com/uwplasma/booz_xform_jax.git"
-      - name: Run tests
-        run: pytest -q
+          python -m pip install ".[dev]"
+          python -m pip install vmec_jax booz_xform_jax
       - name: Perf regression check
-        env:
-          NEO_JAX_CI_PERF_COMPILE_MAX: "45"
-          NEO_JAX_CI_PERF_REUSE_MAX: "0.3"
         run: python benchmarks/ci_perf_check.py

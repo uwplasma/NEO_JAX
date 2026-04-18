@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "neo-jax"
-version = "1.0.0"
+version = "1.0.1"
 description = "Neoclassical transport code for effective ripple and trapped-particle diagnostics in Boozer coordinates"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,16 +16,17 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Physics",
 ]
 
 # Dependencies are minimal at this stage; GPU support is handled by the user's JAX install.
 dependencies = [
-  "jax>=0.4.28",
-  "jaxlib>=0.4.28",
-  "numpy>=1.24",
-  "netCDF4>=1.6",
-  "scipy>=1.10",
+  "jax",
+  "jaxlib",
+  "numpy",
+  "netCDF4",
+  "scipy",
 ]
 
 [project.urls]
@@ -41,18 +42,18 @@ xneo_jax = "neo_jax.cli:main"
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=7",
-  "pytest-cov>=4",
-  "ruff>=0.4",
-  "black>=24",
-  "mypy>=1.8",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "black",
+  "mypy",
 ]
 docs = [
-  "sphinx>=7",
-  "furo>=2024.1",
-  "sphinxcontrib-bibtex>=2.6",
-  "sphinx-copybutton>=0.5",
-  "sphinx-design>=0.6",
+  "sphinx",
+  "furo",
+  "sphinxcontrib-bibtex",
+  "sphinx-copybutton",
+  "sphinx-design",
 ]
 
 [tool.setuptools]
