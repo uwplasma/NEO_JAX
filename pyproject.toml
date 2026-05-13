@@ -8,6 +8,8 @@ version = "1.0.1"
 description = "Neoclassical transport code for effective ripple and trapped-particle diagnostics in Boozer coordinates"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["stellarator", "neoclassical transport", "effective ripple", "boozmn", "jax", "plasma physics"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
