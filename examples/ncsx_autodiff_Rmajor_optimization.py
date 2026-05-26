@@ -7,20 +7,17 @@ use vmec_jax boundary coefficients.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 from scipy.optimize import least_squares
 
-from neo_jax import NeoConfig, build_surface_problem, neo_outputs_to_results, run_neo
+from neo_jax import NeoConfig, build_surface_problem, ncsx_boozmn_path, neo_outputs_to_results, run_neo
 from neo_jax.integrate import flint_bo_jax
 
 
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    boozmn_path = repo_root / "tests" / "fixtures" / "ncsx" / "boozmn_ncsx_c09r00_free.nc"
+    boozmn_path = ncsx_boozmn_path(download=True)
 
     # Choose the target surface by normalized toroidal flux s.
     # These are mapped to the nearest surface in the boozmn file.

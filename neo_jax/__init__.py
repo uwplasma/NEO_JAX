@@ -20,6 +20,7 @@ from .api import load_boozmn, run_boozer, run_booz_xform, run_boozmn, run_neo
 from .config import NeoConfig
 from .data_models import BoozerData, NeoInputs, NeoOutputs, VmecData
 from .driver import run_neo_from_boozer, run_neo_from_boozmn
+from .fixtures import ncsx_boozmn_path, resolve_external_fixture
 from .io import booz_xform_to_boozerdata, booz_xform_to_boozerdata_jax, read_boozmn
 from .plotting import plot_epsilon_effective
 from .pipeline import (
@@ -44,6 +45,8 @@ __all__ = [
     "NeoSurfaceResult",
     "neo_outputs_to_results",
     "read_boozmn",
+    "resolve_external_fixture",
+    "ncsx_boozmn_path",
     "booz_xform_to_boozerdata",
     "booz_xform_to_boozerdata_jax",
     "run_neo_from_boozer",

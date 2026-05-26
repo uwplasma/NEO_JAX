@@ -26,6 +26,12 @@ Current reference cases include:
 - a synthetic one-surface NCSX case used to validate ``neo_out.*`` and
   ``neolog.*`` against stored ``xneo`` reference outputs
 
+The large NCSX Boozer input is distributed as an external release asset rather
+than being committed directly in the repository. Default CI and slim checkouts
+therefore skip NCSX fixture consumers unless
+``NEO_JAX_FETCH_EXTERNAL_FIXTURES=1`` is set or the file is already present in
+the local fixture cache.
+
 Legacy CLI parity
 -----------------
 

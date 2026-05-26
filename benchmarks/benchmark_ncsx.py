@@ -8,6 +8,7 @@ from pathlib import Path
 
 from neo_jax.control import read_control
 from neo_jax.driver import run_neo_from_boozmn
+from neo_jax.fixtures import ncsx_boozmn_path
 
 
 def main() -> int:
@@ -19,8 +20,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--boozmn",
-        default="tests/fixtures/ncsx/boozmn_ncsx_c09r00_free.nc",
-        help="Path to boozmn file",
+        default=None,
+        help="Path to boozmn file. Defaults to the external NCSX fixture resolver.",
     )
     parser.add_argument("--jax", action="store_true", help="Use JAX scan backend")
     parser.add_argument("--warmup", action="store_true", help="Run a warmup iteration before timing")
@@ -29,7 +30,7 @@ def main() -> int:
 
     repo_root = Path(__file__).resolve().parents[1]
     control_path = Path(args.control)
-    boozmn_path = Path(args.boozmn)
+    boozmn_path = ncsx_boozmn_path(download=True) if args.boozmn is None else Path(args.boozmn)
     if not control_path.is_absolute():
         control_path = (repo_root / control_path).resolve()
     if not boozmn_path.is_absolute():

@@ -79,6 +79,7 @@ Some checks are intentionally opt-in:
 
 - full slow reference cases behind ``NEO_JAX_RUN_SLOW=1``
 - GPU smoke tests behind ``NEO_JAX_RUN_GPU=1``
+- external NCSX fixture consumers behind ``NEO_JAX_FETCH_EXTERNAL_FIXTURES=1``
 
 That separation keeps standard CI fast while still preserving the heavier
 validation workflows for release and benchmarking.

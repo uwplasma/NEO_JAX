@@ -18,4 +18,5 @@ Cases included here:
 The corresponding Boozer inputs are reused from the main fixture directories:
 
 - ``tests/fixtures/orbits/boozmn_ORBITS_FAST.nc``
-- ``tests/fixtures/ncsx/boozmn_ncsx_c09r00_free.nc``
+- ``tests/fixtures/ncsx/boozmn_ncsx_c09r00_free.nc`` (resolved from the
+  external fixture cache in slim checkouts)

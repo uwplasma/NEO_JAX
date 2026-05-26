@@ -5,12 +5,18 @@ This example mirrors the NEO tutorial case based on the NCSX equilibrium. The
 input files are in ``tests/fixtures/ncsx`` and correspond to the tutorial
 workflow. :cite:`stelopt-neo-tutorial`
 
+The large NCSX ``boozmn`` file is intentionally not committed in the default
+slim checkout. Use ``NEO_JAX_FETCH_EXTERNAL_FIXTURES=1`` or the Python helper
+``neo_jax.ncsx_boozmn_path(download=True)`` to populate the local fixture
+cache before running the full tutorial case.
+
 Run via CLI
 -----------
 
 .. code-block:: bash
 
    cd tests/fixtures/ncsx
+   export NEO_JAX_FETCH_EXTERNAL_FIXTURES=1
    neo-jax ncsx_c09r00_free --boozmn boozmn_ncsx_c09r00_free.nc --verbose
 
 Notes

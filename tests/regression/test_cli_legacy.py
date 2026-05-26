@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,9 @@ import subprocess
 import sys
 
 import numpy as np
+import pytest
+
+from neo_jax.fixtures import ncsx_boozmn_path
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -151,8 +155,15 @@ def _run_cli(case_dir: Path, extension: str, *extra_args: str) -> subprocess.Com
     )
 
 
+def _read_text(path: Path) -> str:
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            return stream.read()
+    return path.read_text()
+
+
 def _load_numeric_file(path: Path) -> np.ndarray:
-    return np.fromstring(path.read_text().replace("D", "E"), sep=" ")
+    return np.fromstring(_read_text(path).replace("D", "E"), sep=" ")
 
 
 def _parse_legacy_float_token(token: str) -> float:
@@ -170,7 +181,14 @@ def _parse_legacy_float_token(token: str) -> float:
 
 
 def _load_numeric_tokens(path: Path) -> np.ndarray:
-    return np.asarray([_parse_legacy_float_token(token) for token in path.read_text().split()], dtype=float)
+    return np.asarray([_parse_legacy_float_token(token) for token in _read_text(path).split()], dtype=float)
+
+
+def _ncsx_boozmn_or_skip() -> Path:
+    try:
+        return ncsx_boozmn_path(download=False)
+    except FileNotFoundError as exc:
+        pytest.skip(str(exc))
 
 
 def _assert_exact_text(reference_dir: Path, case_dir: Path, names: list[str]) -> None:
@@ -299,7 +317,7 @@ def test_cli_calc_cur_matches_reference_fixture(tmp_path: Path) -> None:
     _run_cli(case_dir, extension, "--quiet")
 
     reference_outputs = {
-        path.name
+        "current.dat" if path.name == "current.dat.gz" else path.name
         for path in reference_dir.iterdir()
         if path.is_file() and path.name not in {"README.md", f"neo_in.{extension}"}
     }
@@ -307,7 +325,13 @@ def test_cli_calc_cur_matches_reference_fixture(tmp_path: Path) -> None:
 
     assert produced_outputs.issuperset(reference_outputs)
     _assert_exact_text(reference_dir, case_dir, [f"neo_out.{extension}", f"neo_cur.{extension}", f"neolog.{extension}"])
-    _assert_tokenwise_close(reference_dir, case_dir, ["current.dat"], rtol=1e-4, atol=1e-10)
+    ref = _load_numeric_tokens(reference_dir / "current.dat.gz")
+    got = _load_numeric_tokens(case_dir / "current.dat")
+    assert ref.shape == got.shape
+    assert np.array_equal(np.isnan(ref), np.isnan(got)), "current.dat: NaN mask"
+    assert np.array_equal(np.isposinf(ref), np.isposinf(got)), "current.dat: +inf mask"
+    assert np.array_equal(np.isneginf(ref), np.isneginf(got)), "current.dat: -inf mask"
+    assert np.allclose(ref, got, rtol=1e-4, atol=1e-10, equal_nan=True), "current.dat"
 
 
 def test_cli_ncsx_mini_matches_reference_fixture(tmp_path: Path) -> None:
@@ -317,7 +341,7 @@ def test_cli_ncsx_mini_matches_reference_fixture(tmp_path: Path) -> None:
         tmp_path,
         fixture_dir=reference_dir,
         extension=extension,
-        booz_src=FIXTURES / "ncsx" / "boozmn_ncsx_c09r00_free.nc",
+        booz_src=_ncsx_boozmn_or_skip(),
     )
 
     _run_cli(case_dir, extension, "--quiet")

@@ -6,6 +6,7 @@ import pytest
 
 from neo_jax.control import read_control
 from neo_jax.driver import run_neo_from_boozmn
+from neo_jax.fixtures import ncsx_boozmn_path
 
 
 def _assert_parity(
@@ -41,10 +42,17 @@ def _assert_parity(
     assert np.allclose(r_ref, r_ref_ref, rtol=1e-6, atol=1e-9)
 
 
+def _ncsx_boozmn_or_skip() -> Path:
+    try:
+        return ncsx_boozmn_path(download=False)
+    except FileNotFoundError as exc:
+        pytest.skip(str(exc))
+
+
 def test_ncsx_parity_fast():
     fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "ncsx"
     control = read_control(fixtures / "neo_in.ncsx_c09r00_free_fast")
-    boozmn = fixtures / "boozmn_ncsx_c09r00_free.nc"
+    boozmn = _ncsx_boozmn_or_skip()
 
     results = run_neo_from_boozmn(str(boozmn), control, use_jax=True)
     ref = np.loadtxt(fixtures / "neo_out.ncsx_c09r00_free_fast")
@@ -58,7 +66,7 @@ def test_ncsx_parity_full():
 
     fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "ncsx"
     control = read_control(fixtures / "neo_in.ncsx_c09r00_free")
-    boozmn = fixtures / "boozmn_ncsx_c09r00_free.nc"
+    boozmn = _ncsx_boozmn_or_skip()
 
     results = run_neo_from_boozmn(str(boozmn), control, use_jax=True)
     ref = np.loadtxt(fixtures / "neo_out.ncsx_c09r00_free")

@@ -45,6 +45,11 @@ If you prefer not to install, run from the repo root with:
 PYTHONPATH=. python examples/ncsx_epsilon_effective_plot.py
 ```
 
+Large tutorial/reference fixtures are optional. The default clone stays small,
+and examples or opt-in tests fetch the external NCSX Boozer file on demand via
+``neo_jax.ncsx_boozmn_path(download=True)`` or
+``NEO_JAX_FETCH_EXTERNAL_FIXTURES=1``.
+
 ## CLI and file-based workflow
 
 `neo_jax` now supports the same terminal workflow as STELLOPT's `xneo`,

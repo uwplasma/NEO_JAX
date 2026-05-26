@@ -8,18 +8,16 @@ vmec_jax + booz_xform_jax once the JAX-native pipeline is wired.
 from __future__ import annotations
 
 from dataclasses import replace
-from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 
-from neo_jax import NeoConfig, run_neo
+from neo_jax import NeoConfig, ncsx_boozmn_path, run_neo
 from neo_jax.api import load_boozmn
 
 
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    boozmn_path = repo_root / "tests" / "fixtures" / "ncsx" / "boozmn_ncsx_c09r00_free.nc"
+    boozmn_path = ncsx_boozmn_path(download=True)
 
     # Use an explicit surface index to avoid s-mapping inside JAX traces.
     surface_index = 36

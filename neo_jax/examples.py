@@ -10,14 +10,14 @@ import jax.numpy as jnp
 
 from .api import load_boozmn, run_neo
 from .config import NeoConfig
+from .fixtures import ncsx_boozmn_path
 from .integrate import flint_bo_jax
 from .plotting import plot_epsilon_effective
 from .workflow import build_surface_problem
 
 
 def _default_ncsx_boozmn_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[1]
-    return repo_root / "tests" / "fixtures" / "ncsx" / "boozmn_ncsx_c09r00_free.nc"
+    return ncsx_boozmn_path(download=True)
 
 
 def ncsx_jit_demo(

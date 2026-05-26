@@ -6,12 +6,18 @@ from pathlib import Path
 
 import numpy as np
 
-from neo_jax import NeoConfig, load_boozmn, neo_outputs_to_results, plot_epsilon_effective, run_neo
+from neo_jax import (
+    NeoConfig,
+    load_boozmn,
+    ncsx_boozmn_path,
+    neo_outputs_to_results,
+    plot_epsilon_effective,
+    run_neo,
+)
 
 
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    boozmn_path = repo_root / "tests" / "fixtures" / "ncsx" / "boozmn_ncsx_c09r00_free.nc"
+    boozmn_path = ncsx_boozmn_path(download=True)
 
     # Surfaces can be specified by normalized toroidal flux s in [0, 1].
     # These are mapped to the nearest available surface in the boozmn file.

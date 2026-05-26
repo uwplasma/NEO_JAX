@@ -5,6 +5,9 @@ Source:
 
 Notes:
 - `boozmn_ncsx_c09r00_free.nc` is the Boozer file used by the tutorial example.
+  It is intentionally external to the default slim checkout. Use
+  `NEO_JAX_FETCH_EXTERNAL_FIXTURES=1`, call `neo_jax.ncsx_boozmn_path(download=True)`,
+  or place the file in the local fixture cache to restore the full NCSX runs.
 - `neo_in.ncsx_c09r00_free` mirrors the tutorial control-file layout (with the first four lines ignored by NEO when `inp_swi=0`).
 - `neo_in.ncsx_c09r00_free_fast` is a reduced test (4 surfaces, 64x64 grid) for CI parity.
 - The control files use the extension `ncsx_c09r00_free` so NEO resolves `boozmn_ncsx_c09r00_free.nc` when running `xneo ncsx_c09r00_free`.
