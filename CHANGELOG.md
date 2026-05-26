@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.2 - 2026-05-25
+
+Slim-package and fixture-distribution update.
+
+Highlights
+
+- Removed the large NCSX Boozer NetCDF and the uncompressed legacy
+  ``current.dat`` reference from the repository history.
+- Added an external-fixture resolver so opt-in NCSX examples and regression
+  tests fetch the large Boozer file from a GitHub release asset cache instead
+  of bundling it into normal clones or package artifacts.
+- Kept GitHub Actions coverage for the NCSX path by enabling explicit fixture
+  fetches in CI, while retaining slim default behavior for local checkouts.
+- Guarded the PyPI release workflow so auxiliary fixture-only releases do not
+  fail packaging automation.
+- Reduced the source and wheel distributions to roughly 64 KB with no large
+  test fixtures included.
+
 ## v1.0.1 - 2026-04-18
 
 Packaging and release-preparation update.
