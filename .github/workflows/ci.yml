@@ -15,6 +15,7 @@ jobs:
     env:
       JAX_PLATFORM_NAME: cpu
       JAX_ENABLE_X64: "1"
+      NEO_JAX_FETCH_EXTERNAL_FIXTURES: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

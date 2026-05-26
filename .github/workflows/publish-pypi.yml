@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     name: Build distributions
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
 
     steps:
@@ -52,7 +53,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')
     needs:
       - build
     runs-on: ubuntu-latest

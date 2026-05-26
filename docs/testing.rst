@@ -83,6 +83,9 @@ Some checks are intentionally opt-in:
 
 That separation keeps standard CI fast while still preserving the heavier
 validation workflows for release and benchmarking.
+The GitHub Actions CPU test job sets
+``NEO_JAX_FETCH_EXTERNAL_FIXTURES=1`` so the NCSX regression path still runs in
+CI even though the large Boozer file is not committed in the repository.
 
 Performance guardrails
 ----------------------

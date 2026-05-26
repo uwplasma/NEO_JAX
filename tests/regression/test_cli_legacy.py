@@ -186,7 +186,7 @@ def _load_numeric_tokens(path: Path) -> np.ndarray:
 
 def _ncsx_boozmn_or_skip() -> Path:
     try:
-        return ncsx_boozmn_path(download=False)
+        return ncsx_boozmn_path()
     except FileNotFoundError as exc:
         pytest.skip(str(exc))
 
