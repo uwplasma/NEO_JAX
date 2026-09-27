@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.3 - 2026-09-27
+
+- Require `jax>=0.6.2` and `jaxlib>=0.6.2` (the oldest JAX CI tests, on
+  Python 3.10) instead of bare `jax`, so installing into an environment with an
+  older JAX upgrades it.
+
 ## v1.0.2 - 2026-05-25
 
 Slim-package and fixture-distribution update.
