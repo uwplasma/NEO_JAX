@@ -70,7 +70,7 @@ emits an HLO text dump for kernel-level inspection:
 .. code-block:: bash
 
    python benchmarks/profile_vmec_boozer_pipeline.py \
-     --case circular_tokamak \
+     input.vmec \
      --trace-dir profiles/vmec_boozer_neo_trace \
      --hlo-out profiles/vmec_boozer_neo.hlo.txt
 
@@ -86,7 +86,7 @@ Benchmark JIT reuse with:
 
 .. code-block:: bash
 
-   python benchmarks/benchmark_vmec_boozer_pipeline.py --case circular_tokamak --repeats 3
+   python benchmarks/benchmark_vmec_boozer_pipeline.py input.vmec --repeats 3
 
 For CI, ``benchmarks/ci_perf_check.py`` provides a small regression guardrail
 using a tiny pipeline case and configurable thresholds.

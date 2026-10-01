@@ -91,6 +91,7 @@ def neo_zeros2d(
     iter_ma: int,
     b_spl: Array,
     grid: dict,
+    *, phi_invariant: bool = False,
 ) -> Tuple[Array, Array, Array, Array]:
     """Newton solver for finding extrema of B.
 
@@ -104,9 +105,12 @@ def neo_zeros2d(
 
     def body(state):
         x, y, f, g, dfdx, dfdy, dgdx, dgdy, it, _ = state
-        det = dfdx * dgdy - dfdy * dgdx
-        x_n = x + (dfdy * g - f * dgdy) / det
-        y_n = y + (f * dgdx - dfdx * g) / det
+        stationary = (f == 0) & (g == 0)
+        det = jnp.where(phi_invariant | stationary, 1.0, dfdx * dgdy - dfdy * dgdx)
+        dx = jnp.where(phi_invariant, -f / jnp.where(dfdx == 0, 1.0, dfdx),
+                       (dfdy * g - f * dgdy) / det)
+        x_n = x + jnp.where(stationary, 0.0, dx)
+        y_n = y + jnp.where(phi_invariant | stationary, 0.0, (f * dgdx - dfdx * g) / det)
 
         f_n, g_n, dfdx_n, dfdy_n, dgdx_n, dgdy_n = neo_bderiv(x_n, y_n, b_spl, grid)
 

@@ -124,6 +124,7 @@ def run_neo_from_boozer_jax(
     skip_fourier_mask: bool = False,
     max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
     rational_surface_policy: str | None = None,
+    _work_guard: tuple | None = None,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
     booz = BoozerData(
@@ -159,10 +160,11 @@ def run_neo_from_boozer_jax(
 
     work_limit = _resolve_max_rational_field_periods(max_rational_field_periods)
     policy = _resolve_rational_surface_policy(rational_surface_policy)
+    guard_iota, guard_s = (booz.iota, booz.es) if _work_guard is None else _work_guard
     if work_limit is not None:
         for local_idx, surf_idx in enumerate(surf_indices):
             work = _estimate_rational_work(
-                float(booz.iota[surf_idx]),
+                float(guard_iota[surf_idx]),
                 control.acc_req,
                 nstep_per=control.nstep_per,
                 npart=control.npart,
@@ -177,8 +179,8 @@ def run_neo_from_boozer_jax(
                 flux_index = flux_indices[local_idx]
                 _raise_rational_work_limit(
                     flux_index=flux_index,
-                    s_val=float(booz.es[surf_idx]),
-                    iota=float(booz.iota[surf_idx]),
+                    s_val=float(guard_s[surf_idx]),
+                    iota=float(guard_iota[surf_idx]),
                     work=work,
                     work_limit=work_limit,
                 )

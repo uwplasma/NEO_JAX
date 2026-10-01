@@ -114,7 +114,7 @@ Pipeline helpers
 For workflows that chain VMEC → Boozer → NEO, NEO_JAX provides two helpers:
 
 - :func:`neo_jax.run_boozer_to_neo`: run NEO directly on a booz_xform output mapping.
-- :func:`neo_jax.run_vmec_boozer_neo`: convenience wrapper for vmec_jax → booz_xform_jax → NEO.
+- :func:`neo_jax.run_vmec_boozer_neo`: convenience wrapper for VMEX → booz_xform_jax → NEO.
 - :func:`neo_jax.run_vmec_boozer_neo_jax`: JAX-native VMEC→Boozer adapter + JAX surface scan.
 - :func:`neo_jax.build_vmec_boozer_neo_jax`: build a reusable JAX-native pipeline callable.
 
@@ -127,7 +127,6 @@ Example:
    config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
    results = run_vmec_boozer_neo(
        "path/to/input.vmec",
-       vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
        booz_kwargs=dict(mboz=8, nboz=8),
        neo_config=config,
    )

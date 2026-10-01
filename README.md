@@ -177,8 +177,7 @@ Current comparison status:
   the intermediate current history.
 - The legacy array dumps (`*_arr.dat`, `dimension.dat`, `theta_arr.dat`,
   `phi_arr.dat`) are numerically identical to within floating-point roundoff.
-- GPU execution is now validated separately on two NVIDIA RTX A4000 GPUs for
-  both ``python -m neo_jax`` and the Python API; see the GPU table below.
+- GPU validation covers the CLI and Python API; see the table below.
 
 ## Low-|iota| Surfaces
 
@@ -267,7 +266,8 @@ from neo_jax import NeoConfig, run_neo
 results = run_neo(booz_out, config=NeoConfig(surfaces=[1, 2, 3]))
 ```
 
-For a full vmec_jax → booz_xform_jax → neo_jax workflow (no file I/O), use:
+The VMEX → Boozer → NEO pipeline requires Python 3.11+, VMEX 0.11.6+ and Boozer 0.4.2+.
+After the Boozer release, install `neo-jax[pipeline]`:
 
 ```python
 from neo_jax import NeoConfig, run_vmec_boozer_neo
@@ -275,14 +275,14 @@ from neo_jax import NeoConfig, run_vmec_boozer_neo
 config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
 results = run_vmec_boozer_neo(
     "path/to/input.vmec",
-    vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
     booz_kwargs=dict(mboz=8, nboz=8),
     neo_config=config,
 )
 ```
 
-For a JAX-native VMEC→Boozer adapter plus a JAX surface scan, use
-`run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun` object.
+For JAX state derivatives, pass a `vmex.optimize.Equilibrium` to
+`run_vmec_boozer_neo_jax`. Compiled prescribed-iota runs retain the work guard;
+`NCURR=1` under JIT or autodiff requires explicit `max_rational_field_periods=0`.
 
 When using JAX surface scans, the return type is a JAX-friendly
 `NeoOutputs`. Convert it to the standard `NeoResults` container with:
@@ -316,7 +316,7 @@ See `docs/index.rst` for the table of contents.
 - `examples/ncsx_autodiff_Rmajor_optimization.py`: autodiff optimization demo over `Rmajor`.
 - `examples/epsilon_effective_scale_optimization.py`: toy autodiff example that scales |B| to reduce epsilon effective.
 - `examples/qh_epsilon_effective_aspect_optimization.py`: QH warm-start optimization (epsilon effective + aspect ratio).
-- `examples/vmec_boozer_neo_pipeline.py`: full vmec_jax → booz_xform_jax → neo_jax pipeline.
+- `examples/vmec_boozer_neo_pipeline.py`: full VMEX → booz_xform_jax → NEO_JAX pipeline.
 
 ## NCSX Parity Snapshot
 
@@ -353,34 +353,24 @@ Notes:
 
 ## GPU Validation Snapshot
 
-Validated with two NVIDIA RTX A4000 GPUs, Linux and JAX 0.6.2:
+Validation used two NVIDIA RTX A4000 GPUs and JAX 0.6.2:
 
 ```bash
 env NEO_JAX_RUN_GPU=1 JAX_PLATFORM_NAME=gpu python -m pytest -q \
   tests/regression/test_gpu_smoke.py
 ```
 
-That GPU smoke suite checks:
+The smoke suite checks CPU/GPU agreement for the CLI and API, plus runtime logging.
+The plotting example also completed with `MPLBACKEND=Agg`.
 
-- legacy CLI output parity between CPU and GPU on a one-surface ORBITS case
-- Python API parity between CPU and GPU for ``run_neo(..., use_jax=True, jax_surface_scan=True)``
-- progress logging includes the active JAX runtime so GPU runs do not look hung
-- the user-facing ``examples/ncsx_epsilon_effective_plot.py`` script was also
-  run on the same GPU host with ``MPLBACKEND=Agg`` and completed successfully
-  while writing ``examples/ncsx_eps_eff_vs_s.png``
-
-Cold-run timing on the same hardware:
+CPU and GPU timings:
 
 | Path | Case | CPU runtime (s) | GPU runtime (s) | CPU max RSS (MiB) | GPU max RSS (MiB) | Notes |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | Legacy CLI | `LandremanPaul2021_QA_lowres` | 39.41 | 95.71 | 1908.4 | 1966.4 | Cold launch, includes JIT compile |
 | Python API | ORBITS single-surface smoke | 15.56 first / 8.99 reuse | 25.37 first / 14.06 reuse | n/a | n/a | `run_neo(..., jax_surface_scan=True)` |
 
-At the current problem sizes, the GPU path is functional and parity-checked,
-but still compile-bound. On these small and medium legacy solves it is not yet
-faster than the CPU path. The GPU backend is still important for the larger
-JIT-native VMEC→Boozer→NEO workflows, where batching and reuse matter more than
-single-shot CLI latency.
+These small runs are dominated by compilation; warm runs are listed separately.
 
 | Metric | NEO (Fortran) | NEO_JAX (JAX) | Notes |
 | --- | --- | --- | --- |

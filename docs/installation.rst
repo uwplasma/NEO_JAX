@@ -38,12 +38,14 @@ as a core dependency.
 Optional pipeline dependencies
 ------------------------------
 
-For end-to-end VMEC→Boozer→NEO workflows, install:
+VMEX→Boozer→NEO requires Python 3.11+, VMEX 0.11.6+ and booz_xform_jax 0.4.2+.
+After the Boozer release, install:
 
-- `vmec_jax <https://github.com/uwplasma/vmec_jax>`_
-- `booz_xform_jax <https://github.com/uwplasma/booz_xform_jax>`_
+.. code-block:: bash
 
-The CI workflow installs both packages for the pipeline tests.
+   pip install "neo-jax[pipeline]"
+
+Python 3.10 supports NEO_JAX without the optional VMEX adapter.
 
 Building the documentation
 --------------------------

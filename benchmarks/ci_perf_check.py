@@ -17,7 +17,7 @@ def _env_float(name: str, default: float) -> float:
 
 
 def main() -> int:
-    case = os.getenv("NEO_JAX_CI_PERF_CASE", "circular_tokamak")
+    input_path = os.getenv("NEO_JAX_CI_PERF_INPUT")
     surfaces = os.getenv("NEO_JAX_CI_PERF_SURFACES", "0.5")
     compile_max = _env_float("NEO_JAX_CI_PERF_COMPILE_MAX", 60.0)
     reuse_max = _env_float("NEO_JAX_CI_PERF_REUSE_MAX", 0.5)
@@ -26,38 +26,16 @@ def main() -> int:
     import jax
     import jax.numpy as jnp
 
-    import vmec_jax as vj
-    from vmec_jax.driver import example_paths
-    from vmec_jax.vmec_tomnsp import vmec_angle_grid
-
+    from vmex import VmecInput
+    from vmex import optimize
     from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
 
-    input_path, _ = example_paths(case)
-    try:
-        cfg, _ = vj.load_input(str(input_path))
-    except FileNotFoundError:
-        print(f"SKIP: vmec_jax example data for case '{case}' is not installed in this environment.")
-        return 0
-    grid = vmec_angle_grid(
-        ntheta=8,
-        nzeta=1,
-        nfp=int(cfg.nfp),
-        lasym=bool(cfg.lasym),
+    inp = VmecInput.from_file(input_path) if input_path else VmecInput(
+        mpol=4, ntor=0, ns_array=[9], ntheta=16,
+        rbc=[[6, 1, 0, 0]], zbs=[[0, 1, 0, 0]], ai=[0.43], phiedge=6,
+        niter_array=[2000], ftol_array=[1e-10], delt=0.9,
     )
-
-    vmec_kwargs = dict(
-        max_iter=1,
-        use_initial_guess=True,
-        vmec_project=False,
-        verbose=False,
-        grid=grid,
-    )
-
-    try:
-        run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
-    except FileNotFoundError:
-        print(f"SKIP: vmec_jax example data for case '{case}' is not installed in this environment.")
-        return 0
+    run = optimize.solve_equilibrium(inp)
     config = NeoConfig(
         theta_n=8,
         phi_n=8,
@@ -74,7 +52,7 @@ def main() -> int:
     t0 = time.perf_counter()
     solver = build_vmec_boozer_neo_jax(
         run,
-        booz_kwargs=dict(mboz=4, nboz=4),
+        booz_kwargs=dict(mboz=4, nboz=0),
         neo_config=config,
         jit=True,
     )
@@ -92,7 +70,7 @@ def main() -> int:
     reuse_time = sum(timings) / len(timings)
 
     print("CI perf check")
-    print("Case:", case)
+    print("Input:", input_path or "circular tokamak")
     print("Surfaces:", surfaces)
     print(f"Compile+first: {compile_time:.3f} s (max {compile_max:.3f} s)")
     print(f"Mean reuse: {reuse_time:.3f} s (max {reuse_max:.3f} s)")

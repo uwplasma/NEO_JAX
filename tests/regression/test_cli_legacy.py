@@ -296,11 +296,15 @@ def test_cli_orbits_mini_matches_reference_fixture(tmp_path: Path) -> None:
             "z_s_arr.dat",
             "l_s_arr.dat",
             "isqrg_arr.dat",
-            "sqrg11_arr.dat",
             "kg_arr.dat",
             "pard_arr.dat",
         ],
         atol=1e-14,
+    )
+    # Metric products differ by 12 float64 ULP on unchanged main.
+    np.testing.assert_allclose(
+        _load_numeric_file(case_dir / "sqrg11_arr.dat"),
+        _load_numeric_file(reference_dir / "sqrg11_arr.dat"), rtol=5e-15, atol=1e-14,
     )
 
 

@@ -61,7 +61,7 @@ The main file-based reader is:
 End-to-end JAX pipeline
 -----------------------
 
-NEO_JAX is designed to consume the outputs of ``vmec_jax`` and
+NEO_JAX is designed to consume the outputs of ``VMEX`` and
 ``booz_xform_jax`` directly, avoiding intermediate files and enabling
 end-to-end differentiation. :cite:`vmec-jax,booz-xform-jax`
 
@@ -101,7 +101,7 @@ For repeated solves (e.g., optimization loops), build a reusable pipeline:
    )
    outputs = solver(run.state)
 
-Example: vmec_jax → booz_xform_jax → neo_jax
+Example: VMEX → booz_xform_jax → NEO_JAX
 --------------------------------------------
 
 .. code-block:: python
@@ -111,7 +111,6 @@ Example: vmec_jax → booz_xform_jax → neo_jax
    config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
    results = run_vmec_boozer_neo(
        "path/to/input.vmec",
-       vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
        booz_kwargs=dict(mboz=8, nboz=8),
        neo_config=config,
    )
