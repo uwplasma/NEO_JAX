@@ -140,6 +140,8 @@ def read_boozmn(
     booz_path = resolve_boozmn_path(path, extension)
 
     with netCDF4.Dataset(booz_path) as ds:  # type: ignore[union-attr]
+        if "lasym__logical__" in ds.variables and bool(ds.variables["lasym__logical__"][...]):
+            raise ValueError("Nonstellarator symmetric Boozer geometry is not supported")
         nfp = int(ds.variables["nfp_b"][:])
         ns_b = int(ds.variables["ns_b"][:])
         mboz_b = int(ds.variables["mboz_b"][:])

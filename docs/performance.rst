@@ -33,8 +33,7 @@ Kernel Fusion Notes
 The JAX backend inlines the RHS evaluation, RK4 staging, and trapped-particle
 updates inside the scan body. This keeps ``neo_eval`` and the RK4 stages in a
 single fused region and reduces the number of separate kernels emitted by XLA.
-The implementation lives in ``neo_jax.integrate.flint_bo_jax`` and replaces the
-previous ``rk4_step`` + ``_process_trapped`` call boundary for the JIT path.
+The implementation lives in ``neo_jax.integrate.flint_bo_jax`` for the compiled path.
 
 XLA Memory Hotspots (ORBITS_FAST)
 ---------------------------------

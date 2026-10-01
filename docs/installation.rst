@@ -39,7 +39,7 @@ Optional pipeline dependencies
 ------------------------------
 
 VMEX→Boozer→NEO requires Python 3.11+, VMEX 0.11.6+ and booz_xform_jax 0.4.2+.
-After the Boozer release, install:
+Install the pipeline extra:
 
 .. code-block:: bash
 

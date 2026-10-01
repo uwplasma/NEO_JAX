@@ -1,0 +1,85 @@
+{
+  "hardware": "Apple M2 CPU",
+  "jax": "0.10.2",
+  "precision": "float64",
+  "threads": 4,
+  "source_commit": "732f07c",
+  "cases": [
+    {
+      "case": "ORBITS_FAST",
+      "surfaces": 2,
+      "theta_n": 25,
+      "phi_n": 25,
+      "npart": 40,
+      "fortran_cli_s": 0.38246420900395606,
+      "jax_first_s": 8.310646625002846,
+      "jax_warm_s": 6.0186128330096835,
+      "s": [
+        0.4921259842519685,
+        0.7440944881889764
+      ],
+      "fortran_epstot": [
+        3.152195264e-07,
+        1.92235835e-07
+      ],
+      "jax_epstot": [
+        3.152195263539233e-07,
+        1.9223583502634409e-07
+      ],
+      "epstot_rel_max": 1.4617329568977766e-10,
+      "boozmn_sha256": "b6b9f18580774627f81befc0867b39c281a34eec80a5802479aee5027dac1f2c",
+      "history_output": true,
+      "gpu_first_s": 52.27937937702518,
+      "gpu_warm_s": 43.39937353099231,
+      "gpu_epstot": [
+        3.152195263540129e-07,
+        1.9223583502626682e-07
+      ]
+    },
+    {
+      "case": "LandremanPaul2021_QA_lowres",
+      "surfaces": 6,
+      "theta_n": 64,
+      "phi_n": 64,
+      "npart": 40,
+      "fortran_cli_s": 2.164061416988261,
+      "jax_first_s": 18.08517204099917,
+      "jax_warm_s": 15.83885529199324,
+      "s": [
+        0.25,
+        0.38513513513513514,
+        0.5202702702702703,
+        0.6554054054054055,
+        0.7905405405405406,
+        0.9256756756756758
+      ],
+      "fortran_epstot": [
+        3.024589531e-09,
+        5.540962319e-09,
+        1.315999215e-08,
+        2.01080524e-08,
+        2.473526999e-08,
+        2.790721296e-08
+      ],
+      "jax_epstot": [
+        3.0245895311757243e-09,
+        5.540962319388872e-09,
+        1.3159992149842477e-08,
+        2.0108052403464782e-08,
+        2.4735269991700096e-08,
+        2.79072129609053e-08
+      ],
+      "epstot_rel_max": 1.7230816773405877e-10,
+      "boozmn_sha256": "5378dd8f6c4262622145bf048cca926c3d6a79af7743485a19a9d6d8d5c3736c",
+      "history_output": false
+    }
+  ],
+  "gpu_hardware": "NVIDIA RTX A4000",
+  "gpu_jax": "0.9.2",
+  "scope": {
+    "fortran": "CLI, including process startup and file I/O",
+    "jax": "Driver API, including Boozer file reads and compilation; imports excluded",
+    "warm": "Second call in the same process; persistent compilation cache disabled"
+  },
+  "reference_binary_sha256": "75027fd6dae259446065459ce0214d2c1a218c60e13f265e98c593b662e00b13"
+}
