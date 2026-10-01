@@ -124,6 +124,24 @@ def test_jax_surface_scan_normalizes_error_policy() -> None:
     assert np.asarray(results.eps_eff).shape == (1,)
 
 
+def test_jax_surface_kernel_reuses_compile_with_new_coefficients():
+    from dataclasses import replace
+    from neo_jax.driver import _solve_surfaces
+
+    booz = load_boozmn(_orbits_fast_paths())
+    config = NeoConfig(surfaces=[64], theta_n=17, phi_n=17, npart=8, multra=1,
+                       nstep_per=8, nstep_min=4, nstep_max=8, max_m_mode=6, max_n_mode=12)
+    first = run_neo(booz, config=config, jax_surface_scan=True)
+    np.asarray(first.eps_eff)
+    compiled = _solve_surfaces._cache_size()
+    scaled = replace(booz, bmnc=booz.bmnc * 1.01)
+    second = run_neo(scaled, config=config, jax_surface_scan=True)
+    np.asarray(second.eps_eff)
+    assert _solve_surfaces._cache_size() == compiled
+    np.testing.assert_allclose(second.diagnostics['b_ref'],
+                               first.diagnostics['b_ref'] * 1.01, rtol=1e-10)
+
+
 def test_build_surface_problem_maps_s():
     boozmn = _orbits_fast_paths()
     booz = load_boozmn(boozmn)
