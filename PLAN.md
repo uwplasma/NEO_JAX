@@ -90,11 +90,11 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
 - Do not require file I/O for the core pipeline (file I/O only at the boundary for compatibility).
 
 ## Inputs and References
-- STELLOPT NEO Fortran source: `/Users/rogerio/local/STELLOPT/NEO`
+- STELLOPT NEO Fortran source: `STELLOPT/NEO`
 - VMEC and Boozer JAX sources: `vmec_jax` and `booz_xform_jax` from `github.com/uwplasma`
 - Reference fixtures:
-  - ORBITS outputs and debug arrays in `/Users/rogerio/local/tests/NEO_JAX/tests/fixtures/orbits`
-  - NCSX example in `/Users/rogerio/local/tests/NEO_JAX/tests/fixtures/ncsx`
+  - ORBITS outputs and debug arrays in `tests/fixtures/orbits`
+  - NCSX example in `tests/fixtures/ncsx`
 
 ## Required Deliverables
 - A `neo_jax` Python package.
@@ -104,7 +104,7 @@ This plan is written as a step-by-step, always-on prompt. Follow it in order. Do
 - Tests and benchmarks for CPU and GPU.
 
 ## Step 1: Map the Fortran Code (Authoritative Baseline)
-1. Read and map the main flow in `/Users/rogerio/local/STELLOPT/NEO/Sources`:
+1. Read and map the main flow in `STELLOPT/NEO/Sources`:
    - `neo.f90` entry and control flow.
    - `neo_input`, `neo_init`, `neo_init_s`, `neo_fourier`, `neo_eval`.
    - Integration path: `flint_bo`, `rk4d_bo1`, `rhs_bo1`.

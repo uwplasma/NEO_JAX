@@ -1,7 +1,9 @@
+import shutil
 from pathlib import Path
 
 import netCDF4
 import numpy as np
+import pytest
 
 from neo_jax.io import read_boozmn
 
@@ -26,3 +28,15 @@ def test_read_boozmn_orbits():
     assert np.allclose(booz.zmns, zmns_ref)
     assert np.allclose(booz.lmns, lmns_ref)
     assert np.allclose(booz.bmnc, bmnc_ref)
+
+
+def test_read_boozmn_rejects_asymmetric_geometry(tmp_path):
+    source = Path(__file__).resolve().parents[1] / "fixtures/orbits/boozmn_ORBITS.nc"
+    path = tmp_path / "boozmn.nc"
+    shutil.copy2(source, path)
+    with netCDF4.Dataset(path, "a") as ds:
+        ds.variables["lasym__logical__"][...] = 1
+        sine = ds.createVariable("bmns_b", "f8", ds.variables["bmnc_b"].dimensions)
+        sine[...] = 0.01 * ds.variables["bmnc_b"][...]
+    with pytest.raises(ValueError, match="Nonstellarator symmetric"):
+        read_boozmn(path)

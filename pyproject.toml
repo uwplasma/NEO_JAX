@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neo-jax"
-version = "1.0.2"
+version = "1.0.3"
 description = "Neoclassical transport code for effective ripple and trapped-particle diagnostics in Boozer coordinates"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,7 +22,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Physics",
 ]
 
-# Dependencies are minimal at this stage; GPU support is handled by the user's JAX install.
+# GPU support uses the installed JAX backend.
 dependencies = [
   "jax",
   "jaxlib",

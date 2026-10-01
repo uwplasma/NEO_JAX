@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.3 - 2026-10-01
+
+- Reuse compiled surface kernels across surfaces and coefficient updates.
+- Use the maintained VMEX pipeline with booz_xform_jax 0.4.2 or newer.
+- Keep axisymmetric extrema finite and reject unsupported asymmetric NetCDF geometry.
+- Refresh Fortran accuracy comparisons, timings, examples and capability documentation.
+
 ## v1.0.2 - 2026-05-25
 
 Slim-package and fixture-distribution update.
