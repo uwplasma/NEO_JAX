@@ -69,17 +69,17 @@ JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------
 
 NEO_JAX is designed to consume JAX-native VMEC and Boozer transform outputs,
-allowing end-to-end differentiation when paired with ``vmec_jax`` and
+allowing end-to-end differentiation when paired with ``VMEX`` and
 ``booz_xform_jax``. :cite:`vmec-jax,booz-xform-jax`
 
 A typical flow is:
 
-- Use ``vmec_jax`` to compute an equilibrium state from a VMEC input file.
+- Use ``VMEX`` to compute an equilibrium state from a VMEC input file.
 - Use ``booz_xform_jax.jax_api`` to generate Boozer Fourier coefficients and currents.
 - Pass those arrays directly into :func:`neo_jax.run_neo` (or
   :func:`neo_jax.run_boozer_to_neo`) without writing ``wout`` or ``boozmn`` files.
 
-For a convenience wrapper that runs vmec_jax → booz_xform_jax → NEO in one call:
+For a convenience wrapper that runs VMEX → booz_xform_jax → NEO in one call:
 
 .. code-block:: python
 
@@ -88,7 +88,6 @@ For a convenience wrapper that runs vmec_jax → booz_xform_jax → NEO in one c
    config = NeoConfig(surfaces=[0.25, 0.5, 0.75], theta_n=32, phi_n=32)
    results = run_vmec_boozer_neo(
        "path/to/input.vmec",
-       vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
        booz_kwargs=dict(mboz=8, nboz=8),
        neo_config=config,
    )
@@ -108,7 +107,7 @@ For repeated solves or optimization loops, build a reusable JAX pipeline:
    outputs = solver(run.state)
 
 For a JAX-native VMEC→Boozer adapter plus JAX surface scan (no NumPy in VMEC→Boozer),
-use :func:`neo_jax.run_vmec_boozer_neo_jax` on a `vmec_jax.FixedBoundaryRun`.
+use :func:`neo_jax.run_vmec_boozer_neo_jax` on a ``vmex.optimize.Equilibrium``.
 
 See :doc:`vmec_boozer` for the required data interface and mapping details.
 

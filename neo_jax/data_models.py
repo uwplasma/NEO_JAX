@@ -43,7 +43,7 @@ def _merge_static(
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
 class VmecData:
-    """Container for vmec_jax outputs."""
+    """Container for VMEX states."""
 
     state: Any
 
@@ -108,11 +108,13 @@ class NeoOutputs:
     eps_tot: Array
     ctr_one: Array
     ctr_tot: Array
-    diagnostics: Dict[str, Array]
+    diagnostics: Dict[str, Any]
 
     def tree_flatten(self):
-        return _split_static(self, static_fields=())
+        metadata = tuple((k, v) for k, v in self.diagnostics.items() if isinstance(v, str))
+        dynamic = {k: v for k, v in self.diagnostics.items() if not isinstance(v, str)}
+        return (self.eps_eff, self.eps_par, self.eps_tot, self.ctr_one, self.ctr_tot, dynamic), metadata
 
     @classmethod
     def tree_unflatten(cls, aux, children):
-        return _merge_static(cls, children, aux)
+        return cls(*children[:-1], {**children[-1], **dict(aux)})

@@ -4,55 +4,31 @@ from __future__ import annotations
 
 import argparse
 import time
-from pathlib import Path
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Benchmark JIT reuse for the VMEC→Boozer→NEO pipeline")
-    parser.add_argument("--case", default="circular_tokamak", help="vmec_jax example case name")
+    parser.add_argument("input", help="VMEC input file")
     parser.add_argument("--surfaces", default="0.4,0.6,0.8", help="Comma-separated s values in [0,1]")
     parser.add_argument("--theta-n", type=int, default=16, help="NEO theta grid size")
     parser.add_argument("--phi-n", type=int, default=16, help="NEO phi grid size")
     parser.add_argument("--mboz", type=int, default=6, help="Boozer m resolution")
     parser.add_argument("--nboz", type=int, default=6, help="Boozer n resolution")
-    parser.add_argument("--ntheta", type=int, default=16, help="VMEC theta grid size")
-    parser.add_argument("--nzeta", type=int, default=1, help="VMEC zeta grid size")
-    parser.add_argument("--max-iter", type=int, default=2, help="VMEC iterations per solve")
     parser.add_argument("--repeats", type=int, default=3, help="Timed repeats after JIT warmup")
     args = parser.parse_args()
 
     import jax
     import jax.numpy as jnp
 
-    import vmec_jax as vj
-    from vmec_jax.driver import example_paths
-    from vmec_jax.optimization import parse_surface_list
-    from vmec_jax.vmec_tomnsp import vmec_angle_grid
-
+    from vmex import VmecInput
+    from vmex import optimize
     from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
 
-    input_path, _ = example_paths(args.case)
-    cfg, _ = vj.load_input(str(input_path))
-    grid = vmec_angle_grid(
-        ntheta=int(args.ntheta),
-        nzeta=int(args.nzeta),
-        nfp=int(cfg.nfp),
-        lasym=bool(cfg.lasym),
-    )
-
-    vmec_kwargs = dict(
-        max_iter=int(args.max_iter),
-        use_initial_guess=True,
-        vmec_project=False,
-        verbose=False,
-        grid=grid,
-    )
-
-    run = vj.run_fixed_boundary(input_path, **vmec_kwargs)
+    run = optimize.solve_equilibrium(VmecInput.from_file(args.input))
     config = NeoConfig(
         theta_n=int(args.theta_n),
         phi_n=int(args.phi_n),
-        surfaces=parse_surface_list(args.surfaces),
+        surfaces=[float(s) for s in args.surfaces.split(",")],
         npart=12,
         multra=1,
         nstep_per=6,
@@ -85,7 +61,7 @@ def main() -> int:
 
     mean_time = sum(timings) / max(1, len(timings))
 
-    print("Case:", args.case)
+    print("Input:", args.input)
     print("Surfaces:", args.surfaces)
     print(f"JIT compile + first run: {compile_time:.3f} s")
     print(f"Mean reuse time ({len(timings)} runs): {mean_time:.3f} s")

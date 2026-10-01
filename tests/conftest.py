@@ -9,3 +9,28 @@ if ROOT not in sys.path:
 
 # Match Fortran double precision behavior in tests.
 jax.config.update("jax_enable_x64", True)
+
+
+import pytest
+import numpy as np
+
+
+@pytest.fixture(scope="session")
+def vmex_equilibrium(request):
+    vmex = pytest.importorskip("vmex")
+    pytest.importorskip("booz_xform_jax")
+    from vmex import optimize
+
+    ntor = int(getattr(request, "param", 0))
+    rbc, zbs = np.zeros((2 * ntor + 1, 4)), np.zeros((2 * ntor + 1, 4))
+    rbc[ntor, :2], zbs[ntor, 1] = [6, 1], 1
+    if ntor:
+        rbc[ntor + 1, 1], zbs[ntor + 1, 1] = 0.1, -0.1
+    inp = vmex.VmecInput(
+        mpol=4, ntor=ntor, nfp=2 if ntor else 1, ns_array=[9], ntheta=16,
+        nzeta=8 if ntor else 0, niter_array=[3000], ftol_array=[1e-10],
+        rbc=rbc, zbs=zbs, ai=[0.43], phiedge=6, delt=0.9,
+    )
+    eq = optimize.solve_equilibrium(inp)
+    assert eq.result.converged
+    return eq

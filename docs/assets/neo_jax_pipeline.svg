@@ -12,7 +12,7 @@
 
     <rect x="360" y="90" width="220" height="180" rx="18" fill="#0f4c81"/>
     <text x="470" y="136" text-anchor="middle" font-weight="700">In-memory path</text>
-    <text x="470" y="172" text-anchor="middle">vmec_jax</text>
+    <text x="470" y="172" text-anchor="middle">VMEX</text>
     <text x="470" y="204" text-anchor="middle">booz_xform_jax</text>
     <text x="470" y="236" text-anchor="middle">Boozer mapping</text>
 

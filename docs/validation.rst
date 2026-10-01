@@ -201,12 +201,10 @@ Tips:
 - If you see out-of-memory errors, lower ``XLA_PYTHON_CLIENT_MEM_FRACTION`` or
   set ``XLA_PYTHON_CLIENT_PREALLOCATE=false``.
 
-GPU validation on ``office``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GPU validation
+~~~~~~~~~~~~~~
 
-NEO_JAX was revalidated on March 10, 2026 on the ``office`` workstation
-(``pop-os``) with 2x NVIDIA RTX A4000 GPUs and JAX 0.6.2 in
-``/home/rjorge/venvs/vmec_jax_gpu_bench``.
+NEO_JAX was validated on March 10, 2026 with two NVIDIA RTX A4000 GPUs, Linux and JAX 0.6.2.
 
 The GPU smoke suite is:
 
@@ -227,7 +225,7 @@ In addition, the user-facing ``examples/ncsx_epsilon_effective_plot.py`` script
 was run on the same GPU host with ``MPLBACKEND=Agg`` and produced
 ``examples/ncsx_eps_eff_vs_s.png`` successfully.
 
-Measured cold-run snapshots on ``office``:
+Measured cold-run snapshots:
 
 .. list-table::
    :header-rows: 1
