@@ -72,7 +72,6 @@ Example: in-memory pipeline
    config = NeoConfig(surfaces=[0.3, 0.5, 0.7], theta_n=64, phi_n=64)
    results = run_vmec_boozer_neo(
        "input.vmec",
-       vmec_kwargs=dict(max_iter=1, use_initial_guess=True, vmec_project=False),
        booz_kwargs=dict(mboz=12, nboz=12),
        neo_config=config,
    )

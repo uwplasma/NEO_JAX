@@ -37,7 +37,7 @@ NEO_JAX supports three main user workflows:
 2. **In-memory Boozer workflow**:
    pass arrays from ``booz_xform_jax`` directly into :func:`neo_jax.run_neo`.
 3. **End-to-end VMEC→Boozer→NEO workflow**:
-   compose ``vmec_jax``, ``booz_xform_jax``, and NEO_JAX without intermediate
+   compose ``VMEX``, ``booz_xform_jax``, and NEO_JAX without intermediate
    files. :cite:`vmec-jax,booz-xform-jax`
 
 NEO_JAX also preserves support for standard ``neo_in.*`` and ``neo_param.*``
