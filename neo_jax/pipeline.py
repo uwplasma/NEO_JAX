@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
-from dataclasses import replace
 
 import numpy as np
 
@@ -32,11 +32,9 @@ def booz_xform_from_vmec_wout(
     flux: bool = False,
     jit: bool = True,
 ) -> Mapping[str, Any]:
-    """Transform a symmetric VMEC wout; integer surfaces are 1-based half-grid rows."""
+    """Transform a VMEC wout; integer surfaces are 1-based half-grid rows."""
     from booz_xform_jax import Booz_xform
 
-    if bool(getattr(wout, "lasym", getattr(wout, "asym", False))):
-        raise ValueError("NEO_JAX requires stellarator-symmetric equilibria")
     bx = Booz_xform(verbose=0)
     bx.read_wout_data(wout, flux=flux)
     if mboz is not None:
@@ -48,6 +46,7 @@ def booz_xform_from_vmec_wout(
     out = bx.run_jax(jit=jit)
     out["s_b"] = np.asarray(bx.s_in)[indices]
     out["ns_b"] = len(bx.s_in) + 1
+    out["asym"] = bool(bx.asym)
     return out
 
 
@@ -76,8 +75,6 @@ def _build_boozer_transform(vmec_run, *, mboz=None, nboz=None, surfaces=None):
     from vmex.core.boozer_tables import boozer_input_tables
 
     rt = vmec_run.runtime
-    if rt.setup.lasym:
-        raise ValueError("NEO_JAX requires stellarator-symmetric equilibria")
     s_full = np.asarray(rt.setup.s_full)
     s_half = 0.5 * (s_full[:-1] + s_full[1:])
     indices = _surface_indices(s_half, surfaces)
@@ -87,19 +84,21 @@ def _build_boozer_transform(vmec_run, *, mboz=None, nboz=None, surfaces=None):
         nfp=int(rt.resolution.nfp),
         mboz=int(rt.resolution.mpol if mboz is None else mboz),
         nboz=int(rt.resolution.ntor if nboz is None else nboz),
-        asym=False, xm=xm, xn=xn, xm_nyq=xm, xn_nyq=xn,
+        asym=bool(rt.setup.lasym), xm=xm, xn=xn, xm_nyq=xm, xn_nyq=xn,
     )
 
     def transform(state):
         tables = [boozer_input_tables(state, rt, int(i) + 1) for i in indices]
-        inputs = {name: jnp.stack([table[name] for table in tables]) for name in
-                  ("rmnc", "zmns", "lmns", "bmnc", "bsubumnc", "bsubvmnc", "iota")}
+        names = ("rmnc", "zmns", "lmns", "bmnc", "bsubumnc", "bsubvmnc", "iota")
+        if rt.setup.lasym:
+            names += ("rmns", "zmnc", "lmnc", "bmns", "bsubumns", "bsubvmns")
+        inputs = {name: jnp.stack([table[name] for table in tables]) for name in names}
         out = booz_xform_jax_impl(
             **inputs, xm=jnp.asarray(xm), xn=jnp.asarray(xn),
             xm_nyq=jnp.asarray(xm), xn_nyq=jnp.asarray(xn), constants=constants, grids=grids,
         )
         out.update(s_b=jnp.asarray(s_half[indices]), ns_b=len(s_full),
-                   jlist=jnp.asarray(indices + 2))
+                   jlist=jnp.asarray(indices + 2), asym=bool(rt.setup.lasym))
         return out
 
     return transform, grids, int(rt.resolution.nfp)
@@ -131,8 +130,7 @@ def _resolve_vmec_wout(
     if hasattr(vmec_source, "runtime") and hasattr(vmec_source, "state"):
         return vmec_source.wout
 
-    from vmex import VmecInput, read_wout
-    from vmex import optimize
+    from vmex import VmecInput, optimize, read_wout
 
     if isinstance(vmec_source, (str, Path)):
         if Path(vmec_source).suffix == ".nc":
@@ -196,7 +194,8 @@ def build_vmec_boozer_neo_jax(
 ):
     """Build a reusable differentiable VMEX state -> full Boozer geometry -> NEO solve."""
     import jax
-    from .driver import run_neo_from_boozer_jax, _resolve_max_rational_field_periods
+
+    from .driver import _resolve_max_rational_field_periods, run_neo_from_boozer_jax
     from .io import booz_xform_to_boozerdata_jax
 
     cfg = neo_config or NeoConfig()
@@ -222,7 +221,8 @@ def build_vmec_boozer_neo_jax(
 
     def solve(state):
         booz = booz_xform_to_boozerdata_jax(
-            transform(state), nfp_override=nfp, mode_indices=mode_indices)
+            transform(state), nfp_override=nfp, mode_indices=mode_indices,
+            asym_override=bool(rt.setup.lasym))
         return run_neo_from_boozer_jax(
             booz, control, skip_fourier_mask=True,
             max_rational_field_periods=cfg.max_rational_field_periods,

@@ -1,11 +1,12 @@
 import pathlib
 
-import numpy as np
+import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 
 from neo_jax.fourier import derived_quantities, fourier_sums
 from neo_jax.grids import prepare_grids
-
 
 FIXTURE_DIR = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "orbits"
 
@@ -163,3 +164,32 @@ def test_fourier_streamed_matches_vectorized(monkeypatch):
         assert np.allclose(
             np.asarray(vec_derived[key]), np.asarray(streamed_derived[key]), rtol=1e-8, atol=1e-10
         )
+
+
+@pytest.mark.parametrize("backend", ["vectorized", "streamed"])
+def test_asymmetric_fourier_and_derivatives(monkeypatch, backend):
+    monkeypatch.setenv("NEO_JAX_FOURIER_MODE", backend)
+    grid = prepare_grids(17, 13, 3)
+    m, n = jnp.array([0, 1, 2]), jnp.array([0, 3, -3])
+    cosine = jnp.array([2., .3, .07])
+    sine = jnp.array([0., .08, -.04])
+    phase = np.asarray(grid["theta_arr"])[:, None, None] * np.asarray(m)
+    phase = phase - np.asarray(grid["phi_arr"])[None, :, None] * np.asarray(n)
+
+    def evaluate(bmns):
+        return fourier_sums(grid["theta_arr"], grid["phi_arr"], cosine, sine, sine,
+                            cosine, m, n, 3, 2, 3, lasym=True, skip_mask=True,
+                            rmns=sine, zmnc=cosine, lmnc=cosine, bmns=bmns)
+
+    fields = jax.jit(evaluate)(sine)
+    expected_b = np.sum(cosine * np.cos(phase) + sine * np.sin(phase), axis=-1)
+    expected_theta = np.sum(m * (-cosine * np.sin(phase) + sine * np.cos(phase)), axis=-1)
+    expected_phi = np.sum(n * (cosine * np.sin(phase) - sine * np.cos(phase)), axis=-1)
+    for key in ("r", "z", "l", "b"):
+        np.testing.assert_allclose(fields[key], expected_b, atol=1e-14)
+    np.testing.assert_allclose(fields["b_tb"], expected_theta, atol=1e-14)
+    np.testing.assert_allclose(fields["b_pb"], expected_phi, atol=1e-14)
+    np.testing.assert_allclose(fields["p_tb"], -expected_theta * (2*np.pi/3), atol=1e-14)
+    np.testing.assert_allclose(fields["p_pb"], 1.-expected_phi * (2*np.pi/3), atol=1e-14)
+    gradient = jax.jit(jax.grad(lambda bs: evaluate(bs)["b"][3, 4]))(sine)
+    np.testing.assert_allclose(gradient, np.sin(phase[3, 4]), atol=1e-14)
