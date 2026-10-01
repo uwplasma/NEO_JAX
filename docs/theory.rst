@@ -16,7 +16,8 @@ Fourier series:
 .. math::
 
    B(\theta_B,\phi_B;\psi)
-   = \sum_{m,n} B_{mn}(\psi)\cos(m\theta_B - n\phi_B).
+   = \sum_{m,n} B^c_{mn}(\psi)\cos(m\theta_B - n\phi_B)
+     + B^s_{mn}(\psi)\sin(m\theta_B - n\phi_B).
 
 The magnetic field can be written in the usual covariant/contravariant Boozer
 forms, which is the representation produced by Boozer transforms of VMEC
@@ -27,11 +28,11 @@ equilibria:
    \mathbf{B}
    = \nabla\psi \times \nabla\theta_B
    + \iota(\psi)\,\nabla\phi_B \times \nabla\psi
-   = G(\psi)\nabla\theta_B + I(\psi)\nabla\phi_B + B_\psi \nabla\psi.
+   = I(\psi)\nabla\theta_B + G(\psi)\nabla\phi_B + B_\psi \nabla\psi.
 
 Here :math:`\iota` is the rotational transform, while :math:`I` and :math:`G`
 are the Boozer current functions supplied by the geometry input. In NEO_JAX
-they appear as ``curr_pol`` and ``curr_tor``.
+``curr_pol`` stores :math:`G` and ``curr_tor`` stores :math:`I`.
 
 Continuous state integrated along a field line
 ----------------------------------------------

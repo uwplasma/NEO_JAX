@@ -7,7 +7,7 @@ contravariant and covariant forms,
 .. math::
 
    \mathbf{B} = \nabla \psi \times \nabla \theta_B + \iota \nabla \phi_B \times \nabla \psi
-   = I(\psi) \nabla \phi_B + G(\psi) \nabla \theta_B + B_\psi \nabla \psi.
+   = I(\psi) \nabla \theta_B + G(\psi) \nabla \phi_B + B_\psi \nabla \psi.
 
 This representation is the basis for the Boozer transform and the ``boozmn``
 file format consumed by NEO_JAX. :cite:`booz-xform-jax,stelopt-neo-docs`
@@ -29,7 +29,7 @@ NEO expects Fourier coefficients on each flux surface:
 - ``rmns``, ``zmnc``, ``lmnc``, ``bmns``: complementary coefficients for asymmetric geometry.
 - ``ixm``, ``ixn``: poloidal and toroidal mode numbers.
 - ``iota``: rotational transform profile.
-- ``curr_pol`` and ``curr_tor``: Boozer currents :math:`I` and :math:`G`.
+- ``curr_pol`` and ``curr_tor``: Boozer coefficients :math:`G` and :math:`I`, respectively.
 - ``nfp``: number of field periods.
 
 Mapping from boozmn
