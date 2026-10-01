@@ -16,8 +16,8 @@ Fourier series:
 .. math::
 
    B(\theta_B,\phi_B;\psi)
-   = \sum_{m,n} B^c_{mn}(\psi)\cos(m\theta_B - n\phi_B)
-     + B^s_{mn}(\psi)\sin(m\theta_B - n\phi_B).
+   = \sum_{m,n} \left[B^c_{mn}(\psi)\cos(m\theta_B - n\phi_B)
+     + B^s_{mn}(\psi)\sin(m\theta_B - n\phi_B)\right].
 
 The magnetic field can be written in the usual covariant/contravariant Boozer
 forms, which is the representation produced by Boozer transforms of VMEC
