@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Tuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 Array = jax.Array
 
@@ -65,49 +67,34 @@ def splreg(y: Array, h: float) -> Tuple[Array, Array, Array]:
     return bi, ci, di
 
 
-def spfper(np1: int, dtype=jnp.float64) -> Tuple[Array, Array, Array]:
-    """Helper routine for periodic splines (port of spfper.f90)."""
-    n = np1 - 1
-    n1 = n - 1
-
-    amx1 = jnp.zeros(np1, dtype=dtype)
-    amx2 = jnp.zeros(np1, dtype=dtype)
-    amx3 = jnp.zeros(np1, dtype=dtype)
-
-    amx1 = amx1.at[0].set(2.0)
-    amx2 = amx2.at[0].set(0.5)
-    amx3 = amx3.at[0].set(0.5)
-
+@lru_cache(maxsize=32)
+def _periodic_factors(np1: int, dtype: str):
+    """Factor the grid-only periodic spline matrix once per shape and dtype."""
+    n, n1 = np1 - 1, np1 - 2
+    amx1, amx2, amx3 = np.zeros((3, np1), dtype=dtype)
+    amx1[0], amx2[0], amx3[0] = 2.0, 0.5, 0.5
     if np1 > 1:
-        amx1 = amx1.at[1].set(jnp.sqrt(15.0) / 2.0)
-        amx2 = amx2.at[1].set(1.0 / amx1[1])
-        amx3 = amx3.at[1].set(-0.25 / amx1[1])
-
-    beta0 = 3.75
-
-    def loop_body(i, state):
-        amx1, amx2, amx3, beta = state
+        amx1[1] = np.sqrt(15.0) / 2.0
+        amx2[1], amx3[1] = 1.0 / amx1[1], -0.25 / amx1[1]
+    beta = 3.75
+    for i in range(2, n1):
         beta = 4.0 - 1.0 / beta
-        amx1 = amx1.at[i].set(jnp.sqrt(beta))
-        amx2 = amx2.at[i].set(1.0 / amx1[i])
-        amx3 = amx3.at[i].set(-amx3[i - 1] / amx1[i] / amx1[i - 1])
-        return amx1, amx2, amx3, beta
-
-    # Fortran loop i=3..n1 => Python i=2..n1-1
-    if n1 > 2:
-        amx1, amx2, amx3, _ = jax.lax.fori_loop(2, n1, loop_body, (amx1, amx2, amx3, beta0))
-    else:
-        _ = beta0
-
+        amx1[i] = np.sqrt(beta)
+        amx2[i] = 1.0 / amx1[i]
+        amx3[i] = -amx3[i-1] / amx1[i] / amx1[i-1]
     if n1 >= 1:
-        amx3 = amx3.at[n1 - 1].set(amx3[n1 - 1] + 1.0 / amx1[n1 - 1])
-        amx2 = amx2.at[n1 - 1].set(amx3[n1 - 1])
-
-    ss = jnp.sum(amx3[: n1] * amx3[: n1]) if n1 > 0 else 0.0
+        amx3[n1-1] += 1.0 / amx1[n1-1]
+        amx2[n1-1] = amx3[n1-1]
     if n >= 1:
-        amx1 = amx1.at[n - 1].set(jnp.sqrt(4.0 - ss))
-
+        amx1[n-1] = np.sqrt(4.0 - np.sum(amx3[:n1]**2))
+    for array in (amx1, amx2, amx3):
+        array.setflags(write=False)
     return amx1, amx2, amx3
+
+
+def spfper(np1: int, dtype=jnp.float64) -> Tuple[Array, Array, Array]:
+    """Periodic spline factors, kept outside the compiled field calculation."""
+    return tuple(jnp.asarray(a) for a in _periodic_factors(np1, np.dtype(dtype).str))
 
 
 def splper(y: Array, h: float) -> Tuple[Array, Array, Array]:

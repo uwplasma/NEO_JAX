@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
-import math
-import numpy as np
-
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from .fourier import derived_quantities, fourier_sums
 from .geometry import neo_zeros2d
@@ -49,14 +48,14 @@ def build_splines(
     mp: int,
     calc_cur: bool = False,
 ) -> Dict[str, Array]:
-    b_spl = spl2d(fields["b"], theta_int, phi_int, mt, mp)
-    g_spl = spl2d(fields["sqrg11"], theta_int, phi_int, mt, mp)
-    k_spl = spl2d(fields["kg"], theta_int, phi_int, mt, mp)
-    p_spl = spl2d(fields["pard"], theta_int, phi_int, mt, mp)
-    splines = {"b_spl": b_spl, "g_spl": g_spl, "k_spl": k_spl, "p_spl": p_spl}
+    names = ["b", "sqrg11", "kg", "pard"]
+    keys = ["b_spl", "g_spl", "k_spl", "p_spl"]
     if calc_cur and "bqtphi" in fields:
-        splines["q_spl"] = spl2d(fields["bqtphi"], theta_int, phi_int, mt, mp)
-    return splines
+        names.append("bqtphi")
+        keys.append("q_spl")
+    coefficients = jax.vmap(lambda f: spl2d(f, theta_int, phi_int, mt, mp))(
+        jnp.stack([fields[name] for name in names]))
+    return dict(zip(keys, coefficients))
 
 
 def _select_extremum_index(
