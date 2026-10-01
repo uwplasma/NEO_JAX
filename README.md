@@ -177,7 +177,7 @@ Current comparison status:
   the intermediate current history.
 - The legacy array dumps (`*_arr.dat`, `dimension.dat`, `theta_arr.dat`,
   `phi_arr.dat`) are numerically identical to within floating-point roundoff.
-- GPU execution is now validated separately on the ``office`` workstation for
+- GPU execution is now validated separately on two NVIDIA RTX A4000 GPUs for
   both ``python -m neo_jax`` and the Python API; see the GPU table below.
 
 ## Low-|iota| Surfaces
@@ -353,7 +353,7 @@ Notes:
 
 ## GPU Validation Snapshot
 
-Validated on ``office`` (Pop!_OS, 2x NVIDIA RTX A4000, JAX 0.6.2) with:
+Validated with two NVIDIA RTX A4000 GPUs, Linux and JAX 0.6.2:
 
 ```bash
 env NEO_JAX_RUN_GPU=1 JAX_PLATFORM_NAME=gpu python -m pytest -q \
@@ -369,7 +369,7 @@ That GPU smoke suite checks:
   run on the same GPU host with ``MPLBACKEND=Agg`` and completed successfully
   while writing ``examples/ncsx_eps_eff_vs_s.png``
 
-Cold-run timing on the same ``office`` host:
+Cold-run timing on the same hardware:
 
 | Path | Case | CPU runtime (s) | GPU runtime (s) | CPU max RSS (MiB) | GPU max RSS (MiB) | Notes |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
@@ -392,11 +392,10 @@ Repro commands:
 
 ```bash
 # Fortran runtime + memory
-/usr/bin/time -l /Users/rogerio/local/STELLOPT/NEO/Release/xneo ncsx_c09r00_free
+/usr/bin/time -l xneo ncsx_c09r00_free
 
 # JAX runtime (steady-state) + memory
-/usr/bin/time -l env PYTHONPATH=/Users/rogerio/local/tests/NEO_JAX \
-  python /Users/rogerio/local/tests/NEO_JAX/benchmarks/benchmark_ncsx.py --jax --warmup
+/usr/bin/time -l python benchmarks/benchmark_ncsx.py --jax --warmup
 ```
 
 

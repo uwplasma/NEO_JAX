@@ -17,6 +17,6 @@ Regeneration (fast reference):
 ```bash
 # Temporarily use the fast control file as neo_param.in so xneo reads it
 cp neo_in.ncsx_c09r00_free_fast neo_param.in
-/Users/rogerio/local/STELLOPT/NEO/Release/xneo ncsx_c09r00_free
+xneo ncsx_c09r00_free
 rm neo_param.in
 ```

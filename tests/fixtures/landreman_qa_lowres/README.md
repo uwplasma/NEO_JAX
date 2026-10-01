@@ -12,7 +12,7 @@ Regeneration commands (from this directory):
 
 ```bash
 # VMEC
-/Users/rogerio/local/STELLOPT/VMEC2000/Release/xvmec2000 input.LandremanPaul2021_QA_lowres noscreen
+xvmec2000 input.LandremanPaul2021_QA_lowres noscreen
 
 # Boozer transform (surfaces 20, 30, 40, 50, 60, 70)
 cat > input.boz_LandremanPaul2021_QA_lowres <<'BOZ'
@@ -20,10 +20,10 @@ cat > input.boz_LandremanPaul2021_QA_lowres <<'BOZ'
 LandremanPaul2021_QA_lowres
 20 30 40 50 60 70
 BOZ
-/Users/rogerio/local/STELLOPT/BOOZ_XFORM/Release/xbooz_xform input.boz_LandremanPaul2021_QA_lowres F
+xbooz_xform input.boz_LandremanPaul2021_QA_lowres F
 
 # NEO reference output
-/Users/rogerio/local/STELLOPT/NEO/Release/xneo LandremanPaul2021_QA_lowres
+xneo LandremanPaul2021_QA_lowres
 ```
 
 Notes:
