@@ -140,8 +140,7 @@ def read_boozmn(
     booz_path = resolve_boozmn_path(path, extension)
 
     with netCDF4.Dataset(booz_path) as ds:  # type: ignore[union-attr]
-        if "lasym__logical__" in ds.variables and bool(ds.variables["lasym__logical__"][...]):
-            raise ValueError("Nonstellarator symmetric Boozer geometry is not supported")
+        lasym = "lasym__logical__" in ds.variables and bool(ds.variables["lasym__logical__"][...])
         nfp = int(ds.variables["nfp_b"][:])
         ns_b = int(ds.variables["ns_b"][:])
         mboz_b = int(ds.variables["mboz_b"][:])
@@ -155,18 +154,24 @@ def read_boozmn(
         bvco_b = np.array(ds.variables["bvco_b"][:], dtype=float)
         pres_b = np.array(ds.variables["pres_b"][:], dtype=float) if "pres_b" in ds.variables else None
 
-        rmnc_raw = np.array(ds.variables["rmnc_b"][:], dtype=float)
-        zmns_raw = np.array(ds.variables["zmns_b"][:], dtype=float)
-        pmns_raw = np.array(ds.variables["pmns_b"][:], dtype=float)
-        bmnc_raw = np.array(ds.variables["bmnc_b"][:], dtype=float)
-        gmn_raw = np.array(ds.variables["gmn_b"][:], dtype=float) if "gmn_b" in ds.variables else None
+        mode_dims = (ds.variables["ixm_b"].dimensions[0], "mn_mode", "mn_modes")
+        def coefficient(name):
+            variable = ds.variables[name]
+            value = np.asarray(variable[:], dtype=float)
+            return value.T if variable.dimensions[0] in mode_dims else value
+        rmnc_raw, zmns_raw, pmns_raw, bmnc_raw = (
+            coefficient(name) for name in ("rmnc_b", "zmns_b", "pmns_b", "bmnc_b"))
+        gmn_raw = coefficient("gmn_b") if "gmn_b" in ds.variables else None
+        asymmetric = {name: coefficient(raw) for name, raw in
+                      (("rmns", "rmns_b"), ("zmnc", "zmnc_b"),
+                       ("lmnc", "pmnc_b"), ("bmns", "bmns_b"))} if lasym else {}
 
         if "jlist" in ds.variables:
             jlist = np.array(ds.variables["jlist"][:], dtype=int)
         else:
             jlist = np.arange(1, rmnc_raw.shape[0] + 1, dtype=int)
 
-    pack_len = rmnc_raw.shape[0]
+    pack_len = len(jlist)
     rmnc_pack = _transpose_if_needed(rmnc_raw, pack_len)
     zmns_pack = _transpose_if_needed(zmns_raw, pack_len)
     pmns_pack = _transpose_if_needed(pmns_raw, pack_len)
@@ -188,6 +193,11 @@ def read_boozmn(
         surfaces = list(fluxs_arr)
     else:
         surfaces = list(jlist)
+    packed_rows = [pack_index[int(surf)] for surf in surfaces if int(surf) in pack_index]
+    asymmetric = {name: _transpose_if_needed(value, pack_len)[packed_rows][:, mode_mask]
+                  for name, value in asymmetric.items()}
+    if lasym:
+        asymmetric["lmnc"] *= -nfp / (2.0 * math.pi)
 
     rmnc = []
     zmns = []
@@ -225,6 +235,7 @@ def read_boozmn(
             sqrtg00.append(0.0)
 
     return BoozerData(
+        **asymmetric,
         rmnc=np.asarray(rmnc),
         zmns=np.asarray(zmns),
         lmns=np.asarray(lmns),
@@ -280,215 +291,98 @@ def _packed_boozer_profiles(booz, ns, xp, *profiles):
     return es, *packed
 
 
-def booz_xform_to_boozerdata(
-    booz: object,
-    *,
-    max_m_mode: int = 0,
-    max_n_mode: int = 0,
-    fluxs_arr: Optional[Sequence[int]] = None,
-    use_jax: bool | None = None,
-) -> BoozerData:
-    """Convert booz_xform-style arrays into BoozerData.
 
-    The input object can be a mapping or an object with attributes matching the
-    boozmn variable names (e.g., ``rmnc_b``, ``zmns_b``, ``pmns_b``).
-    """
+def _convert_boozer(
+    booz, *, use_jax, max_m_mode=0, max_n_mode=0, fluxs_arr=None,
+    nfp_override=None, mode_indices=None, asym_override=None, mode_first=None,
+):
+    xp = jnp if use_jax else np
 
-    def _get(name: str):
-        if isinstance(booz, dict) and name in booz:
-            return booz[name]
-        if hasattr(booz, name):
-            return getattr(booz, name)
-        raise KeyError(f"Missing field {name} in Boozer data")
+    def get(name, default=None):
+        return booz.get(name, default) if isinstance(booz, dict) else getattr(booz, name, default)
 
-    def _asarray(obj, *, dtype=None):
-        if isinstance(obj, np.ma.MaskedArray):
-            obj = obj.filled()
-        return xp.asarray(obj, dtype=dtype)
+    def array(name, dtype=None):
+        value = get(name)
+        if value is None:
+            raise KeyError(f"Missing field {name} in Boozer data")
+        return xp.asarray(value.filled() if isinstance(value, np.ma.MaskedArray) else value,
+                          dtype=dtype)
 
-    sample = _get("rmnc_b")
-    if use_jax is None:
-        use_jax = _JAX_AVAILABLE and isinstance(sample, jax.Array)  # type: ignore[arg-type]
+    nfp = int(nfp_override if nfp_override is not None else np.asarray(get("nfp_b")))
+    ixm, ixn = array("ixm_b", int), array("ixn_b", int)
+    if mode_first is None:
+        mode_first = bool(get("mode_first", not isinstance(booz, dict)))
 
-    if use_jax and _JAX_AVAILABLE:
-        return booz_xform_to_boozerdata_jax(
-            booz,
-            max_m_mode=max_m_mode,
-            max_n_mode=max_n_mode,
-            fluxs_arr=fluxs_arr,
-        )
+    def packed(name):
+        value = array(name)
+        if value.shape[1] != len(ixm) or (mode_first and value.shape[0] == len(ixm)):
+            value = value.T
+        if value.shape[1] != len(ixm):
+            raise ValueError("Boozer coefficients must have one column per mode")
+        return value
 
-    xp = jnp if (use_jax and _JAX_AVAILABLE) else np
-
-    nfp = int(np.asarray(_get("nfp_b")).squeeze())
-    ixm_b = _asarray(_get("ixm_b"), dtype=int)
-    ixn_b = _asarray(_get("ixn_b"), dtype=int)
-
-    iota_b = _asarray(_get("iota_b"), dtype=float)
-    buco_b = _asarray(_get("buco_b"), dtype=float)
-    bvco_b = _asarray(_get("bvco_b"), dtype=float)
-
-    rmnc_raw = _asarray(_get("rmnc_b"), dtype=float)
-    zmns_raw = _asarray(_get("zmns_b"), dtype=float)
-    pmns_raw = _asarray(_get("pmns_b"), dtype=float)
-    bmnc_raw = _asarray(_get("bmnc_b"), dtype=float)
-
-    if rmnc_raw.shape[0] == ixm_b.shape[0]:
-        rmnc_raw = rmnc_raw.T
-        zmns_raw = zmns_raw.T
-        pmns_raw = pmns_raw.T
-        bmnc_raw = bmnc_raw.T
-
-    ns_b = rmnc_raw.shape[0]
-
-    max_m = max_m_mode if max_m_mode > 0 else int(np.max(np.abs(np.asarray(ixm_b))))
-    max_n = max_n_mode if max_n_mode > 0 else int(np.max(np.abs(np.asarray(ixn_b))))
-    mode_mask = _select_modes(ixm_b, ixn_b, max_m, max_n)
-
-    ixm = ixm_b[mode_mask]
-    ixn = ixn_b[mode_mask]
-
-    if fluxs_arr:
-        surfaces = list(fluxs_arr)
+    rmnc = packed("rmnc_b")
+    ns = rmnc.shape[0]
+    es, iota, curr_tor, curr_pol = _packed_boozer_profiles(
+        booz, ns, xp, array("iota_b"), array("buco_b"), array("bvco_b"))
+    if fluxs_arr and any(not 1 <= int(s) <= ns for s in fluxs_arr):
+        raise ValueError("Surface index is outside the Boozer data")
+    rows = xp.asarray([int(s)-1 for s in fluxs_arr], dtype=int) if fluxs_arr else xp.arange(ns)
+    if mode_indices is None:
+        max_m = max_m_mode if max_m_mode > 0 else xp.max(xp.abs(ixm))
+        max_n = max_n_mode if max_n_mode > 0 else xp.max(xp.abs(ixn))
+        mask = (xp.abs(ixm) <= max_m) & (xp.abs(ixn) <= max_n)
+        modes = None
     else:
-        surfaces = list(range(1, ns_b + 1))
+        modes = xp.asarray(mode_indices, dtype=int)
 
-    rmnc = []
-    zmns = []
-    lmns = []
-    bmnc = []
-    es = []
-    iota = []
-    curr_pol = []
-    curr_tor = []
+    def select(value):
+        value = xp.take(value, rows, axis=0)
+        return value[:, mask] if modes is None else xp.take(value, modes, axis=1)
 
-    s_vals, iota_b, buco_b, bvco_b = _packed_boozer_profiles(booz, ns_b, xp, iota_b, buco_b, bvco_b)
-    for surf in surfaces:
-        surf_idx = surf - 1
-        rmnc.append(rmnc_raw[surf_idx, mode_mask])
-        zmns.append(zmns_raw[surf_idx, mode_mask])
-        lmns.append(-pmns_raw[surf_idx, mode_mask] * nfp / (2.0 * math.pi))
-        bmnc.append(bmnc_raw[surf_idx, mode_mask])
-
-        es.append(s_vals[surf_idx])
-        iota.append(iota_b[surf_idx])
-        curr_pol.append(bvco_b[surf_idx])
-        curr_tor.append(buco_b[surf_idx])
-
-    arr = xp.asarray
-
+    sine_present = any(get(name) is not None for name in ("rmns_b", "zmnc_b", "pmnc_b", "bmns_b"))
+    asymmetric = (bool(get("asym", get("lasym", sine_present)))
+                  if asym_override is None else bool(asym_override))
+    names = {"rmnc": "rmnc_b", "zmns": "zmns_b", "lmns": "pmns_b", "bmnc": "bmnc_b"}
+    if asymmetric:
+        names.update(rmns="rmns_b", zmnc="zmnc_b", lmnc="pmnc_b", bmns="bmns_b")
+    coefficients = {name: select(rmnc if name == "rmnc" else packed(raw))
+                    for name, raw in names.items()}
+    for name in ("lmns", "lmnc"):
+        if name in coefficients:
+            coefficients[name] *= -nfp / (2.0 * math.pi)
     return BoozerData(
-        rmnc=arr(rmnc),
-        zmns=arr(zmns),
-        lmns=arr(lmns),
-        bmnc=arr(bmnc),
-        ixm=arr(ixm),
-        ixn=arr(ixn),
-        es=arr(es),
-        iota=arr(iota),
-        curr_pol=arr(curr_pol),
-        curr_tor=arr(curr_tor),
-        nfp=nfp,
+        **coefficients, nfp=nfp, es=xp.take(es, rows),
+        ixm=ixm[mask] if modes is None else xp.take(ixm, modes),
+        ixn=ixn[mask] if modes is None else xp.take(ixn, modes),
+        iota=xp.take(iota, rows), curr_pol=xp.take(curr_pol, rows),
+        curr_tor=xp.take(curr_tor, rows),
     )
+
+
+def booz_xform_to_boozerdata(
+    booz: object, *, max_m_mode: int = 0, max_n_mode: int = 0,
+    fluxs_arr: Optional[Sequence[int]] = None, use_jax: bool | None = None,
+    mode_first: bool | None = None,
+) -> BoozerData:
+    """Convert Boozer arrays; square mappings are surface-first, objects mode-first."""
+    sample = booz.get("rmnc_b") if isinstance(booz, dict) else getattr(booz, "rmnc_b")
+    if use_jax is None:
+        use_jax = _JAX_AVAILABLE and isinstance(sample, jax.Array)
+    return _convert_boozer(booz, use_jax=use_jax, max_m_mode=max_m_mode,
+                           max_n_mode=max_n_mode, fluxs_arr=fluxs_arr, mode_first=mode_first)
 
 
 def booz_xform_to_boozerdata_jax(
-    booz: object,
-    *,
-    max_m_mode: int = 0,
-    max_n_mode: int = 0,
-    fluxs_arr: Optional[Sequence[int]] = None,
-    nfp_override: int | None = None,
-    mode_indices: Optional[Sequence[int]] = None,
+    booz: object, *, max_m_mode: int = 0, max_n_mode: int = 0,
+    fluxs_arr: Optional[Sequence[int]] = None, nfp_override: int | None = None,
+    mode_indices: Optional[Sequence[int]] = None, asym_override: bool | None = None,
+    mode_first: bool | None = None,
 ) -> BoozerData:
-    """JAX-friendly conversion from booz_xform outputs to BoozerData."""
+    """Convert traced Boozer outputs with static symmetry and mode selection."""
     if not _JAX_AVAILABLE:  # pragma: no cover - optional
         raise ImportError("JAX is required for booz_xform_to_boozerdata_jax")
-
-    def _get(name: str):
-        if isinstance(booz, dict) and name in booz:
-            return booz[name]
-        if hasattr(booz, name):
-            return getattr(booz, name)
-        raise KeyError(f"Missing field {name} in Boozer data")
-
-    def _asarray(obj, *, dtype=None):
-        if isinstance(obj, np.ma.MaskedArray):
-            obj = obj.filled()
-        return jnp.asarray(obj, dtype=dtype)
-
-    nfp = nfp_override if nfp_override is not None else _asarray(_get("nfp_b")).reshape(())[()]
-    ixm_b = _asarray(_get("ixm_b"), dtype=jnp.int32)
-    ixn_b = _asarray(_get("ixn_b"), dtype=jnp.int32)
-
-    iota_b = _asarray(_get("iota_b"))
-    buco_b = _asarray(_get("buco_b"))
-    bvco_b = _asarray(_get("bvco_b"))
-
-    rmnc_raw = _asarray(_get("rmnc_b"))
-    zmns_raw = _asarray(_get("zmns_b"))
-    pmns_raw = _asarray(_get("pmns_b"))
-    bmnc_raw = _asarray(_get("bmnc_b"))
-
-    # Ensure surface dimension first (static shape check).
-    if rmnc_raw.shape[0] == ixm_b.shape[0]:
-        rmnc_raw = rmnc_raw.T
-        zmns_raw = zmns_raw.T
-        pmns_raw = pmns_raw.T
-        bmnc_raw = bmnc_raw.T
-
-    ns_b = rmnc_raw.shape[0]
-
-    if mode_indices is not None:
-        mode_idx = _asarray(mode_indices, dtype=jnp.int32)
-        ixm = jnp.take(ixm_b, mode_idx, axis=0)
-        ixn = jnp.take(ixn_b, mode_idx, axis=0)
-        mode_mask = None
-    else:
-        max_m = max_m_mode if max_m_mode > 0 else jnp.max(jnp.abs(ixm_b))
-        max_n = max_n_mode if max_n_mode > 0 else jnp.max(jnp.abs(ixn_b))
-        mode_mask = (jnp.abs(ixm_b) <= max_m) & (jnp.abs(ixn_b) <= max_n)
-
-        ixm = ixm_b[mode_mask]
-        ixn = ixn_b[mode_mask]
-
-    if fluxs_arr:
-        surface_indices = jnp.asarray([int(s) - 1 for s in fluxs_arr], dtype=jnp.int32)
-    else:
-        surface_indices = jnp.arange(ns_b, dtype=jnp.int32)
-
-    rmnc_sel = jnp.take(rmnc_raw, surface_indices, axis=0)
-    zmns_sel = jnp.take(zmns_raw, surface_indices, axis=0)
-    pmns_sel = jnp.take(pmns_raw, surface_indices, axis=0)
-    bmnc_sel = jnp.take(bmnc_raw, surface_indices, axis=0)
-
-    if mode_indices is not None:
-        rmnc = jnp.take(rmnc_sel, mode_idx, axis=1)
-        zmns = jnp.take(zmns_sel, mode_idx, axis=1)
-        lmns = -jnp.take(pmns_sel, mode_idx, axis=1) * nfp / (2.0 * math.pi)
-        bmnc = jnp.take(bmnc_sel, mode_idx, axis=1)
-    else:
-        rmnc = rmnc_sel[:, mode_mask]
-        zmns = zmns_sel[:, mode_mask]
-        lmns = -pmns_sel[:, mode_mask] * nfp / (2.0 * math.pi)
-        bmnc = bmnc_sel[:, mode_mask]
-
-    s_vals, iota_b, buco_b, bvco_b = _packed_boozer_profiles(booz, ns_b, jnp, iota_b, buco_b, bvco_b)
-    iota = jnp.take(iota_b, surface_indices, axis=0)
-    curr_pol = jnp.take(bvco_b, surface_indices, axis=0)
-    curr_tor = jnp.take(buco_b, surface_indices, axis=0)
-    es = jnp.take(s_vals, surface_indices, axis=0)
-
-    return BoozerData(
-        rmnc=rmnc,
-        zmns=zmns,
-        lmns=lmns,
-        bmnc=bmnc,
-        ixm=ixm,
-        ixn=ixn,
-        es=es,
-        iota=iota,
-        curr_pol=curr_pol,
-        curr_tor=curr_tor,
-        nfp=int(nfp) if nfp_override is None else int(nfp_override),
-    )
+    return _convert_boozer(booz, use_jax=True, max_m_mode=max_m_mode,
+                           max_n_mode=max_n_mode, fluxs_arr=fluxs_arr,
+                           nfp_override=nfp_override, mode_indices=mode_indices,
+                           asym_override=asym_override, mode_first=mode_first)

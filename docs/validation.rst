@@ -32,6 +32,20 @@ therefore skip NCSX fixture consumers unless
 ``NEO_JAX_FETCH_EXTERNAL_FIXTURES=1`` is set or the file is already present in
 the local fixture cache.
 
+Asymmetric geometry
+-------------------
+
+Tests retain all four complementary coefficient families through file readers,
+object adapters and the differentiable VMEX pipeline. Analytic Fourier values,
+angular derivatives and end-to-end derivatives are checked independently.
+
+A Landreman–Sengupta–Plunk stellarator surface agrees with corrected STELLOPT
+NEO to ``1.3e-10`` relative effective-ripple error. Three other asymmetric
+reference surfaces returned NaNs and do not establish ripple parity.
+Two ORBITS surfaces with shifted coordinates agree within ``1e-10``;
+removing sine ``|B|`` changes the ripple.
+
+
 Legacy CLI parity
 -----------------
 

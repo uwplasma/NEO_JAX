@@ -73,6 +73,17 @@ class BoozerData:
     nfp: int
     pprime: Array | np.ndarray | None = None
     sqrtg00: Array | np.ndarray | None = None
+    rmns: Array | np.ndarray | None = None
+    zmnc: Array | np.ndarray | None = None
+    lmnc: Array | np.ndarray | None = None
+    bmns: Array | np.ndarray | None = None
+
+    def coefficients(self, surface_index):
+        """Select one surface's Fourier coefficients."""
+        return {"lasym": any(getattr(self, name) is not None for name in ("rmns", "zmnc", "lmnc", "bmns")),
+                **{name: getattr(self, name)[surface_index] for name in
+                   ("rmnc", "zmns", "lmns", "bmnc", "rmns", "zmnc", "lmnc", "bmns")
+                   if getattr(self, name) is not None}}
 
     def tree_flatten(self):
         return _split_static(self, static_fields=("nfp",))

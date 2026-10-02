@@ -26,14 +26,36 @@ def test_build_vmec_boozer_neo_jax(vmex_equilibrium):
         np.testing.assert_allclose(one[name], np.asarray(full[name])[[4]])
 
 
-def test_pipeline_rejects_asymmetry(vmex_equilibrium):
+@pytest.mark.parametrize("vmex_equilibrium", [(1, True)], indirect=True)
+def test_pipeline_preserves_asymmetry(vmex_equilibrium, record_property):
     run = vmex_equilibrium
-    setup = replace(run.runtime.setup, lasym=True)
-    asymmetric = replace(run, runtime=replace(run.runtime, setup=setup))
-    with pytest.raises(ValueError, match="symmetric"):
-        build_vmec_boozer_neo_jax(asymmetric)
-    with pytest.raises(ValueError, match="symmetric"):
-        booz_xform_from_vmec_wout(replace(run.wout, lasym=True))
+    kwargs = dict(mboz=4, nboz=2, surfaces=[0.6], jit=True)
+    state = booz_xform_from_vmec_state_jax(vmec_run=run, **kwargs)
+    wout = booz_xform_from_vmec_wout(run.wout, **kwargs)
+    assert state["asym"] and wout["asym"]
+    assert np.linalg.norm(state["bmns_b"]) > 1e-8
+    errors, absolute_errors = {}, {}
+    for cosine, sine in (("rmnc_b", "rmns_b"), ("zmns_b", "zmnc_b"),
+                          ("pmns_b", "pmnc_b"), ("bmnc_b", "bmns_b")):
+        actual, expected = (np.stack([result[cosine], result[sine]]) for result in (state, wout))
+        absolute_errors[cosine] = np.linalg.norm(actual-expected)
+        errors[cosine] = absolute_errors[cosine] / np.linalg.norm(expected)
+        for name in (cosine, sine):
+            record_property(name + "_norm", float(np.linalg.norm(wout[name])))
+        record_property(cosine + "_relative_l2", float(errors[cosine]))
+        record_property(cosine + "_absolute_l2", float(absolute_errors[cosine]))
+    theta = 2*np.pi*np.arange(17)/17
+    phi = 2*np.pi*np.arange(13)/(13*run.inp.nfp)
+    phase = theta[:, None, None]*np.asarray(state["ixm_b"])
+    phase = phase - phi[None, :, None]*np.asarray(state["ixn_b"])
+    fields = [np.sum(np.asarray(result["bmnc_b"])[0]*np.cos(phase)
+                     + np.asarray(result["bmns_b"])[0]*np.sin(phase), axis=-1)
+              for result in (state, wout)]
+    field_error = np.linalg.norm(fields[0]-fields[1])/np.linalg.norm(fields[1])
+    record_property("B_grid_relative_l2", float(field_error))
+    assert field_error < 1e-9
+    # The state and WOUT covariant tables use different radial finite differences.
+    assert max(absolute_errors.values()) < 1e-7, absolute_errors
 
 
 def test_compiled_pipeline_preserves_work_limit(vmex_equilibrium):

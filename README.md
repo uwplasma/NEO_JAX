@@ -49,10 +49,10 @@ print(results.epsilon_effective)  # epsilon_eff^(3/2), the legacy epstot quantit
 | Effective ripple and parallel current | ✅ | ✅ |
 | Legacy control and output files | ✅ | ✅ |
 | Stellarator symmetric geometry | ✅ | ✅ |
-| Validated nonstellarator symmetric pipeline | ❌ | ❌ |
+| Nonstellarator symmetric geometry | ✅ | ✅ |
 | VMEX → Boozer → NEO without intermediate files | ❌ | ✅ |
 
-Asymmetric WOUT and `boozmn` inputs are rejected. Float64 is enabled by default; low-`|iota|` surfaces have an explicit [work guard](docs/configuration.rst), with exact and approximate policies.
+File and differentiable pipelines retain both cosine and sine geometry. Float64 is enabled by default; low-`|iota|` surfaces have an explicit [work guard](docs/configuration.rst), with exact and approximate policies.
 
 ## Accuracy and speed
 
