@@ -13,7 +13,7 @@ Effective helical ripple and trapped-particle diagnostics from Boozer geometry, 
 pip install neo-jax
 ```
 
-The VMEX → Boozer → NEO pipeline requires Python 3.11+, VMEX 0.11.6+ and booz_xform_jax 0.4.2+:
+The VMEX → Boozer → NEO pipeline requires Python 3.11+, VMEX 0.11.6+ and booz_xform_jax 0.4.3+:
 
 ```bash
 pip install "neo-jax[pipeline]"
