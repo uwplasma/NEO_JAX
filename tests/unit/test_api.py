@@ -152,6 +152,41 @@ def test_jax_surface_kernel_reuses_compile_with_new_coefficients():
                                first.diagnostics['b_ref'] * 1.01, rtol=1e-10)
 
 
+@pytest.mark.parametrize("platform_api", [True, False])
+def test_surface_schedules_preserve_outputs_and_derivatives(monkeypatch, platform_api):
+    from dataclasses import replace
+
+    from neo_jax.driver import _solve_surfaces
+    from neo_jax.integrate import FlintParams
+
+    if not platform_api:
+        monkeypatch.delattr(jax.lax, "platform_dependent", raising=False)
+    kernel = jax.jit(_solve_surfaces.__wrapped__, static_argnums=(2, 3, 4, 5, 6))
+    data = load_boozmn(_orbits_fast_paths(), surfaces=[64, 96])
+    params = FlintParams(npart=8, multra=1, nstep_per=8, nstep_min=20,
+                         nstep_max=40, acc_req=0.02, no_bins=8, calc_nstep_max=0)
+    indices = jnp.arange(2, dtype=jnp.int32)
+    outputs, tangents = [], []
+    for sequential in ((None, False, True) if platform_api else (None, True)):
+        def solve(booz):
+            return kernel(booz, indices, params, 17, 17, 2, sequential)
+        result = solve(data)
+        assert all(np.all(np.isfinite(np.asarray(value))) for value in result)
+        outputs.append(result)
+        def objective(scale):
+            values = solve(replace(data, rmnc=data.rmnc * (1 + 0.01 * scale)))
+            return jnp.stack((values[0].sum(), values[-1].sum()))
+        _, tangent = jax.jvp(objective, (jnp.array(0.0),), (jnp.array(1.0),))
+        finite_difference = (objective(1e-3) - objective(-1e-3)) / 2e-3
+        assert np.all(np.isfinite(tangent)) and abs(float(tangent[-1])) > 0
+        np.testing.assert_allclose(tangent, finite_difference, rtol=1e-5, atol=1e-12)
+        tangents.append(tangent)
+    for output, tangent in zip(outputs[1:], tangents[1:]):
+        for value, expected in zip(output, outputs[0]):
+            np.testing.assert_allclose(value, expected, rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(tangent, tangents[0], rtol=1e-8, atol=1e-12)
+
+
 def test_build_surface_problem_maps_s():
     boozmn = _orbits_fast_paths()
     booz = load_boozmn(boozmn)
