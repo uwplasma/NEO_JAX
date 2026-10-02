@@ -42,6 +42,8 @@ angular derivatives and end-to-end derivatives are checked independently.
 A Landreman–Sengupta–Plunk stellarator surface agrees with corrected STELLOPT
 NEO to ``1.3e-10`` relative effective-ripple error. Three other asymmetric
 reference surfaces returned NaNs and do not establish ripple parity.
+Two ORBITS surfaces with shifted coordinates agree within ``1e-10``;
+removing sine ``|B|`` changes the ripple.
 
 
 Legacy CLI parity
