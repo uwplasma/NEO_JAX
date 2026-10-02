@@ -6,20 +6,20 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Sequence
 
+import jax
 import numpy as np
 
 from .config import NeoConfig
 from .control import ControlParams
-from .data_models import BoozerData
+from .data_models import BoozerData, NeoOutputs
 from .driver import (
     _resolve_rational_surface_policy,
     run_neo_from_boozer,
-    run_neo_from_boozmn,
     run_neo_from_boozer_jax,
+    run_neo_from_boozmn,
 )
 from .io import booz_xform_to_boozerdata, read_boozmn, read_boozmn_metadata
 from .results import NeoResults
-from .data_models import NeoOutputs
 
 
 def _control_from_config(config: NeoConfig, *, in_file: str = "boozmn", out_file: str = "neo_out") -> ControlParams:
@@ -211,7 +211,9 @@ def run_booz_xform(
         max_m_mode=cfg.max_m_mode if max_m_mode is None else max_m_mode,
         max_n_mode=cfg.max_n_mode if max_n_mode is None else max_n_mode,
         fluxs_arr=cfg.surfaces,
-        use_jax=use_jax,
+        use_jax=use_jax and (not isinstance(booz, dict) or any(
+            isinstance(value, (jax.Array, jax.core.Tracer))
+            for value in jax.tree_util.tree_leaves(booz))),
     )
     return run_boozer(
         booz_data,
