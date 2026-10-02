@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from neo_jax.fourier import derived_quantities, fourier_sums
+from neo_jax.data_models import BoozerData
 from neo_jax.grids import prepare_grids
 
 FIXTURE_DIR = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "orbits"
@@ -167,7 +168,8 @@ def test_fourier_streamed_matches_vectorized(monkeypatch):
 
 
 @pytest.mark.parametrize("backend", ["vectorized", "streamed"])
-def test_asymmetric_fourier_and_derivatives(monkeypatch, backend):
+@pytest.mark.parametrize("missing", [None, "rmns", "zmnc", "lmnc", "bmns"])
+def test_asymmetric_fourier_and_derivatives(monkeypatch, backend, missing):
     monkeypatch.setenv("NEO_JAX_FOURIER_MODE", backend)
     grid = prepare_grids(17, 13, 3)
     m, n = jnp.array([0, 1, 2]), jnp.array([0, 3, -3])
@@ -175,6 +177,16 @@ def test_asymmetric_fourier_and_derivatives(monkeypatch, backend):
     sine = jnp.array([0., .08, -.04])
     phase = np.asarray(grid["theta_arr"])[:, None, None] * np.asarray(m)
     phase = phase - np.asarray(grid["phi_arr"])[None, :, None] * np.asarray(n)
+    if missing:
+        values = dict(rmnc=cosine, zmns=sine, lmns=sine, bmnc=cosine,
+                      rmns=sine, zmnc=cosine, lmnc=cosine, bmns=sine)
+        data = BoozerData(ixm=m, ixn=n, nfp=3, es=jnp.array([.5]), iota=jnp.array([.4]),
+                          curr_pol=jnp.array([3.]), curr_tor=jnp.array([0.]),
+                          **{name: None if name == missing else value[None] for name, value in values.items()})
+        with pytest.raises(ValueError, match="coefficients missing"):
+            fourier_sums(grid["theta_arr"], grid["phi_arr"], ixm=m, ixn=n, nfp=3,
+                         max_m_mode=2, max_n_mode=3, **data.coefficients(0))
+        return
 
     def evaluate(bmns):
         return fourier_sums(grid["theta_arr"], grid["phi_arr"], cosine, sine, sine,

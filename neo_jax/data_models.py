@@ -80,7 +80,7 @@ class BoozerData:
 
     def coefficients(self, surface_index):
         """Select one surface's Fourier coefficients."""
-        return {"lasym": self.bmns is not None,
+        return {"lasym": any(getattr(self, name) is not None for name in ("rmns", "zmnc", "lmnc", "bmns")),
                 **{name: getattr(self, name)[surface_index] for name in
                    ("rmnc", "zmns", "lmns", "bmnc", "rmns", "zmnc", "lmnc", "bmns")
                    if getattr(self, name) is not None}}

@@ -154,12 +154,15 @@ def read_boozmn(
         bvco_b = np.array(ds.variables["bvco_b"][:], dtype=float)
         pres_b = np.array(ds.variables["pres_b"][:], dtype=float) if "pres_b" in ds.variables else None
 
-        rmnc_raw = np.array(ds.variables["rmnc_b"][:], dtype=float)
-        zmns_raw = np.array(ds.variables["zmns_b"][:], dtype=float)
-        pmns_raw = np.array(ds.variables["pmns_b"][:], dtype=float)
-        bmnc_raw = np.array(ds.variables["bmnc_b"][:], dtype=float)
-        gmn_raw = np.array(ds.variables["gmn_b"][:], dtype=float) if "gmn_b" in ds.variables else None
-        asymmetric = {name: np.asarray(ds.variables[raw][:], dtype=float) for name, raw in
+        mode_dims = (ds.variables["ixm_b"].dimensions[0], "mn_mode", "mn_modes")
+        def coefficient(name):
+            variable = ds.variables[name]
+            value = np.asarray(variable[:], dtype=float)
+            return value.T if variable.dimensions[0] in mode_dims else value
+        rmnc_raw, zmns_raw, pmns_raw, bmnc_raw = (
+            coefficient(name) for name in ("rmnc_b", "zmns_b", "pmns_b", "bmnc_b"))
+        gmn_raw = coefficient("gmn_b") if "gmn_b" in ds.variables else None
+        asymmetric = {name: coefficient(raw) for name, raw in
                       (("rmns", "rmns_b"), ("zmnc", "zmnc_b"),
                        ("lmnc", "pmnc_b"), ("bmns", "bmns_b"))} if lasym else {}
 
@@ -249,6 +252,46 @@ def read_boozmn(
     )
 
 
+def _packed_boozer_profiles(booz, ns, xp, *profiles):
+    """Align full radial profiles with packed spectra; retain packed profiles."""
+    get = booz.get if isinstance(booz, dict) else lambda name, default=None: getattr(booz, name, default)
+    def array(value):
+        return xp.asarray(value.filled() if isinstance(value, np.ma.MaskedArray) else value)
+    jlist, compute_surfs, s_b = get("jlist"), get("compute_surfs"), get("s_b")
+    size_field = "ns_b" if jlist is not None else "ns_in"
+    if (s_b is None and (jlist is not None or compute_surfs is not None)
+            and get(size_field) is None and all(p.shape[0] == ns for p in profiles)):
+        raise ValueError("Packed profiles require radial size metadata or s_b")
+    if jlist is not None:
+        indices = array(jlist).astype(int) - 1
+        ns_full = get("ns_b", max(p.shape[0] for p in profiles))
+        labels = indices + 1
+    elif compute_surfs is not None:
+        indices = array(compute_surfs).astype(int)
+        ns_full = get("ns_in", max(p.shape[0] for p in profiles)) + 1
+        labels = indices + 2
+    else:
+        if any(p.shape[0] != ns for p in profiles):
+            raise ValueError("Full radial profiles require jlist or compute_surfs")
+        indices, labels = xp.arange(ns), xp.arange(ns) + 1
+        ns_full = get("ns_b", ns)
+    if indices.shape != (ns,):
+        raise ValueError("Surface metadata must match the packed coefficient rows")
+    packed = []
+    for profile in profiles:
+        if profile.shape[0] != ns or (s_b is None and jlist is not None and profile.shape[0] == int(ns_full)):
+            if (not (_JAX_AVAILABLE and isinstance(indices, jax.core.Tracer))
+                    and (np.any(np.asarray(indices) < 0) or np.any(np.asarray(indices) >= len(profile)))):
+                raise ValueError("Surface metadata is outside the radial profiles")
+            profile = xp.take(profile, indices, axis=0)
+        packed.append(profile)
+    es = array(s_b) if s_b is not None else (labels - 1.5) / max(1, int(ns_full) - 1)
+    if es.shape != (ns,):
+        raise ValueError("s_b must match the packed coefficient rows")
+    return es, *packed
+
+
+
 def _convert_boozer(
     booz, *, use_jax, max_m_mode=0, max_n_mode=0, fluxs_arr=None,
     nfp_override=None, mode_indices=None, asym_override=None, mode_first=None,
@@ -280,6 +323,8 @@ def _convert_boozer(
 
     rmnc = packed("rmnc_b")
     ns = rmnc.shape[0]
+    es, iota, curr_tor, curr_pol = _packed_boozer_profiles(
+        booz, ns, xp, array("iota_b"), array("buco_b"), array("bvco_b"))
     if fluxs_arr and any(not 1 <= int(s) <= ns for s in fluxs_arr):
         raise ValueError("Surface index is outside the Boozer data")
     rows = xp.asarray([int(s)-1 for s in fluxs_arr], dtype=int) if fluxs_arr else xp.arange(ns)
@@ -305,18 +350,12 @@ def _convert_boozer(
     for name in ("lmns", "lmnc"):
         if name in coefficients:
             coefficients[name] *= -nfp / (2.0 * math.pi)
-    if get("s_b") is not None:
-        es = xp.take(array("s_b"), rows, axis=0)
-    else:
-        ns_full = int(get("ns_b", ns))
-        jlist = array("jlist") if get("jlist") is not None else xp.arange(ns) + 1
-        es = (xp.take(jlist, rows, axis=0) - 1.5) / max(1, ns_full - 1)
     return BoozerData(
-        **coefficients, nfp=nfp, es=es,
+        **coefficients, nfp=nfp, es=xp.take(es, rows),
         ixm=ixm[mask] if modes is None else xp.take(ixm, modes),
         ixn=ixn[mask] if modes is None else xp.take(ixn, modes),
-        iota=xp.take(array("iota_b"), rows), curr_pol=xp.take(array("bvco_b"), rows),
-        curr_tor=xp.take(array("buco_b"), rows),
+        iota=xp.take(iota, rows), curr_pol=xp.take(curr_pol, rows),
+        curr_tor=xp.take(curr_tor, rows),
     )
 
 

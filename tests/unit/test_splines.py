@@ -1,7 +1,10 @@
-import numpy as np
+import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 
-from neo_jax.splines import eva2d, poi2d, spl2d, splper, splreg
+from neo_jax.splines import eva2d, poi2d, spfper, spl2d, splper, splreg
+from neo_jax.surface import build_splines
 
 
 def test_splreg_reproduces_linear():
@@ -44,3 +47,30 @@ def test_spl2d_and_eva2d_matches_grid():
             assert ierr == 0
             val = eva2d(spl, ix, iy, dx, dy)
             assert np.isclose(np.asarray(val), f[i, j], atol=1e-7)
+
+
+@pytest.mark.parametrize("n", [2, 3, 4, 9, 33])
+@pytest.mark.parametrize("dtype", [jnp.float32, jnp.float64])
+def test_periodic_factorization(n, dtype):
+    a, b, c = map(np.asarray, spfper(n+1, dtype))
+    factor = np.diag(a[:n])
+    factor[np.arange(1, n-1), np.arange(n-2)] = b[:n-2]
+    factor[-1, :-1] = c[:n-1]
+    expected = 4*np.eye(n)
+    expected[np.arange(n-1), np.arange(1, n)] = 1
+    expected += np.triu(expected, 1).T
+    expected[0, -1] = expected[-1, 0] = 2 if n == 2 else 1
+    np.testing.assert_allclose(factor@factor.T, expected, atol=1e-6 if dtype == jnp.float32 else 1e-14)
+
+
+@pytest.mark.parametrize("periodic,current", [(0, False), (1, True)])
+def test_batched_splines_and_derivatives(periodic, current):
+    names = ["b", "sqrg11", "kg", "pard"] + (["bqtphi"] if current else [])
+    keys = ["b_spl", "g_spl", "k_spl", "p_spl"] + (["q_spl"] if current else [])
+    fields = {name: jnp.sin(jnp.arange(63).reshape(9, 7)*(.01+i*.02)) for i, name in enumerate(names)}
+    solve = jax.jit(lambda f: build_splines(f, .1, .2, periodic, periodic, current))
+    actual, tangent = jax.jvp(solve, (fields,), (fields,))
+    for name, key in zip(names, keys):
+        expected = spl2d(fields[name], .1, .2, periodic, periodic)
+        np.testing.assert_allclose(actual[key], expected, atol=1e-12)
+        np.testing.assert_allclose(tangent[key], actual[key], atol=1e-12)
