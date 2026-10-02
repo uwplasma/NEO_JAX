@@ -186,25 +186,22 @@ def run_booz_xform(
         cfg = replace(cfg, surfaces=list(surfaces))
     surface_list = cfg.surfaces
     if surface_list is not None and any(isinstance(v, float) and 0.0 <= v <= 1.0 for v in surface_list):
-        jlist = None
-        ns_b = None
-        if isinstance(booz, dict):
-            if "jlist" in booz:
-                jlist = list(np.asarray(booz["jlist"]).astype(int))
-            if "ns_b" in booz:
-                ns_b = int(np.asarray(booz["ns_b"]).squeeze())
-            elif "rmnc_b" in booz:
-                ns_b = np.asarray(booz["rmnc_b"]).shape[0]
+        get = booz.get if isinstance(booz, dict) else lambda name, default=None: getattr(booz, name, default)
+        s_b = get("s_b")
+        if s_b is not None:
+            resolved = [int(np.argmin(np.abs(np.asarray(s_b)-v)))+1
+                        if isinstance(v, float) and 0 <= v <= 1 else int(v) for v in surface_list]
         else:
-            if hasattr(booz, "jlist"):
-                jlist = list(np.asarray(getattr(booz, "jlist")).astype(int))
-            if hasattr(booz, "ns_b"):
-                ns_b = int(np.asarray(getattr(booz, "ns_b")).squeeze())
-            elif hasattr(booz, "rmnc_b"):
-                ns_b = np.asarray(getattr(booz, "rmnc_b")).shape[0]
-        if ns_b is None:
-            raise ValueError("Unable to infer ns_b from booz_xform object")
-        resolved = _resolve_surface_indices(surface_list, jlist=jlist, ns_b=ns_b)
+            jlist = get("jlist")
+            ns_b = get("ns_b", len(get("iota_b")))
+            if jlist is None and get("compute_surfs") is not None:
+                jlist = np.asarray(get("compute_surfs")) + 2
+                ns_b = get("ns_in", len(get("iota_b"))) + 1
+            jlist = None if jlist is None else list(np.asarray(jlist, dtype=int))
+            resolved = _resolve_surface_indices(surface_list, jlist=jlist, ns_b=int(ns_b))
+            if jlist is not None:
+                resolved = [jlist.index(i)+1 if isinstance(v, float) and 0 <= v <= 1 else i
+                            for v, i in zip(surface_list, resolved)]
         cfg = replace(cfg, surfaces=resolved)
     booz_data = booz_xform_to_boozerdata(
         booz,

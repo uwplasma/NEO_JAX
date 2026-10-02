@@ -45,18 +45,18 @@ def test_run_neo_boozer_matches_boozmn():
     assert np.allclose(res_boozer.epsilon_effective, res_boozmn.epsilon_effective, rtol=1e-6, atol=1e-10)
 
 
-def test_run_booz_xform_dict():
+@pytest.mark.parametrize("use_jax", [False, True])
+@pytest.mark.parametrize("surfaces", [[2, 1], [0.75, 0.5], [2, 0.75]])
+def test_run_booz_xform_dict(monkeypatch, use_jax, surfaces):
     boozmn = _orbits_fast_paths()
-    # booz_xform-style data uses 1..ns indexing; use packed surfaces (1,2).
-    # Disable the low-|iota| work guard for this packed-surface API smoke test:
-    # the first packed booz_xform surface can map to iota≈0 in this fixture.
-    config = NeoConfig(surfaces=[1, 2], theta_n=25, phi_n=25, max_rational_field_periods=0)
+    config = NeoConfig(surfaces=surfaces, theta_n=25, phi_n=25)
 
     import netCDF4
 
     with netCDF4.Dataset(boozmn) as ds:
         booz = {
             "nfp_b": ds.variables["nfp_b"][:],
+            "ns_b": ds.variables["ns_b"][:],
             "ixm_b": ds.variables["ixm_b"][:],
             "ixn_b": ds.variables["ixn_b"][:],
             "iota_b": ds.variables["iota_b"][:],
@@ -69,10 +69,15 @@ def test_run_booz_xform_dict():
             "jlist": ds.variables["jlist"][:],
         }
 
-    res_booz_xform = run_booz_xform(booz, config=config, use_jax=True)
-
-    assert len(res_booz_xform) == 2
-    assert res_booz_xform.epsilon_effective.shape == (2,)
+    es = (booz["jlist"]-1.5)/(int(booz["ns_b"])-1)
+    rows = [int(np.argmin(abs(es-s))) if isinstance(s, float) else s-1 for s in surfaces]
+    radial = np.asarray(booz["jlist"])[rows]-1
+    monkeypatch.setattr(api, "run_boozer", lambda data, **kwargs: data)
+    data = run_booz_xform(booz, config=config, use_jax=use_jax)
+    for field, raw in (("iota", "iota_b"), ("curr_tor", "buco_b"), ("curr_pol", "bvco_b")):
+        np.testing.assert_array_equal(getattr(data, field), np.asarray(booz[raw])[radial])
+    np.testing.assert_allclose(data.es, es[rows], rtol=1e-14)
+    np.testing.assert_array_equal(data.bmnc, np.asarray(booz["bmnc_b"])[rows])
 
 
 def test_booz_xform_to_boozerdata_jax():
@@ -90,6 +95,8 @@ def test_booz_xform_to_boozerdata_jax():
     with netCDF4.Dataset(boozmn) as ds:
         booz = {
             "nfp_b": _to_jnp(ds.variables["nfp_b"]),
+            "ns_b": _to_jnp(ds.variables["ns_b"]),
+            "jlist": _to_jnp(ds.variables["jlist"]),
             "ixm_b": _to_jnp(ds.variables["ixm_b"]),
             "ixn_b": _to_jnp(ds.variables["ixn_b"]),
             "iota_b": _to_jnp(ds.variables["iota_b"]),

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Optional, Sequence
 
-import math
 import numpy as np
 
 try:  # Optional JAX support for end-to-end pipelines
@@ -241,6 +241,45 @@ def read_boozmn(
     )
 
 
+def _packed_boozer_profiles(booz, ns, xp, *profiles):
+    """Align full radial profiles with packed spectra; retain packed profiles."""
+    get = booz.get if isinstance(booz, dict) else lambda name, default=None: getattr(booz, name, default)
+    def array(value):
+        return xp.asarray(value.filled() if isinstance(value, np.ma.MaskedArray) else value)
+    jlist, compute_surfs, s_b = get("jlist"), get("compute_surfs"), get("s_b")
+    size_field = "ns_b" if jlist is not None else "ns_in"
+    if (s_b is None and (jlist is not None or compute_surfs is not None)
+            and get(size_field) is None and all(p.shape[0] == ns for p in profiles)):
+        raise ValueError("Packed profiles require radial size metadata or s_b")
+    if jlist is not None:
+        indices = array(jlist).astype(int) - 1
+        ns_full = get("ns_b", max(p.shape[0] for p in profiles))
+        labels = indices + 1
+    elif compute_surfs is not None:
+        indices = array(compute_surfs).astype(int)
+        ns_full = get("ns_in", max(p.shape[0] for p in profiles)) + 1
+        labels = indices + 2
+    else:
+        if any(p.shape[0] != ns for p in profiles):
+            raise ValueError("Full radial profiles require jlist or compute_surfs")
+        indices, labels = xp.arange(ns), xp.arange(ns) + 1
+        ns_full = get("ns_b", ns)
+    if indices.shape != (ns,):
+        raise ValueError("Surface metadata must match the packed coefficient rows")
+    packed = []
+    for profile in profiles:
+        if profile.shape[0] != ns or (s_b is None and jlist is not None and profile.shape[0] == int(ns_full)):
+            if (not (_JAX_AVAILABLE and isinstance(indices, jax.core.Tracer))
+                    and (np.any(np.asarray(indices) < 0) or np.any(np.asarray(indices) >= len(profile)))):
+                raise ValueError("Surface metadata is outside the radial profiles")
+            profile = xp.take(profile, indices, axis=0)
+        packed.append(profile)
+    es = array(s_b) if s_b is not None else (labels - 1.5) / max(1, int(ns_full) - 1)
+    if es.shape != (ns,):
+        raise ValueError("s_b must match the packed coefficient rows")
+    return es, *packed
+
+
 def booz_xform_to_boozerdata(
     booz: object,
     *,
@@ -323,12 +362,7 @@ def booz_xform_to_boozerdata(
     curr_pol = []
     curr_tor = []
 
-    if "s_b" in getattr(booz, "__dict__", {}) or (isinstance(booz, dict) and "s_b" in booz):
-        s_vals = np.asarray(_get("s_b"), dtype=float)
-    else:
-        ns_full = int(np.asarray(_get("ns_b"))) if (isinstance(booz, dict) and "ns_b" in booz) else ns_b
-        hs = 1.0 / (ns_full - 1) if ns_full > 1 else 0.0
-        s_vals = np.array([(surf - 1.5) * hs for surf in range(1, ns_b + 1)], dtype=float)
+    s_vals, iota_b, buco_b, bvco_b = _packed_boozer_profiles(booz, ns_b, xp, iota_b, buco_b, bvco_b)
     for surf in surfaces:
         surf_idx = surf - 1
         rmnc.append(rmnc_raw[surf_idx, mode_mask])
@@ -439,20 +473,11 @@ def booz_xform_to_boozerdata_jax(
         lmns = -pmns_sel[:, mode_mask] * nfp / (2.0 * math.pi)
         bmnc = bmnc_sel[:, mode_mask]
 
+    s_vals, iota_b, buco_b, bvco_b = _packed_boozer_profiles(booz, ns_b, jnp, iota_b, buco_b, bvco_b)
     iota = jnp.take(iota_b, surface_indices, axis=0)
     curr_pol = jnp.take(bvco_b, surface_indices, axis=0)
     curr_tor = jnp.take(buco_b, surface_indices, axis=0)
-
-    if isinstance(booz, dict) and "s_b" in booz:
-        s_vals = _asarray(_get("s_b"))
-        es = jnp.take(s_vals, surface_indices, axis=0)
-    else:
-        ns_full = (
-            int(_asarray(_get("ns_b"))) if (isinstance(booz, dict) and "ns_b" in booz) else int(ns_b)
-        )
-        hs = 1.0 / (ns_full - 1) if ns_full > 1 else 0.0
-        jlist = _asarray(_get("jlist")) if (isinstance(booz, dict) and "jlist" in booz) else (surface_indices + 1)
-        es = (jlist - 1.5) * hs
+    es = jnp.take(s_vals, surface_indices, axis=0)
 
     return BoozerData(
         rmnc=rmnc,
