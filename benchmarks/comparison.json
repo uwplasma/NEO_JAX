@@ -81,5 +81,28 @@
     "jax": "Driver API, including Boozer file reads and compilation; imports excluded",
     "warm": "Second call in the same process; persistent compilation cache disabled"
   },
-  "reference_binary_sha256": "75027fd6dae259446065459ce0214d2c1a218c60e13f265e98c593b662e00b13"
+  "reference_binary_sha256": "75027fd6dae259446065459ce0214d2c1a218c60e13f265e98c593b662e00b13",
+  "cpu_kernel": {
+    "case": "LandremanPaul2021_QA_reactorScale_lowres",
+    "source_commit": "33997c77b54198c4736dfdfd92a7ded69fa5a706",
+    "wout_sha256": "ba8dcfaf18d27c99dc9ca4b38116d71b697626d54408de41b47e126676e1e94f",
+    "surfaces": 8,
+    "modes": 388,
+    "theta_n": 32,
+    "phi_n": 32,
+    "npart": 24,
+    "acc_req": 0.02,
+    "nstep_per": 20,
+    "nstep_min": 200,
+    "nstep_max": 500,
+    "no_bins": 50,
+    "ref_swi": 2,
+    "history_output": false,
+    "scope": "Numerical kernel only: cold includes lowering and compilation; imports, transforms, file I/O and plotting excluded.",
+    "cold_s": 3.061552042985568,
+    "warm_s": [
+      0.4382925840036478,
+      0.4257030000007944
+    ]
+  }
 }
