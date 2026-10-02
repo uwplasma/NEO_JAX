@@ -340,7 +340,8 @@ def _convert_boozer(
         value = xp.take(value, rows, axis=0)
         return value[:, mask] if modes is None else xp.take(value, modes, axis=1)
 
-    asymmetric = (bool(get("asym", get("lasym", get("bmns_b") is not None)))
+    sine_present = any(get(name) is not None for name in ("rmns_b", "zmnc_b", "pmnc_b", "bmns_b"))
+    asymmetric = (bool(get("asym", get("lasym", sine_present)))
                   if asym_override is None else bool(asym_override))
     names = {"rmnc": "rmnc_b", "zmns": "zmns_b", "lmns": "pmns_b", "bmnc": "bmnc_b"}
     if asymmetric:

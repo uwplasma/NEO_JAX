@@ -60,12 +60,19 @@ def test_square_boozer_spectra(layout, use_jax, asym):
         assert result.bmns is None
 
 
-def test_asymmetric_adapter_derivatives():
+@pytest.mark.parametrize("missing", [None, "rmns_b", "zmnc_b", "pmnc_b", "bmns_b"])
+def test_asymmetric_adapter_derivatives(missing):
     values = jnp.array([[2., .1], [3., .2]])
     booz = dict(nfp_b=3, ixm_b=jnp.array([0, 1]), ixn_b=jnp.array([0, 3]),
                 iota_b=jnp.array([.4, .5]), buco_b=jnp.zeros(2), bvco_b=jnp.ones(2),
                 s_b=jnp.array([.2, .8]), **{name: values for name in
                 ("rmnc_b", "zmns_b", "pmns_b", "bmnc_b", "rmns_b", "zmnc_b", "pmnc_b")})
+    if missing:
+        incomplete = dict(booz, bmns_b=values)
+        del incomplete[missing]
+        with pytest.raises(KeyError, match=missing):
+            booz_xform_to_boozerdata(incomplete, use_jax=False)
+        return
 
     def objective(sine):
         data = booz_xform_to_boozerdata_jax(
