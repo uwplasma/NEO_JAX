@@ -38,7 +38,7 @@ as a core dependency.
 Optional pipeline dependencies
 ------------------------------
 
-VMEX→Boozer→NEO requires Python 3.11+, VMEX 0.11.6+ and booz_xform_jax 0.4.2+.
+VMEX→Boozer→NEO requires Python 3.11+, VMEX 0.11.6+ and booz_xform_jax 0.4.3+.
 Install the pipeline extra:
 
 .. code-block:: bash
