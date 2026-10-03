@@ -11,9 +11,10 @@ from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
 
 
 @pytest.mark.parametrize("vmex_equilibrium", [1], indirect=True)
-def test_vmec_boozer_neo_jax_grad(vmex_equilibrium):
+@pytest.mark.parametrize("sequential", [None, True])
+def test_vmec_boozer_neo_jax_grad(vmex_equilibrium, sequential):
     run = vmex_equilibrium
-    config = NeoConfig(surfaces=[0.6], theta_n=8, phi_n=8, npart=8, multra=1,
+    config = NeoConfig(sequential=sequential, surfaces=[0.6], theta_n=8, phi_n=8, npart=8, multra=1,
                        nstep_per=4, nstep_min=20, nstep_max=40, no_bins=10, acc_req=0.1)
     solver = build_vmec_boozer_neo_jax(
         run, booz_kwargs=dict(mboz=4, nboz=2), neo_config=config, jit=True)

@@ -133,6 +133,7 @@ def run_neo_from_boozer_jax(
     max_rational_field_periods: int | None = DEFAULT_MAX_RATIONAL_FIELD_PERIODS,
     rational_surface_policy: str | None = None,
     _work_guard: tuple | None = None,
+    sequential: bool | None = None,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
     booz = BoozerData(
@@ -222,7 +223,8 @@ def run_neo_from_boozer_jax(
         b_ref,
         r_ref,
     ) = _solve_surfaces(
-        booz, surf_indices_j, params, control.theta_n, control.phi_n, control.ref_swi)
+        booz, surf_indices_j, params, control.theta_n, control.phi_n, control.ref_swi,
+        sequential=sequential)
 
     dpsi = jnp.concatenate([s_vals[:1], s_vals[1:] - s_vals[:-1]], axis=0)
     r_eff = jnp.cumsum(drdpsi * dpsi)
