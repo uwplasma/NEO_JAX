@@ -232,3 +232,28 @@ def test_mixed_mapping_keeps_coefficient_derivatives(monkeypatch):
         return api.run_booz_xform(dict(mapping, bmnc_b=coefficients))
     coefficients = jnp.asarray(data.bmnc)
     np.testing.assert_allclose(jax.grad(objective)(coefficients), 2*coefficients, atol=1e-14)
+
+
+@pytest.mark.parametrize("sequential", [None, True, False])
+@pytest.mark.parametrize("source_kind", ["file", "data", "mapping"])
+def test_surface_schedule_reaches_numerical_kernel(monkeypatch, sequential, source_kind):
+    from neo_jax import driver
+
+    data = load_boozmn(_orbits_fast_paths(), surfaces=[64])
+    source = _orbits_fast_paths() if source_kind == "file" else data
+    if source_kind == "mapping":
+        names = dict(rmnc="rmnc_b", zmns="zmns_b", lmns="pmns_b", bmnc="bmnc_b",
+                     ixm="ixm_b", ixn="ixn_b", iota="iota_b", curr_tor="buco_b", curr_pol="bvco_b")
+        source = {target: np.asarray(getattr(data, name)) for name, target in names.items()}
+        source.update(nfp_b=data.nfp, s_b=np.asarray(data.es))
+    seen = []
+    def capture(booz, indices, *args, sequential=None):
+        seen.append(sequential)
+        return (jnp.ones(indices.shape),) * 9 + (booz.es[indices], booz.iota[indices],
+                                               jnp.ones(indices.shape), jnp.ones(indices.shape))
+    monkeypatch.setattr(driver, "_solve_surfaces", capture)
+    config = NeoConfig(sequential=sequential, surfaces=[64] if source_kind == "file" else None)
+    result = run_neo(source, config=config, jax_surface_scan=True)
+    assert seen == [sequential] and NeoConfig().sequential is None
+    assert NeoConfig([1], 32, 16).theta_n == 32  # Existing positional calls retain their meaning.
+    np.testing.assert_array_equal(result.eps_eff, [1.0])

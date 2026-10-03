@@ -46,6 +46,7 @@ class NeoConfig:
     ref_swi: int = 2
     write_progress: bool = False
     write_diagnostic: bool = False
+    sequential: bool | None = None  # None selects surface scheduling per backend.
 
     @classmethod
     def from_control(cls, control: ControlParams) -> "NeoConfig":

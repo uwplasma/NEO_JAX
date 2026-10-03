@@ -104,6 +104,7 @@ def run_boozmn(
             ctrl,
             max_rational_field_periods=cfg.max_rational_field_periods,
             rational_surface_policy=rational_surface_policy,
+            sequential=cfg.sequential,
         )
     return run_neo_from_boozmn(
         str(boozmn_path),
@@ -158,6 +159,7 @@ def run_boozer(
             ctrl,
             max_rational_field_periods=cfg.max_rational_field_periods,
             rational_surface_policy=rational_surface_policy,
+            sequential=cfg.sequential,
         )
     return run_neo_from_boozer(
         booz,

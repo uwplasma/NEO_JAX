@@ -227,6 +227,7 @@ def build_vmec_boozer_neo_jax(
             booz, control, skip_fourier_mask=True,
             max_rational_field_periods=cfg.max_rational_field_periods,
             rational_surface_policy=cfg.rational_surface_policy, _work_guard=work_guard,
+            sequential=cfg.sequential,
         )
 
     return jax.jit(solve) if jit else solve
