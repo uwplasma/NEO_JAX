@@ -415,22 +415,12 @@ def eva2d_fd_jax(spl: Array, ix: Array, iy: Array, dx: Array, dy: Array) -> Arra
     coeff = jnp.take(spl, ix, axis=2)
     coeff = jnp.take(coeff, iy, axis=2)
 
-    # df/dx
-    sp0 = 0.0
-    for i in range(1, 4):
-        muli = (1.0 if i == 1 else dx ** (i - 1)) * i
-        for j in range(4):
-            mulj = 1.0 if j == 0 else dy ** j
-            sp0 = sp0 + coeff[i, j] * muli * mulj
-
-    # df/dy
-    sp1 = 0.0
-    for i in range(4):
-        muli = 1.0 if i == 0 else dx ** i
-        for j in range(1, 4):
-            mulj = (1.0 if j == 1 else dy ** (j - 1)) * j
-            sp1 = sp1 + coeff[i, j] * muli * mulj
-
+    a = tuple(coeff[1, j] + dx * (2 * coeff[2, j] + 3 * dx * coeff[3, j])
+              for j in range(4))
+    b = tuple(coeff[0, j] + dx * (coeff[1, j] + dx * (coeff[2, j] + dx * coeff[3, j]))
+              for j in range(1, 4))
+    sp0 = a[0] + dy * (a[1] + dy * (a[2] + dy * a[3]))
+    sp1 = b[0] + dy * (2 * b[1] + 3 * dy * b[2])
     return jnp.array([sp0, sp1], dtype=spl.dtype)
 
 
@@ -439,25 +429,12 @@ def eva2d_sd_jax(spl: Array, ix: Array, iy: Array, dx: Array, dy: Array) -> Arra
     coeff = jnp.take(spl, ix, axis=2)
     coeff = jnp.take(coeff, iy, axis=2)
 
-    sp0 = 0.0
-    for i in range(2, 4):
-        muli = (1.0 if i == 2 else dx ** (i - 2)) * i * (i - 1)
-        for j in range(4):
-            mulj = 1.0 if j == 0 else dy ** j
-            sp0 = sp0 + coeff[i, j] * muli * mulj
-
-    sp1 = 0.0
-    for i in range(1, 4):
-        muli = (1.0 if i == 1 else dx ** (i - 1)) * i
-        for j in range(1, 4):
-            mulj = (1.0 if j == 1 else dy ** (j - 1)) * j
-            sp1 = sp1 + coeff[i, j] * muli * mulj
-
-    sp2 = 0.0
-    for i in range(4):
-        muli = 1.0 if i == 0 else dx ** i
-        for j in range(2, 4):
-            mulj = (1.0 if j == 2 else dy ** (j - 2)) * j * (j - 1)
-            sp2 = sp2 + coeff[i, j] * muli * mulj
-
+    a = tuple(2 * coeff[2, j] + 6 * dx * coeff[3, j] for j in range(4))
+    b = tuple(coeff[1, j] + dx * (2 * coeff[2, j] + 3 * dx * coeff[3, j])
+              for j in range(1, 4))
+    c = tuple(coeff[0, j] + dx * (coeff[1, j] + dx * (coeff[2, j] + dx * coeff[3, j]))
+              for j in range(2, 4))
+    sp0 = a[0] + dy * (a[1] + dy * (a[2] + dy * a[3]))
+    sp1 = b[0] + dy * (2 * b[1] + 3 * dy * b[2])
+    sp2 = 2 * c[0] + 6 * dy * c[1]
     return jnp.array([sp0, sp1, sp2], dtype=spl.dtype)
