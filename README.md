@@ -67,6 +67,14 @@ Matched STELLOPT calculations agree in effective ripple across ORBITS and QA sur
 
 Apple M2 CPU with JAX 0.10.2; RTX A4000 GPU with JAX 0.9.2; float64 and compilation cache disabled. Fortran includes process startup; JAX includes Boozer file reads and compilation, with imports excluded. ORBITS requests convergence history. Fortran is faster on these cases; [measurements](benchmarks/comparison.json) record controls, ripple profiles and timing scopes.
 
+Callback-free QA profile: eight surfaces, 388 modes, a 32×32 grid and 24 pitch samples.
+
+| CPU kernel | Cold | Warm |
+|---|---:|---:|
+| Effective ripple | 3.06 s | 0.43–0.44 s |
+
+Cold includes lowering and compilation. Both exclude transforms, imports, file I/O and plotting; precision, CPU and JAX match the CPU measurements above.
+
 Reproduce one case with a STELLOPT executable:
 
 ```bash

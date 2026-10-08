@@ -41,8 +41,8 @@ def compute_reference_jax(booz: BoozerData):
     return rt0, bmref_g
 
 
-@partial(jax.jit, static_argnames=("params", "theta_n", "phi_n", "ref_swi"))
-def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi):
+@partial(jax.jit, static_argnames=("params", "theta_n", "phi_n", "ref_swi", "sequential"))
+def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequential=None):
     """Compile one numerical kernel; reuse it for new coefficients and surfaces."""
     grid = prepare_grids(theta_n, phi_n, booz.nfp)
     rt0, bmref_g = compute_reference_jax(booz)
@@ -108,7 +108,15 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi):
             r_ref,
         )
 
-    return jax.vmap(_solve_surface)(surf_indices)
+    parallel = jax.vmap(_solve_surface)
+    if sequential is not None:
+        return jax.lax.map(_solve_surface, surf_indices) if sequential else parallel(surf_indices)
+    dispatch = getattr(jax.lax, "platform_dependent", None)
+    if dispatch is None:
+        return parallel(surf_indices)
+    # Scalar stop conditions avoid redundant work on CPUs.
+    return dispatch(surf_indices, cpu=lambda indices: jax.lax.map(_solve_surface, indices),
+                    default=parallel)
 
 
 def run_neo_from_boozer_jax(
