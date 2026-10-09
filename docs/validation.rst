@@ -52,7 +52,7 @@ falls with ``acc_req``. For an exact up-down asymmetric Solov'ev equilibrium,
 an independent real-space evaluation of Nemov et al. (1999) gives ``9e-16``,
 as axisymmetry requires; NEO_JAX on the converged VMEX solution gives
 ``4e-6`` to ``1.4e-5`` at s = 0.25 to 0.8. That value is independent of Boozer
-and angular resolution and of the sine tables, so it is a floor of the
+and angular resolution and persists with the sine tables removed, so it is a floor of the
 NEO algorithm, not of the asymmetric path.
 
 
