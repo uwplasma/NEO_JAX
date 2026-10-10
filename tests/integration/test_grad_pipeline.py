@@ -10,7 +10,8 @@ import pytest
 from neo_jax import NeoConfig, build_vmec_boozer_neo_jax
 
 
-@pytest.mark.parametrize("vmex_equilibrium", [1], indirect=True)
+@pytest.mark.parametrize("vmex_equilibrium", [1, (1, True)], indirect=True,
+                         ids=["symmetric", "asymmetric"])
 def test_vmec_boozer_neo_jax_grad(vmex_equilibrium):
     run = vmex_equilibrium
     config = NeoConfig(surfaces=[0.6], theta_n=8, phi_n=8, npart=8, multra=1,

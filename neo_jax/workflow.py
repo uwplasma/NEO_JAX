@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 
 from .config import NeoConfig
 from .data_models import BoozerData
@@ -52,12 +52,7 @@ def build_surface_problem(
     grid = prepare_grids(config.theta_n, config.phi_n, booz.nfp)
     surf_idx = resolve_surface_index(booz, surface)
 
-    coeffs = {
-        "rmnc": jnp.asarray(booz.rmnc[surf_idx]),
-        "zmns": jnp.asarray(booz.zmns[surf_idx]),
-        "lmns": jnp.asarray(booz.lmns[surf_idx]),
-        "bmnc": jnp.asarray(booz.bmnc[surf_idx]),
-    }
+    coeffs = booz.coefficients(surf_idx)
 
     max_m_mode = config.max_m_mode if config.max_m_mode > 0 else int(np.max(np.abs(booz.ixm)))
     max_n_mode = config.max_n_mode if config.max_n_mode > 0 else int(np.max(np.abs(booz.ixn)))

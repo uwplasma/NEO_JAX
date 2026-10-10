@@ -232,3 +232,30 @@ def test_mixed_mapping_keeps_coefficient_derivatives(monkeypatch):
         return api.run_booz_xform(dict(mapping, bmnc_b=coefficients))
     coefficients = jnp.asarray(data.bmnc)
     np.testing.assert_allclose(jax.grad(objective)(coefficients), 2*coefficients, atol=1e-14)
+
+
+def test_asymmetric_ripple_identities():
+    """Zero sine tables reproduce the symmetric path; the mirror image keeps the ripple."""
+    from neo_jax.api import run_boozer
+    from neo_jax.data_models import BoozerData
+
+    m, n = np.array([0, 0, 1, 1, 1, 2]), np.array([0, 2, 0, 2, -2, 0])
+    cosine = dict(rmnc=[10, .2, 1, .1, .05, .02], zmns=[0, .1, 1, .05, -.03, .01],
+                  lmns=[0, .02, .03, .01, 0, 0], bmnc=[1, .03, -.1, .04, .02, .01])
+    sine = dict(rmns=[0, .05, .03, .02, .01, .004], zmnc=[.04, .03, .02, .01, .02, 0],
+                lmnc=[.01, .01, .02, 0, .01, 0], bmns=[0, .02, .03, .015, -.01, .005])
+    config = NeoConfig(surfaces=[1], theta_n=32, phi_n=32)
+
+    def ripple(scale=None):
+        tables = {k: np.asarray(v, float)[None] for k, v in cosine.items()}
+        if scale is not None:  # the mirror image flips every sine partner
+            tables.update({k: scale*np.asarray(v, float)[None] for k, v in sine.items()})
+        booz = BoozerData(ixm=m, ixn=n, nfp=2, es=np.array([.5]), iota=np.array([.4142135623]),
+                          curr_pol=np.array([10.]), curr_tor=np.array([0.]), **tables)
+        return float(run_boozer(booz, config=config)[0].epsilon_effective)
+
+    assert ripple(0.) == ripple()
+    plus, minus = ripple(1.), ripple(-1.)
+    # Equal only up to the finite field-line length (relative 1e-3 to 5e-3 measured).
+    np.testing.assert_allclose(minus, plus, rtol=1e-2)
+    assert abs(plus - ripple()) > 0.1 * plus

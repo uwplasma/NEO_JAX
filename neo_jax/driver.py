@@ -8,20 +8,19 @@ from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from .control import ControlParams
 from .current import CurrentParams, flint_cur_jax
-from .data_models import BoozerData
+from .data_models import BoozerData, NeoOutputs
 from .grids import prepare_grids
 from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
 from .io import read_boozmn
 from .legacy import LegacyNeoWriter, build_fortran_line
 from .results import NeoResults, NeoSurfaceResult
 from .surface import init_surface
-from .data_models import NeoOutputs
 
 DEFAULT_MAX_RATIONAL_FIELD_PERIODS = 100_000
 
@@ -49,12 +48,7 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequent
     rt0, bmref_g = compute_reference_jax(booz)
 
     def _solve_surface(surf_idx):
-        coeffs = {
-            "rmnc": booz.rmnc[surf_idx],
-            "zmns": booz.zmns[surf_idx],
-            "lmns": booz.lmns[surf_idx],
-            "bmnc": booz.bmnc[surf_idx],
-        }
+        coeffs = booz.coefficients(surf_idx)
 
         surface = init_surface(
             grid["theta_arr"],
@@ -135,26 +129,16 @@ def run_neo_from_boozer_jax(
     _work_guard: tuple | None = None,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
-    booz = BoozerData(
-        rmnc=jnp.asarray(booz.rmnc),
-        zmns=jnp.asarray(booz.zmns),
-        lmns=jnp.asarray(booz.lmns),
-        bmnc=jnp.asarray(booz.bmnc),
-        ixm=jnp.asarray(booz.ixm),
-        ixn=jnp.asarray(booz.ixn),
-        es=jnp.asarray(booz.es),
-        iota=jnp.asarray(booz.iota),
-        curr_pol=jnp.asarray(booz.curr_pol),
-        curr_tor=jnp.asarray(booz.curr_tor),
-        nfp=int(booz.nfp),
-    )
+    booz = jax.tree_util.tree_map(jnp.asarray, booz)
 
     if not skip_fourier_mask and (control.max_m_mode > 0 or control.max_n_mode > 0):
         mmax = control.max_m_mode if control.max_m_mode > 0 else jnp.max(jnp.abs(booz.ixm))
         nmax = control.max_n_mode if control.max_n_mode > 0 else jnp.max(jnp.abs(booz.ixn))
         mask = (jnp.abs(booz.ixm) <= mmax) & (jnp.abs(booz.ixn) <= nmax)
         booz = replace(booz, ixm=booz.ixm[mask], ixn=booz.ixn[mask],
-                       **{k: getattr(booz, k)[:, mask] for k in ("rmnc", "zmns", "lmns", "bmnc")})
+                       **{k: getattr(booz, k)[:, mask] for k in
+                          ("rmnc", "zmns", "lmns", "bmnc", "rmns", "zmnc", "lmnc", "bmns")
+                          if getattr(booz, k) is not None})
 
     if control.fluxs_arr:
         if booz.rmnc.shape[0] == len(control.fluxs_arr):
@@ -714,12 +698,7 @@ def run_neo_from_boozer(
 
     for local_idx, surf_idx in enumerate(surf_indices):
         flux_index = control.fluxs_arr[local_idx] if control.fluxs_arr else surf_idx + 1
-        coeffs = {
-            "rmnc": jnp.asarray(booz.rmnc[surf_idx]),
-            "zmns": jnp.asarray(booz.zmns[surf_idx]),
-            "lmns": jnp.asarray(booz.lmns[surf_idx]),
-            "bmnc": jnp.asarray(booz.bmnc[surf_idx]),
-        }
+        coeffs = booz.coefficients(surf_idx)
 
         surface = init_surface(
             grid["theta_arr"],

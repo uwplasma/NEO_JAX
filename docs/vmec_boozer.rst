@@ -7,7 +7,7 @@ contravariant and covariant forms,
 .. math::
 
    \mathbf{B} = \nabla \psi \times \nabla \theta_B + \iota \nabla \phi_B \times \nabla \psi
-   = I(\psi) \nabla \phi_B + G(\psi) \nabla \theta_B + B_\psi \nabla \psi.
+   = I(\psi) \nabla \theta_B + G(\psi) \nabla \phi_B + B_\psi \nabla \psi.
 
 This representation is the basis for the Boozer transform and the ``boozmn``
 file format consumed by NEO_JAX. :cite:`booz-xform-jax,stelopt-neo-docs`
@@ -26,9 +26,10 @@ NEO expects Fourier coefficients on each flux surface:
 - ``zmns``: sine coefficients of vertical coordinate.
 - ``lmns``: sine coefficients of the Boozer toroidal angle shift.
 - ``bmnc``: cosine coefficients of magnetic field magnitude.
+- ``rmns``, ``zmnc``, ``lmnc``, ``bmns``: complementary coefficients for asymmetric geometry.
 - ``ixm``, ``ixn``: poloidal and toroidal mode numbers.
 - ``iota``: rotational transform profile.
-- ``curr_pol`` and ``curr_tor``: Boozer currents :math:`I` and :math:`G`.
+- ``curr_pol`` and ``curr_tor``: Boozer coefficients :math:`G` and :math:`I`, respectively.
 - ``nfp``: number of field periods.
 
 Mapping from boozmn
@@ -41,6 +42,10 @@ The standard ``boozmn`` netCDF file (from BOOZ_XFORM) provides arrays such as
 .. math::
 
    \lambda_{mn} = - \mathrm{pmns\_b}_{mn} \frac{n_{\mathrm{fp}}}{2\pi}.
+
+Asymmetric ``pmnc_b`` uses the same normalization. Square coefficient mappings
+are surface-first; objects are mode-first. Set ``mode_first`` explicitly for a
+different layout.
 
 The Boozer currents are mapped as ``curr_pol = bvco_b`` and
 ``curr_tor = buco_b``. The file reader also computes the normalized toroidal
