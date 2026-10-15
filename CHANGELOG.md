@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.0.6 - 2026-10-15
+
+- Keep cosine and sine Boozer spectra through the readers, the booz_xform_jax
+  adapter and the VMEX pipeline, so non-stellarator-symmetric (LASYM) equilibria
+  give an effective ripple. Incomplete sine families are rejected (#7).
+- One asymmetric case matches STELLOPT NEO to 1.3e-10 relative error; zero sine
+  tables reproduce the symmetric path exactly. See docs/validation.rst.
+
+## v1.0.5 - 2026-10-02
+
+- Faster CPU effective-ripple kernels with per-surface stopping.
+- Documented cold and warm timings for a callback-free QA profile.
+
+## v1.0.4 - 2026-10-02
+
+- Reduce cold spline compilation and host mapping setup without changing
+  integration controls.
+- Align packed spectra with radial iota and current profiles; reject ambiguous
+  metadata.
+- Require booz_xform_jax 0.4.3 for the VMEX pipeline.
+
 ## v1.0.3 - 2026-10-01
 
 - Reuse compiled surface kernels across surfaces and coefficient updates.
