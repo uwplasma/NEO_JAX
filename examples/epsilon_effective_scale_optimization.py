@@ -1,8 +1,8 @@
 """Toy optimization: scale |B| spectrum to reduce epsilon effective.
 
 This example demonstrates end-to-end autodiff through NEO_JAX by optimizing
-a simple scalar (scale factor on bmnc). For real shape optimization, use
-vmec_jax + booz_xform_jax once the JAX-native pipeline is wired.
+a simple scalar (scale factor on bmnc). For the VMEX equilibrium pipeline, see
+``vmec_boozer_neo_pipeline.py`` (VMEX + booz_xform_jax).
 """
 
 from __future__ import annotations

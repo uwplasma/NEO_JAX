@@ -62,15 +62,13 @@ Executable examples are included in ``examples/``:
   ``Rmajor`` to reduce epsilon effective (toy example).
 - ``examples/epsilon_effective_scale_optimization.py``: toy optimization that
   scales ``|B|`` to reduce epsilon effective (autodiff demo).
-- ``examples/qh_epsilon_effective_aspect_optimization.py``: QH warm-start
-  optimization (epsilon effective + aspect ratio).
 
 JAX-native workflow (VMEC + Boozer + NEO)
 -----------------------------------------
 
 NEO_JAX is designed to consume JAX-native VMEC and Boozer transform outputs,
 allowing end-to-end differentiation when paired with ``VMEX`` and
-``booz_xform_jax``. :cite:`vmec-jax,booz-xform-jax`
+``booz_xform_jax``. :cite:`vmex,booz-xform-jax`
 
 A typical flow is:
 
