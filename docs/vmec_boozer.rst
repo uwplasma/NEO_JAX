@@ -68,7 +68,7 @@ End-to-end JAX pipeline
 
 NEO_JAX is designed to consume the outputs of ``VMEX`` and
 ``booz_xform_jax`` directly, avoiding intermediate files and enabling
-end-to-end differentiation. :cite:`vmec-jax,booz-xform-jax`
+end-to-end differentiation. :cite:`vmex,booz-xform-jax`
 
 When using this pipeline, ensure the following:
 

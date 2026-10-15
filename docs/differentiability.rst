@@ -2,7 +2,7 @@ Differentiability
 =================
 
 NEO_JAX is designed for end-to-end automatic differentiation when coupled with
-JAX-native equilibrium and Boozer transforms. :cite:`vmec-jax,booz-xform-jax,jax-docs`
+JAX-native equilibrium and Boozer transforms. :cite:`vmex,booz-xform-jax,jax-docs`
 
 Key design choices
 ------------------
