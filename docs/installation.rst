@@ -32,8 +32,8 @@ JAX should be installed with the correct accelerator support for your system
 (CPU, CUDA, or ROCm). Consult the `JAX installation guide <https://docs.jax.dev/en/latest/installation.html>`_
 for platform-specific instructions.
 
-The ``boozmn`` reader relies on the ``netCDF4`` Python package, which is listed
-as a core dependency.
+``boozmn`` files are read with ``booz_xform_jax.read_boozmn`` (a core
+dependency), so every uwplasma code shares one parser.
 
 Optional pipeline dependencies
 ------------------------------
