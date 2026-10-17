@@ -439,7 +439,7 @@ def flint_bo(
 
             if nstep_max_c > params.nstep_max:
                 hit_rat = 1
-                nfp_rat = int(jnp.ceil(1.0 / params.acc_req / iota_bar_fp)) if iota_bar_fp != 0 else 0
+                nfp_rat = int(jnp.ceil(1.0 / params.acc_req / abs(iota_bar_fp))) if iota_bar_fp != 0 else 0
                 if nfp_rat % n_iota != 0:
                     nfp_rat = nfp_rat + n_iota - (nfp_rat % n_iota)
                 if nfp_rat >= params.nstep_min:
@@ -1014,7 +1014,7 @@ def flint_bo_jax(
             hit_rat_new = jnp.where(nstep_max_c_new > params.nstep_max, 1, 0).astype(jnp.int32)
             nfp_rat_new = jnp.where(
                 (hit_rat_new == 1) & (iota_bar_fp != 0.0),
-                jnp.ceil(1.0 / params.acc_req / iota_bar_fp).astype(jnp.int32),
+                jnp.ceil(1.0 / params.acc_req / abs(iota_bar_fp)).astype(jnp.int32),
                 0,
             )
             nfp_rat_new = jnp.where(

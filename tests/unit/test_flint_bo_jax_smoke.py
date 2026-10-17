@@ -1,12 +1,15 @@
-import numpy as np
+from dataclasses import replace
+
 import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 
-from neo_jax.integrate import FlintParams, RhsEnv, flint_bo_jax
+from neo_jax.integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
 from neo_jax.surface import SurfaceData, build_splines
 
 
-def test_flint_bo_jax_smoke_constant_field():
+def _constant_case(iota=0.5):
     jax.config.update("jax_enable_x64", True)
 
     theta_n, phi_n = 6, 6
@@ -64,12 +67,30 @@ def test_flint_bo_jax_smoke_constant_field():
         grid=grid,
         eta=jnp.array([0.0]),
         bmod0=surface.bmref,
-        iota=jnp.array(0.5),
+        iota=jnp.array(iota),
         curr_pol=jnp.array(1.0),
         curr_tor=jnp.array(0.0),
     )
 
+    return surface, params, env
+
+
+def test_flint_bo_jax_smoke_constant_field():
+    surface, params, env = _constant_case()
     out = flint_bo_jax(surface, params, env, nfp=1, Rmajor=1.0)
 
     assert np.isfinite(np.asarray(out["epstot"]))
     assert int(out["hit_rat"]) in (0, 1)
+
+
+@pytest.mark.parametrize("integrator", [flint_bo, flint_bo_jax])
+@pytest.mark.parametrize("iota", [0.50001, -0.50001])
+def test_rational_period_count_is_positive(integrator, iota):
+    surface, params, env = _constant_case(iota)
+    params = replace(params, nstep_min=2, nstep_max=5, acc_req=0.5, no_bins=2)
+    out = integrator(surface, params, env, nfp=1, Rmajor=1.0)
+
+    assert int(out["hit_rat"]) == 1
+    assert int(out["nfp_rat"]) == 4
+    assert int(out["final_n"]) == 8
+    assert np.isfinite(np.asarray(out["epstot"]))
