@@ -18,18 +18,9 @@ except Exception:  # pragma: no cover - optional dependency
     jnp = None  # type: ignore
     _JAX_AVAILABLE = False
 
+from booz_xform_jax import read_boozmn as load_boozmn
+
 from .data_models import BoozerData
-
-try:
-    import netCDF4  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    netCDF4 = None
-
-
-def _require_netcdf4() -> None:
-    if netCDF4 is None:
-        raise ImportError("netCDF4 is required to read boozmn files")
-
 
 def resolve_control_path(extension: Optional[str] = None) -> Path:
     """Resolve NEO control file paths following xneo conventions."""
@@ -98,23 +89,8 @@ def resolve_boozmn_path(base: str | Path, extension: str | None = None) -> Path:
 
 def read_boozmn_metadata(path: str | Path) -> dict:
     """Read minimal metadata (ns_b, jlist) from a boozmn file."""
-    _require_netcdf4()
-    booz_path = resolve_boozmn_path(path, None)
-    with netCDF4.Dataset(booz_path) as ds:  # type: ignore[union-attr]
-        ns_b = int(ds.variables["ns_b"][:])
-        if "jlist" in ds.variables:
-            jlist = np.array(ds.variables["jlist"][:], dtype=int).tolist()
-        else:
-            jlist = list(range(1, ns_b + 1))
-    return {"ns_b": ns_b, "jlist": jlist}
-
-
-def _transpose_if_needed(arr: np.ndarray, pack_len: int) -> np.ndarray:
-    if arr.shape[0] == pack_len:
-        return arr
-    if arr.shape[1] == pack_len:
-        return arr.T
-    raise ValueError("Unexpected boozmn array shape")
+    booz = load_boozmn(resolve_boozmn_path(path, None))
+    return {"ns_b": booz["ns_b"], "jlist": booz["jlist"].tolist()}
 
 
 def _select_modes(ixm: np.ndarray, ixn: np.ndarray, max_m: int, max_n: int):
@@ -136,47 +112,14 @@ def read_boozmn(
     This function follows the packing conventions used in STELLOPT's
     read_boozer_mod, but only retains the surfaces requested.
     """
-    _require_netcdf4()
-    booz_path = resolve_boozmn_path(path, extension)
-
-    with netCDF4.Dataset(booz_path) as ds:  # type: ignore[union-attr]
-        lasym = "lasym__logical__" in ds.variables and bool(ds.variables["lasym__logical__"][...])
-        nfp = int(ds.variables["nfp_b"][:])
-        ns_b = int(ds.variables["ns_b"][:])
-        mboz_b = int(ds.variables["mboz_b"][:])
-        nboz_b = int(ds.variables["nboz_b"][:])
-
-        ixm_b = np.array(ds.variables["ixm_b"][:], dtype=int)
-        ixn_b = np.array(ds.variables["ixn_b"][:], dtype=int)
-
-        iota_b = np.array(ds.variables["iota_b"][:], dtype=float)
-        buco_b = np.array(ds.variables["buco_b"][:], dtype=float)
-        bvco_b = np.array(ds.variables["bvco_b"][:], dtype=float)
-        pres_b = np.array(ds.variables["pres_b"][:], dtype=float) if "pres_b" in ds.variables else None
-
-        mode_dims = (ds.variables["ixm_b"].dimensions[0], "mn_mode", "mn_modes")
-        def coefficient(name):
-            variable = ds.variables[name]
-            value = np.asarray(variable[:], dtype=float)
-            return value.T if variable.dimensions[0] in mode_dims else value
-        rmnc_raw, zmns_raw, pmns_raw, bmnc_raw = (
-            coefficient(name) for name in ("rmnc_b", "zmns_b", "pmns_b", "bmnc_b"))
-        gmn_raw = coefficient("gmn_b") if "gmn_b" in ds.variables else None
-        asymmetric = {name: coefficient(raw) for name, raw in
-                      (("rmns", "rmns_b"), ("zmnc", "zmnc_b"),
-                       ("lmnc", "pmnc_b"), ("bmns", "bmns_b"))} if lasym else {}
-
-        if "jlist" in ds.variables:
-            jlist = np.array(ds.variables["jlist"][:], dtype=int)
-        else:
-            jlist = np.arange(1, rmnc_raw.shape[0] + 1, dtype=int)
-
-    pack_len = len(jlist)
-    rmnc_pack = _transpose_if_needed(rmnc_raw, pack_len)
-    zmns_pack = _transpose_if_needed(zmns_raw, pack_len)
-    pmns_pack = _transpose_if_needed(pmns_raw, pack_len)
-    bmnc_pack = _transpose_if_needed(bmnc_raw, pack_len)
-    gmn_pack = _transpose_if_needed(gmn_raw, pack_len) if gmn_raw is not None else None
+    booz = load_boozmn(resolve_boozmn_path(path, extension))
+    lasym, nfp, ns_b, mboz_b, nboz_b, ixm_b, ixn_b, jlist = (booz[k] for k in (
+        "lasym", "nfp_b", "ns_b", "mboz_b", "nboz_b", "ixm_b", "ixn_b", "jlist"))
+    iota_b, buco_b, bvco_b, pres_b = booz["iota_b"], booz["buco_b"], booz["bvco_b"], booz.get("pres_b")
+    rmnc_pack, zmns_pack, pmns_pack, bmnc_pack, gmn_pack = (booz[k] for k in (
+        "rmnc_b", "zmns_b", "pmns_b", "bmnc_b", "gmn_b"))
+    asymmetric = {name: booz[raw] for name, raw in (("rmns", "rmns_b"), ("zmnc", "zmnc_b"),
+                  ("lmnc", "pmnc_b"), ("bmns", "bmns_b"))} if lasym else {}
 
     max_m = max_m_mode if max_m_mode > 0 else mboz_b - 1
     max_n = max_n_mode if max_n_mode > 0 else nboz_b * nfp
@@ -194,7 +137,7 @@ def read_boozmn(
     else:
         surfaces = list(jlist)
     packed_rows = [pack_index[int(surf)] for surf in surfaces if int(surf) in pack_index]
-    asymmetric = {name: _transpose_if_needed(value, pack_len)[packed_rows][:, mode_mask]
+    asymmetric = {name: value[packed_rows][:, mode_mask]
                   for name, value in asymmetric.items()}
     if lasym:
         asymmetric["lmnc"] *= -nfp / (2.0 * math.pi)
@@ -229,7 +172,7 @@ def read_boozmn(
             pprime.append((pres_b[surf] - pres_b[surf - 1]) / hs)
         else:
             pprime.append(0.0)
-        if gmn_pack is not None and mode0_idx is not None:
+        if mode0_idx is not None:
             sqrtg00.append(float(gmn_pack[pack_idx, mode0_idx]))
         else:
             sqrtg00.append(0.0)

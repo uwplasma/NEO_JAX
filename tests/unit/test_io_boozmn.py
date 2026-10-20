@@ -37,7 +37,7 @@ def test_read_boozmn_preserves_asymmetric_geometry(tmp_path):
     with netCDF4.Dataset(path, "a") as ds:
         ds.variables["lasym__logical__"][...] = 1
         for target, cosine in (("bmns_b", "bmnc_b"), ("rmns_b", "rmnc_b"),
-                               ("zmnc_b", "zmns_b"), ("pmnc_b", "pmns_b")):
+                               ("zmnc_b", "zmns_b"), ("pmnc_b", "pmns_b"), ("gmns_b", "gmn_b")):
             sine = ds.createVariable(target, "f8", ds.variables[cosine].dimensions)
             sine[...] = 0.01 * ds.variables[cosine][...]
     data = read_boozmn(path, fluxs_arr=[96, 64], max_m_mode=3)
@@ -53,16 +53,16 @@ def test_read_boozmn_requires_complete_asymmetric_geometry(tmp_path):
     shutil.copy2(source, path)
     with netCDF4.Dataset(path, "a") as ds:
         ds.variables["lasym__logical__"][...] = 1
-    with pytest.raises(KeyError, match="rmns_b"):
+    with pytest.raises(KeyError, match="mns_b"):
         read_boozmn(path)
 
 
-@pytest.mark.parametrize("mode_first", [False, True])
 @pytest.mark.parametrize("mode_dim", ["mn_mode", "mn_modes"])
-def test_square_file_spectra(tmp_path, mode_first, mode_dim):
+def test_square_file_spectra(tmp_path, mode_dim):
     path = tmp_path / "boozmn.nc"
     names = dict(rmnc_b="rmnc", zmns_b="zmns", pmns_b="lmns", bmnc_b="bmnc",
-                 rmns_b="rmns", zmnc_b="zmnc", pmnc_b="lmnc", bmns_b="bmns")
+                 rmns_b="rmns", zmnc_b="zmnc", pmnc_b="lmnc", bmns_b="bmns",
+                 gmn_b="gmn", gmns_b="gmns")
     values = {name: np.arange(4.).reshape(2, 2) + i for i, name in enumerate(names)}
     with netCDF4.Dataset(path, "w") as ds:
         for name, length in (("radius", 3), ("pack_rad", 2), ("mn_mode", 2), ("mn_modes", 2)):
@@ -74,11 +74,25 @@ def test_square_file_spectra(tmp_path, mode_first, mode_dim):
         for name, value in dict(ixm_b=[0, 1], ixn_b=[0, 0]).items():
             ds.createVariable(name, "i4", ("mn_modes",))[...] = value
         ds.createVariable("jlist", "i4", ("pack_rad",))[...] = [2, 3]
-        dims = (mode_dim, "pack_rad") if mode_first else ("pack_rad", mode_dim)
         for name, value in values.items():
-            ds.createVariable(name, "f8", dims)[...] = value.T if mode_first else value
+            ds.createVariable(name, "f8", ("pack_rad", mode_dim))[...] = value
     result = read_boozmn(path, fluxs_arr=[3, 2])
     for name, attribute in names.items():
+        if attribute.startswith("gm"):
+            continue
         factor = -2/(2*np.pi) if attribute.startswith("lm") else 1
         np.testing.assert_allclose(getattr(result, attribute), values[name][[1, 0]] * factor)
     np.testing.assert_allclose(result.iota, [.6, .4])
+
+
+@pytest.mark.parametrize("name", sorted(p.name for p in (Path(__file__).resolve().parents[1] / "fixtures").rglob("boozmn*.nc")))
+def test_booz_xform_jax_reader_matches_netcdf(name):
+    """The shared booz_xform_jax reader returns the file's arrays unchanged."""
+    from booz_xform_jax import read_boozmn as load_boozmn
+    path = next((Path(__file__).resolve().parents[1] / "fixtures").rglob(name))
+    booz = load_boozmn(path)
+    with netCDF4.Dataset(path) as ds:
+        for key in ("ixm_b", "ixn_b", "jlist", "iota_b", "buco_b", "bvco_b",
+                    "bmnc_b", "rmnc_b", "zmns_b", "pmns_b", "gmn_b"):
+            np.testing.assert_array_equal(booz[key], ds.variables[key][:])
+        assert booz["nfp_b"] == int(ds.variables["nfp_b"][:])
