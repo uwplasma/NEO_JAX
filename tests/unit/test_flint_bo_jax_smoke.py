@@ -164,6 +164,8 @@ def test_unrepresentable_full_correction_is_not_a_finite_result(iota):
     assert bool(skipped["rational_correction_valid"])
     assert not bool(skipped["rational_correction_applied"])
     assert np.isfinite(np.asarray(skipped["epstot"]))
+    skipped_host = flint_bo(surface, params, env, nfp=1, Rmajor=1.0, skip_rational_correction=True)
+    assert int(skipped["final_n"]) == int(skipped_host["final_n"]) == (5 if iota else 2)
 
 
 def test_rounded_and_total_correction_counts_checked_before_int32_conversion():
@@ -194,3 +196,14 @@ def test_public_driver_preserves_invalid_rational_result():
     result = run_neo(booz, config=config, use_jax=True)[0]
     assert not bool(result.diagnostics["rational_correction_valid"])
     assert np.isnan(result.epsilon_effective)
+
+
+@pytest.mark.parametrize("integrator", [flint_bo, flint_bo_jax])
+def test_unresolved_nonzero_advance_preserves_explicit_base_horizon(integrator):
+    surface, params, env = _constant_case(1e-20)
+    surface = replace(surface, theta_bmax=jnp.array(1.0))
+    params = replace(params, nstep_min=2, nstep_max=5, acc_req=0.5, no_bins=2)
+    out = integrator(surface, params, env, nfp=1, Rmajor=1.0, skip_rational_correction=True)
+    assert int(out["final_n"]) == int(out["nintfp"]) == 5
+    assert not bool(out["rational_correction_applied"])
+    assert np.isfinite(np.asarray(out["epstot"]))

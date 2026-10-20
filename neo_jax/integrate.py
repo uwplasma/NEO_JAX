@@ -475,6 +475,9 @@ def flint_bo(
                 if nfp_rat >= params.nstep_min:
                     exist_first_ratfl = 1
                     nstep_max_c = nfp_rat
+                elif nfp_rat == 0 and skip_rational_correction and env.iota != 0 and params.acc_req > 0:
+                    # Explicit base integration needs no representable correction horizon.
+                    exist_first_ratfl = 1
                 delta_theta_rat = float(theta_gap / (nfl_rat + 1))
                 if params.calc_nstep_max == 1:
                     hit_rat = 0
@@ -1048,8 +1051,11 @@ def flint_bo_jax(
             hit_rat_new = jnp.where(nstep_max_c_new > params.nstep_max, 1, 0).astype(jnp.int32)
             periods, lines = _rational_periods(iota_bar_fp, params.acc_req, n_iota, params.no_bins)
             nfp_rat_new = jnp.where(hit_rat_new == 1, periods, 0)
-            exist_first_ratfl_new = jnp.where(nfp_rat_new >= params.nstep_min, 1, 0).astype(jnp.int32)
-            nstep_max_c_new = jnp.where(exist_first_ratfl_new == 1, nfp_rat_new, nstep_max_c_new)
+            reusable = nfp_rat_new >= params.nstep_min
+            skipped_large = ((nfp_rat_new == 0) & jnp.asarray(skip_rational_correction)
+                             & (env.iota != 0.0) & (params.acc_req > 0))
+            exist_first_ratfl_new = jnp.where(reusable | skipped_large, 1, 0).astype(jnp.int32)
+            nstep_max_c_new = jnp.where(reusable, nfp_rat_new, nstep_max_c_new)
             nfl_rat_new = jnp.where(hit_rat_new == 1, lines, nfl_rat)
             delta_theta_rat_new = jnp.where(
                 hit_rat_new == 1,
