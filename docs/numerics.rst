@@ -141,6 +141,19 @@ many starting angles. The characteristic scaling is
    \sim
    \left\lceil\frac{1}{\mathrm{acc\_req}\,|\iota|}\right\rceil.
 
+The ``n_gap`` diagnostic retains the estimated decorrelation gap (and is
+infinite for exact field-line closure). Only the internal stopping decision is
+bounded before integer conversion, so exact and nearly exact closure do not
+overflow an integer counter. ``rational_correction_applied`` distinguishes a
+completed correction from a skipped one; ``final_n`` counts executed periods.
+A zero transform or an int32-unrepresentable rounded/total correction count
+cannot define a supported full correction. The host backend raises ``ValueError``;
+the JIT-compatible backend returns NaN ripple values and
+``rational_correction_valid=False``. The public driver preserves that failure.
+The workload guard normally rejects these requests earlier. An explicitly
+skipped correction retains a finite base result, with
+``rational_correction_applied=False`` and its actual executed period count.
+
 This is the source of the expensive low-``|iota|`` regime. NEO_JAX therefore
 adds a preflight estimate before entering the costly correction:
 

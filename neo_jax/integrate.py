@@ -206,6 +206,35 @@ class FlintParams:
         return cls(*children)
 
 
+def _rational_gap(theta_gap, theta_d_min, n_iota, nstep_max):
+    """Keep the gap diagnostic real-valued; bound only its stopping decision."""
+    exact = theta_d_min == 0.0
+    denominator = jnp.where(exact, 1.0, theta_d_min)
+    gap = n_iota * jnp.floor(jnp.abs(theta_gap / denominator))
+    gap = jnp.where(exact, jnp.inf, gap)
+    # Once the gap exceeds the base integration cap, only that fact matters.
+    # Bound before conversion, including for exact closure (infinite gap).
+    decision_limit = n_iota * (nstep_max // n_iota + 1)
+    decision = jnp.minimum(gap, decision_limit).astype(jnp.int32)
+    return gap, decision
+
+
+def _rational_periods(iota_bar_fp, acc_req, n_iota, no_bins):
+    """Validate rounded and total counts before any int32 conversion."""
+    nonzero = iota_bar_fp != 0.0
+    safe_iota = jnp.where(nonzero, jnp.abs(iota_bar_fp), 1.0)
+    periods = jnp.ceil(1.0 / acc_req / safe_iota)
+    rounded = n_iota * jnp.ceil(periods / n_iota)
+    lines = jnp.ceil(no_bins / n_iota)
+    # The preceding float32 value is also safe when x64 is disabled.
+    limit = jnp.nextafter(jnp.asarray(2**31, rounded.dtype), jnp.zeros_like(rounded))
+    valid = (nonzero & (acc_req > 0) & jnp.isfinite(rounded) & (rounded > 0)
+             & jnp.isfinite(lines) & (lines >= 0) & (rounded * (lines + 1) <= limit))
+    periods = jnp.where(valid, rounded, 0).astype(jnp.int32)
+    lines = jnp.where(valid, lines, 0).astype(jnp.int32)
+    return periods, lines
+
+
 def flint_bo(
     surface,
     params: FlintParams,
@@ -431,21 +460,21 @@ def flint_bo(
 
         if n == params.nstep_min:
             theta_gap = 2.0 * jnp.pi / n_iota
-            n_gap = int(n_iota * int(abs(theta_gap / theta_d_min)))
-            if n_gap > params.nstep_min:
-                nstep_max_c = n_gap
+            gap, decision = _rational_gap(theta_gap, theta_d_min, n_iota, params.nstep_max)
+            n_gap = float(gap)
+            decision = int(decision)
+            if decision > params.nstep_min:
+                nstep_max_c = decision
             else:
-                nstep_max_c = int(n_gap * jnp.ceil(params.nstep_min / n_gap))
+                nstep_max_c = int(decision * jnp.ceil(params.nstep_min / decision))
 
             if nstep_max_c > params.nstep_max:
                 hit_rat = 1
-                nfp_rat = int(jnp.ceil(1.0 / params.acc_req / abs(iota_bar_fp))) if iota_bar_fp != 0 else 0
-                if nfp_rat % n_iota != 0:
-                    nfp_rat = nfp_rat + n_iota - (nfp_rat % n_iota)
+                periods, lines = _rational_periods(iota_bar_fp, params.acc_req, n_iota, params.no_bins)
+                nfp_rat, nfl_rat = int(periods), int(lines)
                 if nfp_rat >= params.nstep_min:
                     exist_first_ratfl = 1
                     nstep_max_c = nfp_rat
-                nfl_rat = int(jnp.ceil(params.no_bins / n_iota))
                 delta_theta_rat = float(theta_gap / (nfl_rat + 1))
                 if params.calc_nstep_max == 1:
                     hit_rat = 0
@@ -462,7 +491,11 @@ def flint_bo(
     y3npart = y[NPQ + npart - 1]
 
     # Rational surface correction
-    if hit_rat == 1 and not skip_rational_correction:
+    if hit_rat == 1 and nfp_rat == 0 and not skip_rational_correction:
+        raise ValueError("Full rational correction requires positive, representable period counts; "
+                         "use the explicit approximate policy to retain the base integration.")
+    do_rational = hit_rat == 1 and nfp_rat > 0 and not skip_rational_correction
+    if do_rational:
         if exist_first_ratfl == 0:
             if collect_convergence and convergence_history is not None:
                 convergence_history = []
@@ -588,6 +621,8 @@ def flint_bo(
         "n_iota": n_iota,
         "m_iota": m_iota,
         "n_gap": n_gap,
+        "rational_correction_applied": do_rational,
+        "rational_correction_valid": True,
         "final_n": n,
         "nfp_rat": nfp_rat,
         "nfl_rat": nfl_rat,
@@ -708,7 +743,7 @@ def flint_bo_jax(
     nfp_rat = jnp.array(0, dtype=jnp.int32)
     nfl_rat = jnp.array(0, dtype=jnp.int32)
     delta_theta_rat = jnp.array(0.0)
-    n_gap = jnp.array(0, dtype=jnp.int32)
+    n_gap = jnp.array(0.0)
 
     stop = jnp.array(False)
     n = jnp.array(0, dtype=jnp.int32)
@@ -1002,35 +1037,20 @@ def flint_bo_jax(
         twopi = 2.0 * jnp.pi
 
         def body(_):
-            theta_d_min_safe = jnp.where(theta_d_min == 0.0, 1.0e-12, theta_d_min)
             theta_gap = twopi / n_iota
-            n_gap_new = n_iota * jnp.floor(jnp.abs(theta_gap / theta_d_min_safe)).astype(jnp.int32)
+            n_gap_new, decision = _rational_gap(theta_gap, theta_d_min, n_iota, params.nstep_max)
             nstep_max_c_new = jnp.where(
-                n_gap_new > params.nstep_min,
-                n_gap_new,
-                n_gap_new * jnp.ceil(params.nstep_min / n_gap_new).astype(jnp.int32),
+                decision > params.nstep_min,
+                decision,
+                decision * jnp.ceil(params.nstep_min / decision).astype(jnp.int32),
             )
 
             hit_rat_new = jnp.where(nstep_max_c_new > params.nstep_max, 1, 0).astype(jnp.int32)
-            nfp_rat_new = jnp.where(
-                (hit_rat_new == 1) & (iota_bar_fp != 0.0),
-                jnp.ceil(1.0 / params.acc_req / abs(iota_bar_fp)).astype(jnp.int32),
-                0,
-            )
-            nfp_rat_new = jnp.where(
-                (hit_rat_new == 1) & (nfp_rat_new % n_iota != 0),
-                nfp_rat_new + n_iota - (nfp_rat_new % n_iota),
-                nfp_rat_new,
-            )
-
+            periods, lines = _rational_periods(iota_bar_fp, params.acc_req, n_iota, params.no_bins)
+            nfp_rat_new = jnp.where(hit_rat_new == 1, periods, 0)
             exist_first_ratfl_new = jnp.where(nfp_rat_new >= params.nstep_min, 1, 0).astype(jnp.int32)
             nstep_max_c_new = jnp.where(exist_first_ratfl_new == 1, nfp_rat_new, nstep_max_c_new)
-
-            nfl_rat_new = jnp.where(
-                hit_rat_new == 1,
-                jnp.ceil(params.no_bins / n_iota).astype(jnp.int32),
-                nfl_rat,
-            )
+            nfl_rat_new = jnp.where(hit_rat_new == 1, lines, nfl_rat)
             delta_theta_rat_new = jnp.where(
                 hit_rat_new == 1,
                 theta_gap / (nfl_rat_new + 1),
@@ -1333,6 +1353,7 @@ def flint_bo_jax(
     def rational_skip(_):
         return bigint, aditot, y2, y3, y4, y3npart
 
+    invalid_rational = (hit_rat == 1) & (nfp_rat == 0) & jnp.logical_not(jnp.asarray(skip_rational_correction))
     do_rational = (hit_rat == 1) & (nfp_rat > 0) & jnp.logical_not(jnp.asarray(skip_rational_correction))
     bigint, aditot, y2, y3, y4, y3npart = jax.lax.cond(
         do_rational, rational_correction, rational_skip, operand=None
@@ -1345,6 +1366,9 @@ def flint_bo_jax(
     for m_cl in range(1, multra + 1):
         epspar = epspar.at[m_cl - 1].set(coeps * bigint[m_cl - 1] * y2 / (y3 * y3))
         epstot = epstot + epspar[m_cl - 1]
+
+    epspar = jnp.where(invalid_rational, jnp.nan, epspar)
+    epstot = jnp.where(invalid_rational, jnp.nan, epstot)
 
     ctrone = aditot / y2
     ctrtot = y3npart / y2
@@ -1372,7 +1396,9 @@ def flint_bo_jax(
         "n_iota": n_iota,
         "m_iota": m_iota,
         "n_gap": n_gap,
-        "final_n": jnp.where(hit_rat == 1, nfp_rat * (nfl_rat + 1), nintfp),
+        "rational_correction_applied": do_rational,
+        "rational_correction_valid": jnp.logical_not(invalid_rational),
+        "final_n": jnp.where(do_rational, nfp_rat * (nfl_rat + 1), nintfp),
         "nfp_rat": nfp_rat,
         "nfl_rat": nfl_rat,
     }
