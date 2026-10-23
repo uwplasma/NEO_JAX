@@ -84,7 +84,7 @@ def test_flint_bo_jax_smoke_constant_field():
 
 
 @pytest.mark.parametrize("integrator", [flint_bo, flint_bo_jax])
-@pytest.mark.parametrize("iota", [0.50001, -0.50001])
+@pytest.mark.parametrize("iota", [0.50001, -0.50001, 0.5, -0.5])
 def test_rational_period_count_is_positive(integrator, iota):
     surface, params, env = _constant_case(iota)
     params = replace(params, nstep_min=2, nstep_max=5, acc_req=0.5, no_bins=2)
@@ -93,22 +93,10 @@ def test_rational_period_count_is_positive(integrator, iota):
     assert int(out["hit_rat"]) == 1
     assert int(out["nfp_rat"]) == 4
     assert int(out["final_n"]) == 8
-    assert np.isfinite(np.asarray(out["epstot"]))
-
-
-@pytest.mark.parametrize("integrator", [flint_bo, flint_bo_jax])
-@pytest.mark.parametrize("iota", [0.5, -0.5])
-def test_exact_rational_closure_applies_correction(integrator, iota):
-    surface, params, env = _constant_case(iota)
-    params = replace(params, nstep_min=2, nstep_max=5, acc_req=0.5, no_bins=2)
-    out = integrator(surface, params, env, nfp=1, Rmajor=1.0)
-
-    assert np.isinf(np.asarray(out["n_gap"]))
-    assert int(out["hit_rat"]) == 1
-    assert int(out["nfp_rat"]) == 4
-    assert int(out["final_n"]) == 8
     assert bool(out["rational_correction_applied"])
     assert np.isfinite(np.asarray(out["epstot"]))
+    if abs(iota) == 0.5:
+        assert np.isinf(np.asarray(out["n_gap"]))
 
 
 @pytest.mark.parametrize("integrator", [flint_bo, flint_bo_jax])

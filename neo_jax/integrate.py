@@ -212,8 +212,6 @@ def _rational_gap(theta_gap, theta_d_min, n_iota, nstep_max):
     denominator = jnp.where(exact, 1.0, theta_d_min)
     gap = n_iota * jnp.floor(jnp.abs(theta_gap / denominator))
     gap = jnp.where(exact, jnp.inf, gap)
-    # Once the gap exceeds the base integration cap, only that fact matters.
-    # Bound before conversion, including for exact closure (infinite gap).
     decision_limit = n_iota * (nstep_max // n_iota + 1)
     decision = jnp.minimum(gap, decision_limit).astype(jnp.int32)
     return gap, decision
@@ -495,8 +493,7 @@ def flint_bo(
 
     # Rational surface correction
     if hit_rat == 1 and nfp_rat == 0 and not skip_rational_correction:
-        raise ValueError("Full rational correction requires positive, representable period counts; "
-                         "use the explicit approximate policy to retain the base integration.")
+        raise ValueError("Full rational correction requires positive, representable period counts.")
     do_rational = hit_rat == 1 and nfp_rat > 0 and not skip_rational_correction
     if do_rational:
         if exist_first_ratfl == 0:
