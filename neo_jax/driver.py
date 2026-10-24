@@ -158,6 +158,7 @@ def run_neo_from_boozer_jax(
             work = _estimate_rational_work(
                 float(guard_iota[surf_idx]),
                 control.acc_req,
+                nfp=booz.nfp,
                 nstep_per=control.nstep_per,
                 npart=control.npart,
                 multra=control.multra,
@@ -272,11 +273,14 @@ def _resolve_rational_surface_policy(value: str | None) -> str:
     )
 
 
-def _estimate_rational_work(iota: float, acc_req: float, *, nstep_per: int, npart: int, multra: int) -> Dict[str, float]:
+def _estimate_rational_work(
+    iota: float, acc_req: float, *, nfp: int, nstep_per: int, npart: int, multra: int,
+) -> Dict[str, float]:
     abs_iota = abs(float(iota))
     safe_iota = max(abs_iota, 1.0e-16)
     safe_acc = max(float(acc_req), 1.0e-16)
-    field_periods = int(np.ceil(1.0 / safe_acc / safe_iota))
+    # Integration advances by field periods, for which the transform is iota / nfp.
+    field_periods = int(np.ceil(nfp / safe_acc / safe_iota))
     substeps = int(field_periods * max(int(nstep_per), 1))
     eta_paths = int(substeps * max(int(npart), 1) * max(int(multra), 1))
     return {
@@ -718,6 +722,7 @@ def run_neo_from_boozer(
         work = _estimate_rational_work(
             float(booz.iota[surf_idx]),
             control.acc_req,
+            nfp=booz.nfp,
             nstep_per=control.nstep_per,
             npart=control.npart,
             multra=control.multra,
