@@ -91,7 +91,7 @@ def neo_zeros2d(
     iter_ma: int,
     b_spl: Array,
     grid: dict,
-    *, phi_invariant: bool = False,
+    *, phi_invariant: bool = False, reverse_mode: bool = False,
 ) -> Tuple[Array, Array, Array, Array]:
     """Newton solver for finding extrema of B.
 
@@ -122,6 +122,13 @@ def neo_zeros2d(
         return (x_n, y_n, f_n, g_n, dfdx_n, dfdy_n, dgdx_n, dgdy_n, it + 1, converged)
 
     init_state = (theta, phi, f, g, dfdx, dfdy, dgdx, dgdy, 0, False)
-    theta_f, phi_f, *_rest, it, converged = jax.lax.while_loop(cond, body, init_state)
+    # A masked fixed-length loop preserves Newton stopping exactly and permits
+    # both JVP and VJP. Rematerialize the small Newton state during reverse AD.
+    def step(_, state):
+        return jax.lax.cond(cond(state), jax.checkpoint(body), lambda x: x, state)
+
+    final_state = (jax.lax.fori_loop(0, iter_ma, step, init_state) if reverse_mode
+                   else jax.lax.while_loop(cond, body, init_state))
+    theta_f, phi_f, *_rest, it, converged = final_state
     error = jnp.where(converged, 0, 1)
     return theta_f, phi_f, it, error

@@ -30,3 +30,27 @@ def test_vmec_boozer_pipeline_smoke(vmex_equilibrium, tmp_path):
 def test_invalid_pipeline_surfaces(vmex_equilibrium, surfaces):
     with pytest.raises(ValueError):
         booz_xform_from_vmec_wout(vmex_equilibrium.wout, surfaces=surfaces)
+
+
+def test_compiled_current_driven_builder_keeps_live_guard(monkeypatch):
+    from types import SimpleNamespace
+
+    import jax.numpy as jnp
+
+    from neo_jax import driver, io, pipeline
+
+    run = SimpleNamespace(runtime=SimpleNamespace(setup=SimpleNamespace(ncurr=1, lasym=False)),
+                          state=jnp.array(.43))
+    grids = SimpleNamespace(xm_b=np.array([0]), xn_b=np.array([0]))
+    monkeypatch.setattr(pipeline, "_build_boozer_transform",
+                        lambda *args, **kwargs: (lambda state: state, grids, 2))
+    monkeypatch.setattr(io, "booz_xform_to_boozerdata_jax", lambda data, **kwargs: data)
+    observed = []
+    def solve(data, control, **kwargs):
+        observed.append(kwargs["max_rational_field_periods"])
+        assert kwargs["_work_guard"] is None
+        return 2*data
+    monkeypatch.setattr(driver, "run_neo_from_boozer_jax", solve)
+    evaluate = pipeline.build_vmec_boozer_neo_jax(run, neo_config=NeoConfig(reverse_mode=True))
+    np.testing.assert_allclose(evaluate(run.state), .86)
+    assert observed == [100_000]
