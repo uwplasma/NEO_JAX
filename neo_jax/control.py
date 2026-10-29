@@ -38,6 +38,7 @@ class ControlParams:
     npart_cur: int
     alpha_cur: float
     write_cur_inte: int
+    reverse_mode: bool = False
 
 
 def _read_lines(path: Path) -> List[str]:

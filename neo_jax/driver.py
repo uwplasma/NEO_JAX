@@ -41,8 +41,8 @@ def compute_reference_jax(booz: BoozerData):
     return rt0, bmref_g
 
 
-@partial(jax.jit, static_argnames=("params", "theta_n", "phi_n", "ref_swi", "sequential"))
-def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequential=None):
+@partial(jax.jit, static_argnames=("params", "theta_n", "phi_n", "ref_swi", "sequential", "reverse_mode"))
+def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequential=None, reverse_mode=False):
     """Compile one numerical kernel; reuse it for new coefficients and surfaces."""
     grid = prepare_grids(theta_n, phi_n, booz.nfp)
     rt0, bmref_g = compute_reference_jax(booz)
@@ -65,6 +65,7 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequent
             grid=grid,
             use_jax=True,
             skip_mask=True,
+            reverse_mode=reverse_mode,
         )
 
         env = RhsEnv(
@@ -77,7 +78,7 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequent
             curr_tor=booz.curr_tor[surf_idx],
         )
 
-        out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0)
+        out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0, reverse_mode=reverse_mode)
 
         if ref_swi == 1:
             b_ref = bmref_g
@@ -206,7 +207,8 @@ def run_neo_from_boozer_jax(
         b_ref,
         r_ref,
     ) = _solve_surfaces(
-        booz, surf_indices_j, params, control.theta_n, control.phi_n, control.ref_swi)
+        booz, surf_indices_j, params, control.theta_n, control.phi_n, control.ref_swi,
+        reverse_mode=control.reverse_mode)
 
     dpsi = jnp.concatenate([s_vals[:1], s_vals[1:] - s_vals[:-1]], axis=0)
     r_eff = jnp.cumsum(drdpsi * dpsi)

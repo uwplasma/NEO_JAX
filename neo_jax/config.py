@@ -26,6 +26,10 @@ class NeoConfig:
     - ``"error"``: fail fast with a detailed diagnostic (default)
     - ``"approximate"``: skip the expensive rational-surface correction and
       return the base integration result with explicit diagnostics
+
+    ``reverse_mode=True`` enables first-order ``jax.grad``/``jax.vjp`` on the
+    JAX surface-scan path using bounded-memory checkpoint replay. The default
+    selects the forward-mode path (``jax.jvp``/``jax.jacfwd``).
     """
 
     surfaces: Sequence[int | float] | None = None
@@ -43,6 +47,7 @@ class NeoConfig:
     calc_nstep_max: int = 0
     max_rational_field_periods: Optional[int] = 100_000
     rational_surface_policy: str = "error"
+    reverse_mode: bool = False
     ref_swi: int = 2
     write_progress: bool = False
     write_diagnostic: bool = False
@@ -63,6 +68,7 @@ class NeoConfig:
             nstep_min=control.nstep_min,
             nstep_max=control.nstep_max,
             calc_nstep_max=control.calc_nstep_max,
+            reverse_mode=control.reverse_mode,
             ref_swi=control.ref_swi,
             write_progress=bool(control.write_progress),
             write_diagnostic=bool(control.write_diagnostic),
@@ -89,6 +95,7 @@ class NeoConfig:
             eout_swi=1,
             lab_swi=0,
             inp_swi=0,
+            reverse_mode=self.reverse_mode,
             ref_swi=self.ref_swi,
             write_progress=int(self.write_progress),
             write_output_files=0,

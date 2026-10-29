@@ -156,6 +156,7 @@ def init_surface(
     calc_cur: bool = False,
     use_jax: bool = False,
     skip_mask: bool = False,
+    reverse_mode: bool = False,
 ) -> SurfaceData:
     """Initialize a single flux surface: Fourier sums, derived fields, splines, B min/max."""
     fourier = fourier_sums(
@@ -227,10 +228,12 @@ def init_surface(
     phi_invariant = jnp.all((ixn == 0) | ((coeffs["bmnc"] == 0) &
                            (bmns == 0 if bmns is not None else True)))
     theta_bmin, phi_bmin, _it_min, _err_min = neo_zeros2d(
-        theta_bmin, phi_bmin, 1.0e-10, 100, splines["b_spl"], grid, phi_invariant=phi_invariant
+        theta_bmin, phi_bmin, 1.0e-10, 100, splines["b_spl"], grid, phi_invariant=phi_invariant,
+        reverse_mode=reverse_mode
     )
     theta_bmax, phi_bmax, _it_max, _err_max = neo_zeros2d(
-        theta_bmax, phi_bmax, 1.0e-10, 100, splines["b_spl"], grid, phi_invariant=phi_invariant
+        theta_bmax, phi_bmax, 1.0e-10, 100, splines["b_spl"], grid, phi_invariant=phi_invariant,
+        reverse_mode=reverse_mode
     )
 
     # Evaluate B at refined points.

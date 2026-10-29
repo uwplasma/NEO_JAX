@@ -29,9 +29,24 @@ For performance-critical workflows, we recommend:
 - Using 64-bit precision when matching Fortran outputs.
 - Keeping diagnostic prints off during JIT execution.
 
-Reverse-mode autodiff (``jax.grad``) through the scan is currently limited by
-dynamic loop bounds in the trapped-particle logic. Forward-mode
-(``jax.jvp``/``jax.jacfwd``) is supported and used in the optimization examples.
+Select ``NeoConfig(reverse_mode=True)`` for first-order reverse-mode
+(``jax.grad``/``jax.vjp``), together with ``jax_surface_scan=True`` when calling
+``run_neo``. The reusable ``build_vmec_boozer_neo_jax`` builder uses the same
+configuration option. The default remains the forward-mode implementation
+(``jax.jvp``/``jax.jacfwd``); forward JVP and higher-order derivatives of the
+reverse-mode implementation are not supported.
+
+Reverse mode preserves the same numerical solution, including the rational
+correction. Dynamic rational loops use binary checkpoint replay: storage grows
+as the logarithm of the trip count, and reverse replay takes O(N log N) work.
+Newton extrema refinement and the base field-line scan rematerialize their
+intermediate calculations during the pullback. Field coefficients, geometry,
+Boozer currents and rotational transform all remain differentiated.
+
+The derivative is local to the selected extrema, particle trapping branches,
+and rational-work decisions. Their discrete changes are not smooth; check
+finite differences away from these transitions and check sensitivity to the
+numerical resolution before optimization.
 
 What differentiates cleanly
 ---------------------------
