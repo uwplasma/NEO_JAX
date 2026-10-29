@@ -292,6 +292,23 @@ def _packed_boozer_profiles(booz, ns, xp, *profiles):
 
 
 
+
+def _static_mode_indices(ixm, ixn, max_m_mode=0, max_n_mode=0):
+    """Select a fixed output shape from mode metadata before entering JIT."""
+    if _JAX_AVAILABLE and any(isinstance(x, jax.core.Tracer) for x in (ixm, ixn)):
+        raise ValueError(
+            "Mode filtering requires static ixm_b/ixn_b metadata or explicit mode_indices; "
+            "preselect the modes outside JIT."
+        )
+    m, n = np.asarray(ixm), np.asarray(ixn)
+    mask = np.ones(m.shape, dtype=bool)
+    if max_m_mode > 0:
+        mask &= np.abs(m) <= max_m_mode
+    if max_n_mode > 0:
+        mask &= np.abs(n) <= max_n_mode
+    return np.flatnonzero(mask)
+
+
 def _convert_boozer(
     booz, *, use_jax, max_m_mode=0, max_n_mode=0, fluxs_arr=None,
     nfp_override=None, mode_indices=None, asym_override=None, mode_first=None,
@@ -329,16 +346,15 @@ def _convert_boozer(
         raise ValueError("Surface index is outside the Boozer data")
     rows = xp.asarray([int(s)-1 for s in fluxs_arr], dtype=int) if fluxs_arr else xp.arange(ns)
     if mode_indices is None:
-        max_m = max_m_mode if max_m_mode > 0 else xp.max(xp.abs(ixm))
-        max_n = max_n_mode if max_n_mode > 0 else xp.max(xp.abs(ixn))
-        mask = (xp.abs(ixm) <= max_m) & (xp.abs(ixn) <= max_n)
-        modes = None
-    else:
-        modes = xp.asarray(mode_indices, dtype=int)
+        if max_m_mode > 0 or max_n_mode > 0:
+            mode_indices = _static_mode_indices(
+                get("ixm_b"), get("ixn_b"), max_m_mode, max_n_mode)
+        else:
+            mode_indices = np.arange(len(ixm))
+    modes = xp.asarray(mode_indices, dtype=int)
 
     def select(value):
-        value = xp.take(value, rows, axis=0)
-        return value[:, mask] if modes is None else xp.take(value, modes, axis=1)
+        return xp.take(xp.take(value, rows, axis=0), modes, axis=1)
 
     sine_present = any(get(name) is not None for name in ("rmns_b", "zmnc_b", "pmnc_b", "bmns_b"))
     asymmetric = (bool(get("asym", get("lasym", sine_present)))
@@ -353,8 +369,7 @@ def _convert_boozer(
             coefficients[name] *= -nfp / (2.0 * math.pi)
     return BoozerData(
         **coefficients, nfp=nfp, es=xp.take(es, rows),
-        ixm=ixm[mask] if modes is None else xp.take(ixm, modes),
-        ixn=ixn[mask] if modes is None else xp.take(ixn, modes),
+        ixm=xp.take(ixm, modes), ixn=xp.take(ixn, modes),
         iota=xp.take(iota, rows), curr_pol=xp.take(curr_pol, rows),
         curr_tor=xp.take(curr_tor, rows),
     )

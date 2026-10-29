@@ -43,6 +43,18 @@ Newton extrema refinement and the base field-line scan rematerialize their
 intermediate calculations during the pullback. Field coefficients, geometry,
 Boozer currents and rotational transform all remain differentiated.
 
+With a finite ``max_rational_field_periods``, eager solves retain the work-limit
+exception. A compiled solve checks the current live iota and returns NaN transport
+outputs with ``diagnostics["rational_work_limit_exceeded"]`` set on rejected
+surfaces; the expensive integration branch is skipped. Reject nonfinite outputs
+before taking an optimization step. A batch-dependent guard rejects outer
+``vmap`` execution because batching a conditional can execute both branches;
+use ``jax.lax.map`` for serial guarded solves.
+
+Mode filtering requires static mode metadata or explicit ``mode_indices`` when
+using the low-level converter. Float surface selection requires static flux
+metadata; preselect surfaces before JIT or use integer surface indices.
+
 The derivative is local to the selected extrema, particle trapping branches,
 and rational-work decisions. Their discrete changes are not smooth; check
 finite differences away from these transitions and check sensitivity to the
