@@ -76,11 +76,21 @@ def test_poloidal_chart_reflection_preserves_physical_ripple(use_jax, rational):
             assert int(diagnostic["nfp_rat"]) > 0
 
 
+@pytest.mark.parametrize("sign", [1, -1])
 @pytest.mark.parametrize("rational", [False, True])
-def test_ripple_reverse_matches_forward_and_fd(rational):
+def test_ripple_reverse_matches_forward_and_fd(rational, sign):
     data = _toy_boozer()
     if rational:
         data = replace(data, iota=jnp.array([0.501]))
+    if sign < 0:
+        data = replace(
+            data,
+            ixn=-data.ixn,
+            iota=-data.iota,
+            curr_tor=-data.curr_tor,
+            zmns=-data.zmns,
+            lmns=-data.lmns,
+        )
     cfg = NeoConfig(
         theta_n=8,
         phi_n=8,
