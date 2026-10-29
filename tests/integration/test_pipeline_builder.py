@@ -66,9 +66,15 @@ def test_compiled_pipeline_preserves_work_limit(vmex_equilibrium):
         solver(vmex_equilibrium.state)
 
 
-def test_compiled_current_pipeline_requires_explicit_work_limit(vmex_equilibrium):
+def test_compiled_current_pipeline_enforces_live_work_limit(vmex_equilibrium):
     run = vmex_equilibrium
     setup = replace(run.runtime.setup, ncurr=1)
     current_driven = replace(run, runtime=replace(run.runtime, setup=setup))
-    with pytest.raises(ValueError, match="max_rational_field_periods=0"):
-        build_vmec_boozer_neo_jax(current_driven)
+    config = NeoConfig(surfaces=[5], theta_n=8, phi_n=8, npart=6, multra=1,
+                       nstep_per=4, nstep_min=4, nstep_max=8, max_rational_field_periods=1,
+                       reverse_mode=True)
+    solver = build_vmec_boozer_neo_jax(
+        current_driven, booz_kwargs=dict(mboz=4, nboz=0), neo_config=config)
+    outputs = solver(current_driven.state)
+    assert bool(outputs.diagnostics["rational_work_limit_exceeded"][0])
+    assert np.isnan(np.asarray(outputs.eps_eff)).all()
