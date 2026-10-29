@@ -6,7 +6,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
 from neo_jax import NeoConfig, run_neo
 from neo_jax.data_models import BoozerData
 
@@ -30,6 +29,51 @@ def _toy_boozer():
             }.items()
         },
     )
+
+
+@pytest.mark.parametrize("use_jax", [False, True])
+@pytest.mark.parametrize("rational", [False, True])
+def test_poloidal_chart_reflection_preserves_physical_ripple(use_jax, rational):
+    """Reflect the whole chart; changing iota alone changes the physical field."""
+    data = _toy_boozer()
+    if rational:
+        data = replace(data, iota=jnp.array([0.5]))
+    reflected = replace(
+        data,
+        ixn=-data.ixn,
+        iota=-data.iota,
+        curr_tor=-data.curr_tor,
+        zmns=-data.zmns,
+        lmns=-data.lmns,
+    )
+    config = NeoConfig(
+        theta_n=8,
+        phi_n=8,
+        npart=6,
+        multra=1,
+        nstep_per=4,
+        nstep_min=4,
+        nstep_max=5,
+        acc_req=0.5,
+        no_bins=0,
+    )
+    original = run_neo(data, config=config, use_jax=use_jax, progress=False)[0]
+    reverse = run_neo(reflected, config=config, use_jax=use_jax, progress=False)[0]
+    assert float(original.iota) == -float(reverse.iota)
+    assert float(original.epsilon_effective) > 0
+    np.testing.assert_allclose(
+        reverse.epsilon_effective,
+        original.epsilon_effective,
+        rtol=1e-9,
+        atol=1e-12,
+    )
+    for result in (original, reverse):
+        diagnostic = result.diagnostics
+        assert int(diagnostic["final_n"]) > 0
+        assert bool(diagnostic["rational_correction_valid"])
+        if rational:
+            assert bool(diagnostic["rational_correction_applied"])
+            assert int(diagnostic["nfp_rat"]) > 0
 
 
 @pytest.mark.parametrize("rational", [False, True])

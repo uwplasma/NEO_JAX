@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.1.1 - 2026-10-23
+
+- Keep rational-correction periods positive for negative iota while preserving
+  signed field-line winding (#17).
+- Correct NFP scaling in the rational-surface work guard (#21).
+- Handle exact rational closure and reject invalid or overflowing correction
+  counts before integer conversion (#22).
+
+## v1.1.0 - 2026-10-18
+
+- booz_xform_jax>=0.5.0 is now a core dependency. boozmn files are read with
+  its shared reader, so NEO_JAX and VMEX parse them identically (#19).
+- Effective ripple is unchanged: on three decks (including a LASYM-padded
+  one) results are bit-identical to 1.0.6, with no slowdown.
+
 ## v1.0.6 - 2026-10-15
 
 - Keep cosine and sine Boozer spectra through the readers, the booz_xform_jax

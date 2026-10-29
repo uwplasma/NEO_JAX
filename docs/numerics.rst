@@ -141,6 +141,13 @@ many starting angles. The characteristic scaling is
    \sim
    \left\lceil\frac{1}{\mathrm{acc\_req}\,|\iota|}\right\rceil.
 
+``n_gap`` is the estimated decorrelation gap, infinite at exact closure.
+``final_n`` counts executed periods; ``rational_correction_applied`` reports
+whether correction ran. Zero-transform or int32-unrepresentable full corrections
+raise ``ValueError`` on the host or return NaN ripple with
+``rational_correction_valid=False`` under JIT. Explicitly skipped corrections
+retain the base integration and report their actual period count.
+
 This is the source of the expensive low-``|iota|`` regime. NEO_JAX therefore
 adds a preflight estimate before entering the costly correction:
 
