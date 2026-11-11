@@ -68,6 +68,7 @@ packages = ["neo_jax"]
 [tool.pytest.ini_options]
 addopts = "-ra -q"
 testpaths = ["tests"]
+markers = ["gpu: small checks run on the GPU CI lane (also pass on CPU)"]
 
 [tool.black]
 line-length = 100
