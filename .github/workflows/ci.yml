@@ -129,7 +129,7 @@ jobs:
         run: .venv/bin/python -c "import jax; assert jax.default_backend()=='gpu', jax.devices()"
       - name: GPU tests
         timeout-minutes: 1
-        run: .venv/bin/python -m pytest -m gpu -q -x tests/unit/test_gpu_smoke.py
+        run: .venv/bin/python -m pytest -m gpu -q -x tests/unit/test_gpu_ci_smoke.py
 
   docs:
     name: Docs
