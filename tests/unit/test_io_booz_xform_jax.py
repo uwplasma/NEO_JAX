@@ -133,3 +133,29 @@ def test_full_profiles_keep_derivatives():
                                            nfp_override=2, mode_indices=[0, 1], fluxs_arr=[3, 1])
         return jnp.dot(data.iota, jnp.array([2., 3.]))
     np.testing.assert_array_equal(jax.jit(jax.grad(objective))(jnp.arange(6.)), [0, 0, 0, 2, 0, 3])
+
+
+@pytest.mark.parametrize("filter_modes", [False, True])
+def test_jitted_mapping_selection_and_reverse(filter_modes):
+    mapping = {"nfp_b": 2, "ixm_b": np.array([0, 1, 2]), "ixn_b": np.array([0, 2, -2]),
+               "iota_b": jnp.array([.43]), "buco_b": jnp.array([.1]), "bvco_b": jnp.array([10.]),
+               "rmnc_b": jnp.array([[10., 1., .1]]), "zmns_b": jnp.array([[0., 1., .1]]),
+               "pmns_b": jnp.zeros((1, 3)), "s_b": jnp.array([.5])}
+    def objective(coefficients):
+        data = booz_xform_to_boozerdata(dict(mapping, bmnc_b=coefficients), use_jax=True,
+                                       max_m_mode=1 if filter_modes else 0)
+        return (data.bmnc**2).sum()
+    x = jnp.array([[1., .1, .01]])
+    gradient = jax.jit(jax.grad(objective))(x)
+    expected = 2*x.at[0, 2].set(0.) if filter_modes else 2*x
+    np.testing.assert_allclose(gradient, expected, rtol=1e-14)
+
+
+def test_traced_filter_metadata_has_actionable_error():
+    mapping = dict(nfp_b=2, ixn_b=np.array([0, 2]), iota_b=jnp.array([.43]),
+                   buco_b=jnp.array([.1]), bvco_b=jnp.array([10.]),
+                   **{name: jnp.array([[1., .1]]) for name in
+                      ("rmnc_b", "zmns_b", "pmns_b", "bmnc_b")}, s_b=jnp.array([.5]))
+    with pytest.raises(ValueError, match="static.*mode_indices"):
+        jax.jit(lambda modes: booz_xform_to_boozerdata(
+            dict(mapping, ixm_b=modes), use_jax=True, max_m_mode=1).bmnc)(jnp.array([0, 1]))

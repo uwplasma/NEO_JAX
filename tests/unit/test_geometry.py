@@ -52,3 +52,28 @@ def test_neo_zeros2d_phi_invariant(amplitude):
     assert int(error) == 0
     assert float(phi) == 0.7
     np.testing.assert_allclose(theta, np.pi if amplitude else 2.8, atol=1e-8)
+
+
+def test_reverse_extremum_moves_with_field():
+    import jax
+
+    x, y = jnp.linspace(-1., 1., 11), jnp.linspace(-1., 1., 13)
+    xx, yy = jnp.meshgrid(x, y, indexing='ij')
+    hx, hy = float(x[1] - x[0]), float(y[1] - y[0])
+    grid = {"theta_int": hx, "phi_int": hy, "mt": 0, "mp": 0,
+            "theta_start": -1., "theta_end": 1., "phi_start": -1., "phi_end": 1.}
+
+    def root(center, reverse):
+        spline = spl2d((xx-center)**2 + (yy+.2)**2, hx, hy, mx=0, my=0)
+        return neo_zeros2d(jnp.array(0.), jnp.array(0.), 1e-10, 50,
+                           spline, grid, reverse_mode=reverse)[0]
+
+    center = jnp.array(.3)
+    value, derivative = jax.jit(jax.value_and_grad(lambda c: root(c, True)))(center)
+    expected, tangent = jax.jvp(lambda c: root(c, False), (center,), (jnp.array(1.),))
+    np.testing.assert_allclose(value, expected, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(derivative, tangent, rtol=1e-9, atol=1e-10)
+    step = 1e-5
+    finite_difference = (root(center + step, False) - root(center - step, False)) / (2*step)
+    assert float(derivative) > .9
+    np.testing.assert_allclose(derivative, finite_difference, rtol=1e-6, atol=1e-8)

@@ -130,6 +130,9 @@ def run_boozer(
         cfg = replace(cfg, surfaces=list(surfaces))
     surface_list = cfg.surfaces
     if surface_list is not None and any(isinstance(v, float) and 0.0 <= v <= 1.0 for v in surface_list):
+        if isinstance(booz.es, jax.core.Tracer):
+            raise ValueError("Float surface selection requires static flux metadata; "
+                             "preselect surfaces outside JIT or use integer surface indices.")
         s_vals = list(np.asarray(booz.es))
         mapped = []
         for s_target in surface_list:
@@ -189,6 +192,9 @@ def run_booz_xform(
         get = booz.get if isinstance(booz, dict) else lambda name, default=None: getattr(booz, name, default)
         s_b = get("s_b")
         if s_b is not None:
+            if isinstance(s_b, jax.core.Tracer):
+                raise ValueError("Float surface selection requires static s_b metadata; "
+                                 "preselect surfaces outside JIT or use integer surface indices.")
             resolved = [int(np.argmin(np.abs(np.asarray(s_b)-v)))+1
                         if isinstance(v, float) and 0 <= v <= 1 else int(v) for v in surface_list]
         else:
@@ -212,9 +218,10 @@ def run_booz_xform(
             isinstance(value, (jax.Array, jax.core.Tracer))
             for value in jax.tree_util.tree_leaves(booz))),
     )
+    # The converter has already applied the mode limits with a static shape.
     return run_boozer(
         booz_data,
-        config=cfg,
+        config=replace(cfg, max_m_mode=0, max_n_mode=0),
         use_jax=use_jax,
         progress=progress,
         jax_surface_scan=jax_surface_scan,

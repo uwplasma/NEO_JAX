@@ -17,7 +17,7 @@ from .current import CurrentParams, flint_cur_jax
 from .data_models import BoozerData, NeoOutputs
 from .grids import prepare_grids
 from .integrate import FlintParams, RhsEnv, flint_bo, flint_bo_jax
-from .io import read_boozmn
+from .io import _static_mode_indices, read_boozmn
 from .legacy import LegacyNeoWriter, build_fortran_line
 from .results import NeoResults, NeoSurfaceResult
 from .surface import init_surface
@@ -41,8 +41,8 @@ def compute_reference_jax(booz: BoozerData):
     return rt0, bmref_g
 
 
-@partial(jax.jit, static_argnames=("params", "theta_n", "phi_n", "ref_swi", "sequential"))
-def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequential=None):
+@partial(jax.jit, static_argnames=("params", "theta_n", "phi_n", "ref_swi", "sequential", "reverse_mode"))
+def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequential=None, reverse_mode=False):
     """Compile one numerical kernel; reuse it for new coefficients and surfaces."""
     grid = prepare_grids(theta_n, phi_n, booz.nfp)
     rt0, bmref_g = compute_reference_jax(booz)
@@ -65,6 +65,7 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequent
             grid=grid,
             use_jax=True,
             skip_mask=True,
+            reverse_mode=reverse_mode,
         )
 
         env = RhsEnv(
@@ -77,7 +78,7 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequent
             curr_tor=booz.curr_tor[surf_idx],
         )
 
-        out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0)
+        out = flint_bo_jax(surface, params, env, nfp=booz.nfp, rt0=rt0, reverse_mode=reverse_mode)
 
         if ref_swi == 1:
             b_ref = bmref_g
@@ -119,6 +120,21 @@ def _solve_surfaces(booz, surf_indices, params, theta_n, phi_n, ref_swi, sequent
                     default=parallel)
 
 
+@jax.custom_batching.custom_vmap
+def _serial_work_guard(predicate):
+    return predicate
+
+
+@_serial_work_guard.def_vmap
+def _serial_work_guard_batch(_axis_size, in_batched, predicate):
+    if in_batched[0]:
+        raise ValueError(
+            "A live rational work guard cannot be vmapped: batching may execute both "
+            "integration branches. Use jax.lax.map for serial guarded solves."
+        )
+    return predicate, False
+
+
 def run_neo_from_boozer_jax(
     booz: BoozerData,
     control: ControlParams,
@@ -129,16 +145,14 @@ def run_neo_from_boozer_jax(
     _work_guard: tuple | None = None,
 ) -> NeoOutputs:
     """JAX surface scan over all requested surfaces (no Python loop)."""
-    booz = jax.tree_util.tree_map(jnp.asarray, booz)
-
     if not skip_fourier_mask and (control.max_m_mode > 0 or control.max_n_mode > 0):
-        mmax = control.max_m_mode if control.max_m_mode > 0 else jnp.max(jnp.abs(booz.ixm))
-        nmax = control.max_n_mode if control.max_n_mode > 0 else jnp.max(jnp.abs(booz.ixn))
-        mask = (jnp.abs(booz.ixm) <= mmax) & (jnp.abs(booz.ixn) <= nmax)
-        booz = replace(booz, ixm=booz.ixm[mask], ixn=booz.ixn[mask],
-                       **{k: getattr(booz, k)[:, mask] for k in
+        modes = _static_mode_indices(
+            booz.ixm, booz.ixn, control.max_m_mode, control.max_n_mode)
+        booz = replace(booz, ixm=jnp.take(booz.ixm, modes), ixn=jnp.take(booz.ixn, modes),
+                       **{k: jnp.take(getattr(booz, k), modes, axis=1) for k in
                           ("rmnc", "zmns", "lmns", "bmnc", "rmns", "zmnc", "lmnc", "bmns")
                           if getattr(booz, k) is not None})
+    booz = jax.tree_util.tree_map(jnp.asarray, booz)
 
     if control.fluxs_arr:
         if booz.rmnc.shape[0] == len(control.fluxs_arr):
@@ -153,7 +167,15 @@ def run_neo_from_boozer_jax(
     work_limit = _resolve_max_rational_field_periods(max_rational_field_periods)
     policy = _resolve_rational_surface_policy(rational_surface_policy)
     guard_iota, guard_s = (booz.iota, booz.es) if _work_guard is None else _work_guard
-    if work_limit is not None:
+    traced_guard = any(isinstance(x, jax.core.Tracer)
+                       for x in jax.tree.leaves((guard_iota, guard_s)))
+    work_exceeded = jnp.zeros(len(surf_indices), dtype=bool)
+    if work_limit is not None and traced_guard:
+        selected_iota = jnp.take(jnp.asarray(guard_iota), jnp.asarray(surf_indices))
+        estimated_work = jnp.ceil(1.0 / max(control.acc_req, 1e-16) /
+                                  jnp.maximum(jnp.abs(selected_iota), 1e-16))
+        work_exceeded = ~jnp.isfinite(selected_iota) | (estimated_work > work_limit)
+    elif work_limit is not None:
         for local_idx, surf_idx in enumerate(surf_indices):
             work = _estimate_rational_work(
                 float(guard_iota[surf_idx]),
@@ -192,6 +214,21 @@ def run_neo_from_boozer_jax(
         calc_nstep_max=control.calc_nstep_max,
     )
 
+    def solve(_):
+        return _solve_surfaces(
+            booz, surf_indices_j, params, control.theta_n, control.phi_n, control.ref_swi,
+            reverse_mode=control.reverse_mode)
+
+    rejected_shapes = (jax.eval_shape(solve, None)
+                       if work_limit is not None and traced_guard else None)
+
+    def reject(_):
+        # A scalar condition outside the surface map prevents expensive rational
+        # integration when any live iota exceeds the configured work limit.
+        values = [jnp.full(spec.shape, jnp.nan, dtype=spec.dtype) for spec in rejected_shapes]
+        values[9], values[10] = booz.es[surf_indices_j], booz.iota[surf_indices_j]
+        return tuple(values)
+
     (
         epstot,
         epspar,
@@ -206,8 +243,8 @@ def run_neo_from_boozer_jax(
         iota_vals,
         b_ref,
         r_ref,
-    ) = _solve_surfaces(
-        booz, surf_indices_j, params, control.theta_n, control.phi_n, control.ref_swi)
+    ) = (jax.lax.cond(_serial_work_guard(jnp.any(work_exceeded)), reject, solve, operand=None)
+         if work_limit is not None and traced_guard else solve(None))
 
     dpsi = jnp.concatenate([s_vals[:1], s_vals[1:] - s_vals[:-1]], axis=0)
     r_eff = jnp.cumsum(drdpsi * dpsi)
@@ -225,6 +262,7 @@ def run_neo_from_boozer_jax(
         "rational_surface_policy": policy,
         "max_rational_field_periods": work_limit if work_limit is not None else 0,
         "approximation_used": jnp.zeros_like(s_vals, dtype=bool),
+        "rational_work_limit_exceeded": work_exceeded,
     }
 
     return NeoOutputs(

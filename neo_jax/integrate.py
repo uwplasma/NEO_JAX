@@ -664,6 +664,7 @@ def flint_bo_jax(
     convergence_reset_callback=None,
     strict_parity: bool = False,
     skip_rational_correction: bool = False,
+    reverse_mode: bool = False,
 ):
     """JAX-friendly integration loop with rational-surface correction."""
     if rt0 is None:
@@ -1216,7 +1217,9 @@ def flint_bo_jax(
         stop,
     )
 
-    final_carry, _ = jax.lax.scan(scan_body, init_carry, xs=None, length=params.nstep_max)
+    final_carry, _ = jax.lax.scan(
+        jax.checkpoint(scan_body) if reverse_mode else scan_body,
+        init_carry, xs=None, length=params.nstep_max)
     (
         phi,
         y,
@@ -1329,7 +1332,11 @@ def flint_bo_jax(
                 adimax_s,
                 aditot_s,
             )
-            n_final = jax.lax.while_loop(n_cond, n_body, n_init)
+            if reverse_mode:
+                from ._checkpoint import checkpointed_fori_loop
+                n_final = checkpointed_fori_loop(0, nfp_rat, lambda _, c: n_body(c), n_init)
+            else:
+                n_final = jax.lax.while_loop(n_cond, n_body, n_init)
             _, phi_local, y_local, state_local, iswst_local, bigint_s, adimax_s, aditot_s = n_final
 
             y2_s = y_local[1]
@@ -1348,7 +1355,11 @@ def flint_bo_jax(
             )
 
         nfl_init = (jnp.array(0, dtype=jnp.int32), bigint0, aditot0, y20, y30, y40, y3npart0)
-        nfl_final = jax.lax.while_loop(nfl_cond, nfl_body, nfl_init)
+        if reverse_mode:
+            from ._checkpoint import checkpointed_fori_loop
+            nfl_final = checkpointed_fori_loop(0, nfl_count, lambda _, c: nfl_body(c), nfl_init)
+        else:
+            nfl_final = jax.lax.while_loop(nfl_cond, nfl_body, nfl_init)
         _, bigint_out, aditot_out, y2_out, y3_out, y4_out, y3npart_out = nfl_final
 
         return bigint_out, aditot_out, y2_out, y3_out, y4_out, y3npart_out

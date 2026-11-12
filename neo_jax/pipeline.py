@@ -195,7 +195,7 @@ def build_vmec_boozer_neo_jax(
     """Build a reusable differentiable VMEX state -> full Boozer geometry -> NEO solve."""
     import jax
 
-    from .driver import _resolve_max_rational_field_periods, run_neo_from_boozer_jax
+    from .driver import run_neo_from_boozer_jax
     from .io import booz_xform_to_boozerdata_jax
 
     cfg = neo_config or NeoConfig()
@@ -211,8 +211,6 @@ def build_vmec_boozer_neo_jax(
         s_half = 0.5 * (s_full[:-1] + s_full[1:])
         indices = _surface_indices(s_half, kwargs["surfaces"])
         work_guard = (np.asarray(rt.setup.iotas)[indices + 1], s_half[indices])
-    elif jit and _resolve_max_rational_field_periods(cfg.max_rational_field_periods) is not None:
-        raise ValueError("Compiled NCURR=1 requires max_rational_field_periods=0")
     xm, xn = np.asarray(grids.xm_b), np.asarray(grids.xn_b)
     mode_indices = np.flatnonzero(
         (np.abs(xm) <= (cfg.max_m_mode if cfg.max_m_mode > 0 else np.max(np.abs(xm)))) &
