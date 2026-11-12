@@ -3,6 +3,7 @@ name: ci
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,6 +14,7 @@ permissions:
 
 jobs:
   tests:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && matrix.python-version == '3.12')) && fromJSON('["self-hosted","uwplasma-cpu"]') || 'ubuntu-latest' }}
     timeout-minutes: 45
@@ -88,6 +90,7 @@ jobs:
           test -f neo_out.ORBITS_SMOKE
 
   smoke:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Smoke (hosted)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -110,6 +113,7 @@ jobs:
         run: pytest -q tests/unit/test_control.py tests/unit/test_splines.py tests/unit/test_results_converter.py
 
   docs:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Docs
     runs-on: ubuntu-latest
     timeout-minutes: 15
