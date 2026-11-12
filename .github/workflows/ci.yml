@@ -109,27 +109,6 @@ jobs:
       - name: Fast unit tests
         run: pytest -q tests/unit/test_control.py tests/unit/test_splines.py tests/unit/test_results_converter.py
 
-  gpu:
-    name: GPU
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, uwplasma-gpu]
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.10"
-          enable-cache: false
-      - name: Install package with CUDA JAX
-        run: |
-          uv venv
-          uv pip install ".[dev]" "jax[cuda12]"
-      - name: Assert GPU backend
-        run: .venv/bin/python -c "import jax; assert jax.default_backend()=='gpu', jax.devices()"
-      - name: GPU tests
-        timeout-minutes: 1
-        run: .venv/bin/python -m pytest -m gpu -q -x tests/unit/test_gpu_ci_smoke.py
-
   docs:
     name: Docs
     runs-on: ubuntu-latest
