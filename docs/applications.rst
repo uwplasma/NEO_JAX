@@ -24,9 +24,6 @@ The repository ships executable examples in ``examples/``:
        geometric scalar.
    * - ``epsilon_effective_scale_optimization.py``
      - Uses autodiff on a toy magnetic-field scaling problem.
-   * - ``qh_epsilon_effective_aspect_optimization.py``
-     - Combines effective ripple with aspect-ratio objectives in a warm-start
-       optimization setting.
    * - ``vmec_boozer_neo_pipeline.py``
      - Runs the in-memory VMEC→Boozer→NEO workflow without intermediate files.
 

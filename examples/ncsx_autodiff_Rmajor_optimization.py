@@ -2,7 +2,7 @@
 
 This is a toy example that optimizes a single scalar (Rmajor) using a
 SciPy least-squares solver with JAX gradients. Real optimizations should
-use vmec_jax boundary coefficients.
+use VMEX boundary coefficients.
 """
 
 from __future__ import annotations
