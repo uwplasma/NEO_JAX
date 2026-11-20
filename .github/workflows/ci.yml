@@ -34,16 +34,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: false
+      - name: Select the job environment
+        run: |
+          echo "VIRTUAL_ENV=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
       - name: Install package and test dependencies
         run: |
-          uv venv
+          uv venv "$VIRTUAL_ENV"
           uv pip install ".[dev]" pytest-xdist
       - name: Install VMEX integration dependencies
         if: matrix.python-version != '3.10'
         run: |
           uv pip install "vmex>=0.11.6"
       - name: Run tests
-        run: .venv/bin/python -m pytest -n 3 -q
+        run: |
+          "$VIRTUAL_ENV"/bin/python -m pytest -n 3 -q
       - name: Smoke test installed CLI
         run: |
           SMOKE_DIR="$RUNNER_TEMP/neo_jax_cli_smoke"
@@ -88,12 +92,9 @@ jobs:
           0
           EOF
           cd "$SMOKE_DIR"
-          "$GITHUB_WORKSPACE/.venv/bin/neo-jax" ORBITS_SMOKE --quiet
+          "$VIRTUAL_ENV/bin/neo-jax" ORBITS_SMOKE --quiet
           test -f neo_out.ORBITS_SMOKE
 
-      - name: Remove the virtual environment
-        if: always()
-        run: rm -rf .venv
 
   smoke:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -109,7 +110,11 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: false
-          activate-environment: true
+      - name: Create the job environment
+        run: |
+          uv venv "$RUNNER_TEMP/venv"
+          echo "VIRTUAL_ENV=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
       - name: Install package and test dependencies
         run: |
           uv pip install ".[dev]"
@@ -117,9 +122,6 @@ jobs:
         run: ruff check neo_jax --select E9,F63,F7,F82
       - name: Fast unit tests
         run: pytest -q tests/unit/test_control.py tests/unit/test_splines.py tests/unit/test_results_converter.py
-      - name: Remove the virtual environment
-        if: always()
-        run: rm -rf .venv
 
   docs:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -132,12 +134,13 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: false
-          activate-environment: true
+      - name: Create the job environment
+        run: |
+          uv venv "$RUNNER_TEMP/venv"
+          echo "VIRTUAL_ENV=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
       - name: Install package and docs dependencies
         run: |
           uv pip install ".[docs]"
       - name: Build docs
         run: python -m sphinx -W -b html docs docs/_build/html
-      - name: Remove the virtual environment
-        if: always()
-        run: rm -rf .venv
