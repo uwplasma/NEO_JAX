@@ -295,7 +295,9 @@ Bounce-integral effective ripple
   default-resolution field-line integrator returns spline noise; the bounce code, a fine ``xneo`` run and the
   budget-converged value agree within 5%.
 
-DESC returns 3.0 to 3.1e-4 (against 4.7 to 4.8e-4) on the QI spectrum for every resolution, transit, field-line and
-equilibrium-resolution choice, at zero, half and full pressure, with both of its implementations. Its inputs agree
-with those used here (|B| spectrum to 1e-3, iota, G, I, V', <|grad psi|>, <(|grad psi| kappa_g)^2> to 0.3%, wells and
-I_2 per well to 0.3%); its per-well geodesic integral I_1 is 17 to 28% smaller. The cause was not found.
+DESC returns 3.0 to 3.1e-4 (against 4.7 to 4.8e-4) on the QI spectrum at every resolution and at zero, half and
+full pressure. DESC takes the geodesic curvature from the geometry of the equilibrium it fits to the wout, which has
+a scaled force residual of 0.013 there; the grad-B form on the same DESC data gives 4.6e-4. The two differ by 8% rms
+pointwise, and the per-well geodesic integral cancels inside a QI well, so the ripple moves by 47%. After re-solving
+in DESC (residual 1.25e-4) its two forms agree to 4%. The same sensitivity applies to the equilibrium solve here:
+on this deck a force tolerance of 1e-10 gives +8% and 1e-12 gives +0.3%, so near-omnigenous cases need 1e-12.
