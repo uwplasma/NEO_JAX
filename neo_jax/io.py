@@ -283,6 +283,11 @@ def _convert_boozer(
         value = xp.take(value, rows, axis=0)
         return value[:, mask] if modes is None else xp.take(value, modes, axis=1)
 
+    # Concrete mode numbers with a static selection stay numpy, so callers under jit can still read them.
+    concrete = lambda x: not (_JAX_AVAILABLE and isinstance(x, jax.core.Tracer))  # noqa: E731
+    mode_numbers = (tuple(np.asarray(get(k), int)[np.asarray(mode_indices)] for k in ("ixm_b", "ixn_b"))
+                    if mode_indices is not None and all(concrete(v) for v in (get("ixm_b"), get("ixn_b"), mode_indices))
+                    else None)
     sine_present = any(get(name) is not None for name in ("rmns_b", "zmnc_b", "pmnc_b", "bmns_b"))
     asymmetric = (bool(get("asym", get("lasym", sine_present)))
                   if asym_override is None else bool(asym_override))
@@ -296,8 +301,8 @@ def _convert_boozer(
             coefficients[name] *= -nfp / (2.0 * math.pi)
     return BoozerData(
         **coefficients, nfp=nfp, es=xp.take(es, rows),
-        ixm=ixm[mask] if modes is None else xp.take(ixm, modes),
-        ixn=ixn[mask] if modes is None else xp.take(ixn, modes),
+        ixm=ixm[mask] if modes is None else mode_numbers[0] if mode_numbers else xp.take(ixm, modes),
+        ixn=ixn[mask] if modes is None else mode_numbers[1] if mode_numbers else xp.take(ixn, modes),
         iota=xp.take(iota, rows), curr_pol=xp.take(curr_pol, rows),
         curr_tor=xp.take(curr_tor, rows),
     )

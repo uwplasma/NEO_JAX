@@ -18,6 +18,7 @@ if os.getenv("JAX_ENABLE_X64") is None:
 from ._version import __version__
 from .api import load_boozmn, run_boozer, run_booz_xform, run_boozmn, run_neo
 from .config import NeoConfig
+from .ripple import RippleBudget, effective_ripple_3_2
 from .data_models import BoozerData, NeoInputs, NeoOutputs, VmecData
 from .driver import run_neo_from_boozer, run_neo_from_boozmn
 from .fixtures import ncsx_boozmn_path, resolve_external_fixture
@@ -41,6 +42,8 @@ __all__ = [
     "NeoInputs",
     "NeoOutputs",
     "NeoConfig",
+    "RippleBudget",
+    "effective_ripple_3_2",
     "NeoResults",
     "NeoSurfaceResult",
     "neo_outputs_to_results",
