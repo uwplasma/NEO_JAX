@@ -47,7 +47,7 @@ def test_quasi_symmetric_fields_have_no_ripple_and_a_perturbation_scales_quadrat
     between bounce points (Nemov et al. 1999). A perturbation of relative size lambda gives lambda^2."""
     base = _eps(_torus([(1, 0, -0.1), (1, NFP, -0.02)]))
     for modes, current in (([(1, 0, -0.1)], 0.0), ([(1, NFP, -0.1)], 0.3)):
-        assert _eps(_torus(modes, current=current)) < 1e-7 * base
+        assert _eps(_torus(modes, current=current)) < 1e-8 * base
     values = [_eps(_torus([(1, 0, -0.1), (1, NFP, -0.005 * lam)])) / lam**2 for lam in (1, 2)]
     np.testing.assert_allclose(values[1], values[0], rtol=0.05)
 
@@ -93,7 +93,7 @@ def test_gradient_forward_reverse_and_finite_difference_agree():
     direction = (jax.numpy.asarray(np.random.default_rng(1).normal(size=x0[0].size)) * 1e-2, 1.0, 1.0)
     forward = jax.jvp(f, x0, direction)[1]
     reverse = sum(float(np.vdot(g, t)) for g, t in zip(grads, direction))
-    np.testing.assert_allclose(forward, reverse, rtol=1e-5)
-    h = 1e-4
+    np.testing.assert_allclose(forward, reverse, rtol=1e-9)
+    h = 1e-5
     central = (f(*[x + h * t for x, t in zip(x0, direction)]) - f(*[x - h * t for x, t in zip(x0, direction)])) / (2 * h)
-    np.testing.assert_allclose(central, reverse, rtol=5e-3)
+    np.testing.assert_allclose(central, reverse, rtol=1e-4)

@@ -86,7 +86,7 @@ class RippleBudget:
 
 
 
-_ROOT_ITERS = 12
+_ROOT_ITERS = 8
 
 
 def _gl(n, a=0.0, b=1.0):
@@ -132,10 +132,22 @@ def _stationary(c):
 
 
 def _root(c, b, lo, hi):
-    """Root of p(t) - b on the monotone stretch [lo, hi]: safeguarded Newton, then one
-    differentiable Newton step (the exact implicit derivative)."""
+    """Root of p(t) - b on the monotone stretch [lo, hi].
+
+    Start from the quadratic Taylor root at the end with the smaller residual (this puts the start inside the
+    quadratic-convergence basin even next to a stationary end, where a midpoint start degrades to bisection),
+    then safeguarded Newton (bisection when a step leaves the bracket), then one differentiable Newton step
+    (the exact implicit derivative).
+    """
     f = lambda t: _peval(c, t) - b  # noqa: E731
-    s0 = jnp.sign(f(lo))
+    f_lo, f_hi = f(lo), f(hi)
+    te = jnp.where(jnp.abs(f_hi) < jnp.abs(f_lo), hi, lo)
+    fe, d1, d2 = f(te), _pder(c, te), 2 * c[..., 2] + 6 * c[..., 3] * te
+    stationary_end = jnp.abs(d1) <= 1e-8 * jnp.sqrt(jnp.abs(d2 * fe))     # the root lies on the interior side
+    side = jnp.where(stationary_end, -jnp.sign(0.5 * (lo + hi) - te) * jnp.sign(fe), jnp.sign(d1))
+    den = d1 + side * jnp.sqrt(jnp.maximum(d1 * d1 - 2 * d2 * fe, 0.0))
+    t0 = jnp.clip(te - 2 * fe / jnp.where(den == 0, 1e-300, den), lo, hi)
+    s0 = jnp.sign(f_lo)
 
     def step(carry, _):
         lo_, hi_, t = carry
@@ -144,10 +156,10 @@ def _root(c, b, lo, hi):
         lo_, hi_ = jnp.where(same, t, lo_), jnp.where(same, hi_, t)
         q = _pder(c, t)
         tn = t - p / jnp.where(q == 0, 1e-300, q)
-        inside = (tn > jnp.minimum(lo_, hi_)) & (tn < jnp.maximum(lo_, hi_))
+        inside = (tn >= jnp.minimum(lo_, hi_)) & (tn <= jnp.maximum(lo_, hi_))
         return (lo_, hi_, jnp.where(inside, tn, 0.5 * (lo_ + hi_))), None
 
-    t = jax.lax.stop_gradient(jax.lax.scan(step, (lo, hi, 0.5 * (lo + hi)), None, length=_ROOT_ITERS)[0][2])
+    t = jax.lax.stop_gradient(jax.lax.scan(step, (lo, hi, t0), None, length=_ROOT_ITERS)[0][2])
     q = _pder(c, t)
     return t - f(t) / jnp.where(jnp.abs(q) < 1e-14, 1e-14, q)
 
