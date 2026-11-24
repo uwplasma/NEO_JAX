@@ -31,7 +31,10 @@ For performance-critical workflows, we recommend:
 
 Reverse-mode autodiff (``jax.grad``) through the scan is currently limited by
 dynamic loop bounds in the trapped-particle logic. Forward-mode
-(``jax.jvp``/``jax.jacfwd``) is supported and used in the optimization examples.
+(``jax.jvp``/``jax.jacfwd``) is supported for it. For optimization use
+:func:`neo_jax.effective_ripple_3_2` instead: the same effective ripple as bounce integrals along
+Boozer field lines (exact bounce points, smooth window weights, no ``while_loop``), differentiable in
+forward and reverse mode, with a :class:`neo_jax.RippleBudget` for its resolution.
 
 What differentiates cleanly
 ---------------------------

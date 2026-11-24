@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2.0 - unreleased
+
+- Add `neo_jax.effective_ripple_3_2` and `RippleBudget`: Nemov's effective ripple as bounce integrals along
+  Boozer field lines with exact bounce points. The value is continuous in the equilibrium and differentiable in
+  forward and reverse mode, with no `while_loop`. It agrees with the field-line integrator, Fortran `xneo` and DESC
+  to 0.1 to 3% on the validation set (`docs/validation.rst`). The integrator of `run_neo` is unchanged and stays the
+  reference.
+
 ## v1.1.1 - 2026-10-23
 
 - Keep rational-correction periods positive for negative iota while preserving

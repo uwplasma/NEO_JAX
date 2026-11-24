@@ -276,3 +276,28 @@ Measured cold-run snapshots:
 At the current problem sizes, the GPU path is functional and parity-checked but
 still compile-bound. For the legacy CLI and the small ORBITS API smoke, the GPU
 is slower than CPU because compile and launch overhead dominate the solve.
+
+Bounce-integral effective ripple
+--------------------------------
+
+:func:`neo_jax.effective_ripple_3_2` is checked in ``tests/unit/test_ripple.py``:
+
+- a single helicity (QA, QH, with or without current) gives zero, a perturbation scales quadratically, and the
+  value is invariant under Boozer angle shifts and field scaling;
+- Fortran ``xneo`` and the field-line integrator (both at 128 x 128 spline, 96 particles, 80 steps per period,
+  ``acc_req = 1e-3``) on an nfp = 4 quasi-isodynamic spectrum (finite beta, iota about -1.3):
+  5.19e-4, 4.79e-4 against 5.20e-4, 4.79e-4 for the bounce integrals at a 3x budget; the default budget is within 1%;
+- a vacuum nfp = 2 ellipse: ``xneo`` 1.18e-2, 1.67e-2, 2.15e-2 and DESC (converged bounce resolution)
+  1.21e-2, 1.69e-2, 2.18e-2 against 1.20e-2, 1.66e-2, 2.13e-2;
+- an independent numpy evaluation (one 150-turn field line, linear tables, 800 pitch points) gives 4.784e-4 on the QI
+  surface where the bounce code gives 4.787e-4;
+- the true QA deck ``LandremanPaul2021_QA_lowres`` has an effective ripple^(3/2) of about 1e-8, where the
+  default-resolution field-line integrator returns spline noise; the bounce code, a fine ``xneo`` run and the
+  budget-converged value agree within 5%.
+
+DESC returns 3.0 to 3.1e-4 (against 4.7 to 4.8e-4) on the QI spectrum at every resolution and at zero, half and
+full pressure. DESC takes the geodesic curvature from the geometry of the equilibrium it fits to the wout, which has
+a scaled force residual of 0.013 there; the grad-B form on the same DESC data gives 4.6e-4. The two differ by 8% rms
+pointwise, and the per-well geodesic integral cancels inside a QI well, so the ripple moves by 47%. After re-solving
+in DESC (residual 1.25e-4) its two forms agree to 4%. The same sensitivity applies to the equilibrium solve here:
+on this deck a force tolerance of 1e-10 gives +8% and 1e-12 gives +0.3%, so near-omnigenous cases need 1e-12.

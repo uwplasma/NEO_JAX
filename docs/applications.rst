@@ -29,6 +29,9 @@ The repository ships executable examples in ``examples/``:
        optimization setting.
    * - ``vmec_boozer_neo_pipeline.py``
      - Runs the in-memory VMEC→Boozer→NEO workflow without intermediate files.
+   * - ``effective_ripple_gradient.py``
+     - Evaluates the bounce-integral effective ripple, compares it with
+       Fortran ``xneo`` and checks its reverse-mode gradient (figure below).
 
 Typical research uses
 ---------------------
@@ -42,6 +45,49 @@ NEO_JAX is well suited to:
 - automated studies in which the Python API is more convenient than text-file
   orchestration
 - solver benchmarking across CPU, GPU, JIT, and Fourier-evaluation modes
+
+Effective ripple as an optimization objective
+---------------------------------------------
+
+:func:`neo_jax.effective_ripple_3_2` returns :math:`\epsilon_{\mathrm{eff}}^{3/2}`
+on every surface of a :class:`~neo_jax.data_models.BoozerData` and can be
+differentiated in forward and reverse mode. Use it when the ripple is a term
+of an objective; keep :func:`neo_jax.run_neo` when parity with Fortran
+``xneo`` or its rational-surface treatment is what matters.
+
+.. code-block:: python
+
+   import jax
+   from neo_jax import RippleBudget, effective_ripple_3_2
+
+   values = effective_ripple_3_2(booz)                 # one value per surface
+   cost = lambda b: effective_ripple_3_2(b, RippleBudget(n_lines=16)).sum()
+   gradient = jax.grad(cost)(booz)                     # BoozerData of derivatives
+
+.. figure:: assets/effective_ripple_gradient.png
+   :width: 100%
+
+   (a) ``|B|`` along a Boozer field line of a quasi-isodynamic surface; at each
+   pitch the wells are bounded by exact bounce points. (b) The value against
+   Fortran ``xneo`` on three surfaces of two equilibria; the labels are the
+   relative differences. (c) Reverse-mode derivatives with respect to the twelve
+   largest ``|B|`` harmonics against central differences.
+
+What it is for:
+
+- a ripple term in a fixed-boundary optimization: the gradient with respect to
+  the boundary follows by the chain rule through the equilibrium and the
+  Boozer transform (``vmex.core.neoclassical`` does this for VMEX states);
+- sensitivities of the ripple to individual Boozer harmonics, as in panel (c);
+- surveys of many equilibria: one surface takes about a second on a CPU at
+  the default :class:`~neo_jax.RippleBudget`, and one reverse pass about three
+  times that.
+
+Two cautions. The value is the caller's to converge: the default budget holds
+1% against a three times larger one on the validation set, and
+``RippleBudget`` sets the cost. Near-omnigenous fields need the equilibrium
+itself solved tightly (force tolerance 1e-12), because the geodesic integral
+cancels inside each well (:doc:`validation`).
 
 Example: radial survey from a Boozer file
 -----------------------------------------

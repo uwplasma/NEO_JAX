@@ -13,6 +13,12 @@ High-level API
 .. automodule:: neo_jax.api
    :members:
 
+Effective ripple (differentiable)
+---------------------------------
+
+.. automodule:: neo_jax.ripple
+   :members:
+
 Configuration
 -------------
 
