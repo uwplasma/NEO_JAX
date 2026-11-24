@@ -17,6 +17,27 @@ def test_splreg_reproduces_linear():
     assert np.allclose(np.asarray(di[:-1]), 0.0, atol=1e-10)
 
 
+@pytest.mark.parametrize("n", [3, 4, 9])
+def test_splreg_is_the_natural_cubic_spline_and_its_jacobian(n):
+    """splreg.f90 solves the natural end conditions S''(x_0) = S''(x_n) = 0 (de Boor 2001,
+    ch. IV): pieces b, c, d and the Jacobian with respect to the data equal SciPy's."""
+    from scipy.interpolate import CubicSpline
+
+    x = np.linspace(0.2, 1.7, n)
+    y = np.sin(3.0 * x) + x**3
+    h = float(x[1] - x[0])
+
+    def pieces(data):
+        return jnp.stack(splreg(data, h))
+
+    reference = CubicSpline(x, np.column_stack([y, np.eye(n)]), bc_type="natural").c
+    expected = np.zeros((3, n, n + 1))
+    expected[:, :-1] = reference[2::-1]
+    np.testing.assert_allclose(pieces(jnp.asarray(y)), expected[..., 0], rtol=1e-12, atol=1e-12)
+    jacobian = jax.jacfwd(pieces)(jnp.asarray(y))
+    np.testing.assert_allclose(jacobian, expected[..., 1:], rtol=1e-12, atol=1e-12)
+
+
 def test_splper_periodic_boundary():
     x = jnp.linspace(0.0, 2.0 * np.pi, 9)
     y = jnp.sin(x)
