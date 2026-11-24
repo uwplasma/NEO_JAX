@@ -66,8 +66,8 @@ def test_matches_fortran_xneo_neo_jax_and_desc_and_converges_in_the_budget():
     """QI spectrum (nfp 4, iota ~ -1.3, finite beta): xneo (128 x 128, 96 particles, 80 steps per period,
     acc_req 1e-3; NaN at the third surface, where the 64 x 64 run gives 4.5405e-4) and NEO_JAX at that
     resolution.  Vacuum nfp-2 ellipse: xneo (NaN at s = 0.25, so its 64 x 64 run's 1.1828e-2) and DESC
-    (L=16, M=12, Y_B=192, 100 transits).  DESC differs by 30% on the QI spectrum for a reason not found
-    (``docs/validation.rst``), so it is compared on the ellipse only."""
+    (L=16, M=12, Y_B=192, 100 transits).  DESC differs by 30% on the QI spectrum because the equilibrium it fits
+    is not in force balance (``docs/validation.rst``), so it is compared on the ellipse only."""
     qi = _fixture("boozer_nfp4_QI_finite_beta.npz")
     values = np.asarray(effective_ripple_3_2(qi))
     np.testing.assert_allclose(values, [5.1933e-4, 4.7918e-4, 4.5405e-4], rtol=0.03)
