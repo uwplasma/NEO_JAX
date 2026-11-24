@@ -7,6 +7,33 @@ Performance in NEO_JAX is dominated by three costs:
 - field-line integration and trapped-particle accumulation
 - JAX compile time when a new static configuration is seen
 
+CPU, GPU and multi-device defaults
+----------------------------------
+
+NEO_JAX enables float64 at import and runs on JAX's default device: one GPU when a CUDA ``jaxlib`` is installed, else the CPU with XLA's own threads. It does not split work across devices or set a persistent compilation cache.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Setting
+     - Default
+     - Change it when
+   * - ``JAX_PLATFORMS=cpu``
+     - GPU when a CUDA ``jaxlib`` is installed
+     - The GPU is busy; or compare on your case
+   * - ``NEO_JAX_FOURIER_MODE=streamed``
+     - ``vectorized``
+     - Memory runs out; it costs extra runtime
+   * - ``NEO_JAX_ENABLE_X64=0``
+     - float64
+     - Only after checking accuracy
+   * - ``XLA_PYTHON_CLIENT_PREALLOCATE=false``
+     - JAX preallocates most GPU memory
+     - Several processes share one GPU
+   * - ``JAX_COMPILATION_CACHE_DIR``
+     - no persistent cache
+     - You rerun the same configuration in new processes
+
 Fourier Summation Modes
 -----------------------
 
