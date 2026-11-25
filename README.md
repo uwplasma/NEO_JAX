@@ -52,7 +52,7 @@ print(results.epsilon_effective)  # epsilon_eff^(3/2), the legacy epstot quantit
 | Nonstellarator symmetric geometry | ✅ | ✅ |
 | VMEX → Boozer → NEO without intermediate files | ❌ | ✅ |
 
-File and differentiable pipelines retain both cosine and sine geometry. Float64 is enabled by default; low-`|iota|` surfaces have an explicit [work guard](docs/configuration.rst), with exact and approximate policies.
+For optimization, `neo_jax.effective_ripple_3_2` evaluates the same effective ripple as bounce integrals along Boozer field lines (value continuous in the equilibrium, forward- and reverse-mode differentiable; resolution set by `RippleBudget`); `run_neo` stays the Fortran-parity reference. File and differentiable pipelines retain both cosine and sine geometry. Float64 is enabled by default; low-`|iota|` surfaces have an explicit [work guard](docs/configuration.rst), with exact and approximate policies. `neo_jax.fast_ion_proxies` gives the fast-ion proxies Γ_c and Γ_α from the same bounce integrals, also differentiable.
 
 ## Accuracy and speed
 

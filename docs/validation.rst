@@ -276,3 +276,69 @@ Measured cold-run snapshots:
 At the current problem sizes, the GPU path is functional and parity-checked but
 still compile-bound. For the legacy CLI and the small ORBITS API smoke, the GPU
 is slower than CPU because compile and launch overhead dominate the solve.
+
+Fast-ion proxies
+----------------
+
+:func:`neo_jax.fast_ion_proxies` is checked in ``tests/test_fastion.py``:
+
+- the drift integrals of one well against finite differences of the action
+  :math:`J` computed independently with scipy: 1e-4 for
+  :math:`\partial_\alpha J`, 1e-3 for :math:`\partial_s J`;
+- a single helical harmonic (omnigenous): :math:`\Gamma_c` = 2.4e-4 and
+  :math:`\Gamma_\alpha` = 1.4e-3, against 1e-2 and 0.2 for a rippled field;
+- :math:`\Gamma_\alpha` never exceeds the trapped fraction;
+- forward mode against central differences for both proxies, and a bound on
+  the second differences of :math:`\Gamma_\alpha` along a scan.
+
+Through the VMEX equilibrium solve (reverse mode against re-solved central
+differences, four boundary coefficients): :math:`\Gamma_c` within 0.05-0.3% on
+an nfp = 2 seed and 0.1-7% on QA, QI and nfp = 3 cases;
+:math:`\Gamma_\alpha` within 5% on QA and within 1% on the large components
+of the nfp = 2 seed. A quasi-helical case shows a factor 3 between the
+:math:`\Gamma_c` gradient through the solve and finite differences while the
+kernel derivative at fixed Boozer spectrum agrees to 1e-3; the cause is
+upstream of this module and is open.
+
+On the analytic scan of ``examples/fast_ion_proxies.py`` the forward-mode
+derivative of :math:`\Gamma_\alpha` agrees with central differences to 0.4% of
+its largest value. That of :math:`\Gamma_c` agrees to 3-25% depending on the
+point and the step, and the slope at single points changes by up to a factor 2
+between 16 and 64 lines while the value changes by 1%: the integrand has a cusp
+where the poloidal drift vanishes, which equispaced field lines resolve slowly
+in the derivative.
+
+Convergence with field lines (16, 32, 64) at s = 0.5: :math:`\Gamma_c` within
+1% on QA, QH and QI and 5% on an nfp = 4 ellipse with iota near a low-order
+rational; :math:`\Gamma_\alpha` within 0.2% on QA and 1.6% per doubling on QI.
+
+Smoothed against sharp :math:`\Gamma_\alpha` (threshold half-width 0.2
+against a Heaviside): -0.4% on QA, -9% on the nfp = 4 ellipse, +29% on QH and
++59% on QI, where many wells sit just below the threshold. No published
+:math:`\Gamma_c` or :math:`\Gamma_\alpha` value is reproduced here. DESC's
+``Gamma_c`` uses Nemov's pointwise form and is a different quantity.
+
+Bounce-integral effective ripple
+--------------------------------
+
+:func:`neo_jax.effective_ripple_3_2` is checked in ``tests/unit/test_ripple.py``:
+
+- a single helicity (QA, QH, with or without current) gives zero, a perturbation scales quadratically, and the
+  value is invariant under Boozer angle shifts and field scaling;
+- Fortran ``xneo`` and the field-line integrator (both at 128 x 128 spline, 96 particles, 80 steps per period,
+  ``acc_req = 1e-3``) on an nfp = 4 quasi-isodynamic spectrum (finite beta, iota about -1.3):
+  5.19e-4, 4.79e-4 against 5.20e-4, 4.79e-4 for the bounce integrals at a 3x budget; the default budget is within 1%;
+- a vacuum nfp = 2 ellipse: ``xneo`` 1.18e-2, 1.67e-2, 2.15e-2 and DESC (converged bounce resolution)
+  1.21e-2, 1.69e-2, 2.18e-2 against 1.20e-2, 1.66e-2, 2.13e-2;
+- an independent numpy evaluation (one 150-turn field line, linear tables, 800 pitch points) gives 4.784e-4 on the QI
+  surface where the bounce code gives 4.787e-4;
+- the true QA deck ``LandremanPaul2021_QA_lowres`` has an effective ripple^(3/2) of about 1e-8, where the
+  default-resolution field-line integrator returns spline noise; the bounce code, a fine ``xneo`` run and the
+  budget-converged value agree within 5%.
+
+DESC returns 3.0 to 3.1e-4 (against 4.7 to 4.8e-4) on the QI spectrum at every resolution and at zero, half and
+full pressure. DESC takes the geodesic curvature from the geometry of the equilibrium it fits to the wout, which has
+a scaled force residual of 0.013 there; the grad-B form on the same DESC data gives 4.6e-4. The two differ by 8% rms
+pointwise, and the per-well geodesic integral cancels inside a QI well, so the ripple moves by 47%. After re-solving
+in DESC (residual 1.25e-4) its two forms agree to 4%. The same sensitivity applies to the equilibrium solve here:
+on this deck a force tolerance of 1e-10 gives +8% and 1e-12 gives +0.3%, so near-omnigenous cases need 1e-12.
