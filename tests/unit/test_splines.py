@@ -145,3 +145,19 @@ def test_points_one_rounding_step_below_a_period_multiple():
     order = [splines[k] for k in ("b_spl", "g_spl", "k_spl", "p_spl")]
     value = jax.vmap(lambda t, p: neo_eval(t, p, *order, None, grid)[0])
     np.testing.assert_allclose(value(theta, phi), value(theta, 0*phi), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("current", [False, True])
+def test_neo_eval_gathers_all_fields_from_one_index_search(current):
+    """The field-line right-hand side evaluates four or five fields at one point: one
+    search and one gather serve all of them (separate calls grew the kernel by a third)."""
+    from neo_jax.geometry import neo_eval
+    from neo_jax.grids import prepare_grids
+
+    grid = prepare_grids(9, 9, 2)
+    keys = ["b_spl", "g_spl", "k_spl", "p_spl"]
+    splines = build_splines({k: jnp.ones((9, 9)) for k in ("b", "sqrg11", "kg", "pard", "bqtphi")},
+                            grid["theta_int"], grid["phi_int"], 1, 1, current)
+    q = splines.get("q_spl")
+    jaxpr = jax.make_jaxpr(lambda t, p: neo_eval(t, p, *(splines[k] for k in keys), q, grid))(0.1, 0.2)
+    assert str(jaxpr).count("gather[") == 1

@@ -40,13 +40,9 @@ def neo_eval(
 
     Returns (bval, gval, kval, pval, qval).
     """
-    bval, gval, kval, pval = (_evaluate(s, theta, phi, grid, (0, 0))
-                              for s in (b_spl, g_spl, k_spl, p_spl))
-    if q_spl is None:
-        qval = jnp.array(0.0, dtype=bval.dtype)
-    else:
-        qval = _evaluate(q_spl, theta, phi, grid, (0, 0))
-    return bval, gval, kval, pval, qval
+    fields = (b_spl, g_spl, k_spl, p_spl) + (() if q_spl is None else (q_spl,))
+    values = jnp.unstack(_evaluate(jnp.stack(fields, -1), theta, phi, grid, (0, 0)), axis=-1)
+    return *values[:4], values[4] if q_spl is not None else jnp.zeros((), values[0].dtype)
 
 
 def neo_bderiv(
