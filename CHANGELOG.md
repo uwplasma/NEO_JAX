@@ -7,6 +7,10 @@
   forward and reverse mode, with no `while_loop`. It agrees with the field-line integrator, Fortran `xneo` and DESC
   to 0.1 to 3% on the validation set (`docs/validation.rst`). The integrator of `run_neo` is unchanged and stays the
   reference.
+- Add `neo_jax.fast_ion_proxies` and `FastIonBudget`: the fast-ion proxies Gamma_c (Nemov et al. 2008) and
+  Gamma_alpha (Velasco et al. 2021) from the Boozer spectrum of `|B|`, built on the same bounce integrals and
+  differentiable in forward and reverse mode. Gamma_alpha is a smoothed form of the published definition
+  (`docs/validation.rst`).
 
 ## v1.1.1 - 2026-10-23
 

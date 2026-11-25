@@ -19,6 +19,12 @@ Effective ripple (differentiable)
 .. automodule:: neo_jax.ripple
    :members:
 
+Fast-ion proxies (differentiable)
+---------------------------------
+
+.. automodule:: neo_jax.fastion
+   :members:
+
 Configuration
 -------------
 
