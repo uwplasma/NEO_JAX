@@ -26,23 +26,12 @@ def _evaluate(spline: Array, theta: Array, phi: Array, grid: dict, derivative):
                                       uniform=(True, True))
 
 
-def neo_eval(
-    theta: Array,
-    phi: Array,
-    b_spl: Array,
-    g_spl: Array,
-    k_spl: Array,
-    p_spl: Array,
-    q_spl: Array | None,
-    grid: dict,
-) -> Tuple[Array, Array, Array, Array, Array]:
-    """Evaluate spline fields at a point.
-
-    Returns (bval, gval, kval, pval, qval).
-    """
-    fields = (b_spl, g_spl, k_spl, p_spl) + (() if q_spl is None else (q_spl,))
-    values = jnp.unstack(_evaluate(jnp.stack(fields, -1), theta, phi, grid, (0, 0)), axis=-1)
-    return *values[:4], values[4] if q_spl is not None else jnp.zeros((), values[0].dtype)
+def neo_eval(theta: Array, phi: Array, splines: dict, grid: dict
+             ) -> Tuple[Array, Array, Array, Array, Array]:
+    """B, sqrg11, kg, pard and bqtphi (0 without ``calc_cur``) at a point, from the
+    ``fields`` spline of :func:`neo_jax.surface.build_splines`."""
+    values = jnp.unstack(_evaluate(splines["fields"], theta, phi, grid, (0, 0)), axis=-1)
+    return *values[:4], values[4] if len(values) > 4 else jnp.zeros((), values[0].dtype)
 
 
 def neo_bderiv(

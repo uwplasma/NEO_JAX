@@ -49,18 +49,16 @@ def build_splines(
     calc_cur: bool = False,
 ) -> Dict[str, Array]:
     """Tensor-product cubic splines of the surface fields, periodic (``mt``, ``mp`` = 1) or
-    natural (0) along theta and phi, as ``spl2d.f90``; each of shape
-    ``(4, theta_n - 1, 4, phi_n - 1)`` in the layout of ``solvax.tensor_spline_coefficients``."""
-    names = ["b", "sqrg11", "kg", "pard"]
-    keys = ["b_spl", "g_spl", "k_spl", "p_spl"]
-    if calc_cur and "bqtphi" in fields:
-        names.append("bqtphi")
-        keys.append("q_spl")
+    natural (0) along theta and phi, as ``spl2d.f90``, in the layout of
+    ``solvax.tensor_spline_coefficients``: ``fields`` of shape
+    ``(4, theta_n - 1, 4, phi_n - 1, F)`` for B, sqrg11, kg, pard and, with ``calc_cur``,
+    bqtphi (one search evaluates them all), and ``b_spl`` = ``fields[..., 0]``."""
+    names = ["b", "sqrg11", "kg", "pard"] + (["bqtphi"] if calc_cur and "bqtphi" in fields else [])
     data = jnp.stack([fields[name] for name in names], axis=-1)
     knots = [step * jnp.arange(n) for step, n in zip((theta_int, phi_int), data.shape)]
     bc = tuple("periodic" if m else "natural" for m in (mt, mp))
-    coefficients = jnp.moveaxis(tensor_spline_coefficients(*knots, data, bc=bc), -1, 0)
-    return dict(zip(keys, coefficients))
+    coefficients = tensor_spline_coefficients(*knots, data, bc=bc)
+    return {"fields": coefficients, "b_spl": coefficients[..., 0]}
 
 
 def _select_extremum_index(
@@ -241,24 +239,8 @@ def init_surface(
     # Evaluate B at refined points.
     from .geometry import neo_eval
 
-    b_min, *_ = neo_eval(
-        theta_bmin, phi_bmin,
-        splines["b_spl"],
-        splines["g_spl"],
-        splines["k_spl"],
-        splines["p_spl"],
-        splines.get("q_spl"),
-        grid,
-    )
-    b_max, *_ = neo_eval(
-        theta_bmax, phi_bmax,
-        splines["b_spl"],
-        splines["g_spl"],
-        splines["k_spl"],
-        splines["p_spl"],
-        splines.get("q_spl"),
-        grid,
-    )
+    b_min, *_ = neo_eval(theta_bmin, phi_bmin, splines, grid)
+    b_max, *_ = neo_eval(theta_bmax, phi_bmax, splines, grid)
 
     bmref = b_max
 

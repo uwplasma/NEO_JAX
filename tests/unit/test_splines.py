@@ -12,16 +12,18 @@ def test_batched_splines_and_their_tangents(periodic, current):
     from solvax import tensor_spline_coefficients
 
     names = ["b", "sqrg11", "kg", "pard"] + (["bqtphi"] if current else [])
-    keys = ["b_spl", "g_spl", "k_spl", "p_spl"] + (["q_spl"] if current else [])
     fields = {name: jnp.sin(jnp.arange(63).reshape(9, 7)*(.01+i*.02)) for i, name in enumerate(names)}
     solve = jax.jit(lambda f: build_splines(f, .1, .2, periodic, periodic, current))
     actual, tangent = jax.jvp(solve, (fields,), (fields,))
     bc = ("periodic",)*2 if periodic else ("natural",)*2
-    for name, key in zip(names, keys):
+    assert actual["fields"].shape[-1] == len(names)
+    np.testing.assert_array_equal(actual["b_spl"], actual["fields"][..., 0])
+    for k, name in enumerate(names):
         expected = tensor_spline_coefficients(.1*jnp.arange(9), .2*jnp.arange(7), fields[name], bc=bc)
         scale = np.max(np.abs(expected), axis=(1, 3), keepdims=True)  # per power block
-        np.testing.assert_allclose(actual[key]/scale, expected/scale, atol=1e-13)
-        np.testing.assert_allclose(tangent[key]/scale, actual[key]/scale, atol=1e-13)
+        np.testing.assert_allclose(actual["fields"][..., k]/scale, expected/scale, atol=1e-13)
+        np.testing.assert_allclose(tangent["fields"][..., k]/scale, actual["fields"][..., k]/scale,
+                                   atol=1e-13)
 
 
 def _scipy_tensor_spline(x, y, f, px, py, bc):
@@ -66,8 +68,7 @@ def test_surface_splines_and_partials_match_scipy(periodic, n):
                             grid["theta_int"], grid["phi_int"], periodic, periodic)
     rng = np.random.default_rng(1)
     px, py = rng.uniform(0, x[-1], 200), rng.uniform(0, y[-1], 200)
-    order = [splines[k] for k in ("b_spl", "g_spl", "k_spl", "p_spl")]
-    evaluated = jax.vmap(lambda a, b: neo_eval(a, b, *order, None, grid)[:4])(px, py)
+    evaluated = jax.vmap(lambda a, b: neo_eval(a, b, splines, grid)[:4])(px, py)
     partials = jax.vmap(lambda a, b: neo_bderiv(a, b, splines["b_spl"], grid))(px, py)
     bc = "periodic" if periodic else "natural"
     expected = {name: _scipy_tensor_spline(x, y, v, px, py, bc) for name, v in fields.items()}
@@ -142,8 +143,7 @@ def test_points_one_rounding_step_below_a_period_multiple():
     period = 2*np.pi/nfp
     phi = np.nextafter(np.arange(1, 400)*period, 0.0)
     theta = np.full_like(phi, 0.7)
-    order = [splines[k] for k in ("b_spl", "g_spl", "k_spl", "p_spl")]
-    value = jax.vmap(lambda t, p: neo_eval(t, p, *order, None, grid)[0])
+    value = jax.vmap(lambda t, p: neo_eval(t, p, splines, grid)[0])
     np.testing.assert_allclose(value(theta, phi), value(theta, 0*phi), rtol=0, atol=1e-12)
 
 
@@ -155,9 +155,8 @@ def test_neo_eval_gathers_all_fields_from_one_index_search(current):
     from neo_jax.grids import prepare_grids
 
     grid = prepare_grids(9, 9, 2)
-    keys = ["b_spl", "g_spl", "k_spl", "p_spl"]
     splines = build_splines({k: jnp.ones((9, 9)) for k in ("b", "sqrg11", "kg", "pard", "bqtphi")},
                             grid["theta_int"], grid["phi_int"], 1, 1, current)
-    q = splines.get("q_spl")
-    jaxpr = jax.make_jaxpr(lambda t, p: neo_eval(t, p, *(splines[k] for k in keys), q, grid))(0.1, 0.2)
-    assert str(jaxpr).count("gather[") == 1
+    jaxpr = jax.make_jaxpr(lambda t, p, s: neo_eval(t, p, s, grid))(0.1, 0.2, splines)
+    assert str(jaxpr).count("gather[") == 1 and " stack[" not in str(jaxpr)
+    assert len(neo_eval(0.1, 0.2, splines, grid)) == 5
