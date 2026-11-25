@@ -277,6 +277,47 @@ At the current problem sizes, the GPU path is functional and parity-checked but
 still compile-bound. For the legacy CLI and the small ORBITS API smoke, the GPU
 is slower than CPU because compile and launch overhead dominate the solve.
 
+Fast-ion proxies
+----------------
+
+:func:`neo_jax.fast_ion_proxies` is checked in ``tests/test_fastion.py``:
+
+- the drift integrals of one well against finite differences of the action
+  :math:`J` computed independently with scipy: 1e-4 for
+  :math:`\partial_\alpha J`, 1e-3 for :math:`\partial_s J`;
+- a single helical harmonic (omnigenous): :math:`\Gamma_c` = 2.4e-4 and
+  :math:`\Gamma_\alpha` = 1.4e-3, against 1e-2 and 0.2 for a rippled field;
+- :math:`\Gamma_\alpha` never exceeds the trapped fraction;
+- forward mode against central differences for both proxies, and a bound on
+  the second differences of :math:`\Gamma_\alpha` along a scan.
+
+Through the VMEX equilibrium solve (reverse mode against re-solved central
+differences, four boundary coefficients): :math:`\Gamma_c` within 0.05-0.3% on
+an nfp = 2 seed and 0.1-7% on QA, QI and nfp = 3 cases;
+:math:`\Gamma_\alpha` within 5% on QA and within 1% on the large components
+of the nfp = 2 seed. A quasi-helical case shows a factor 3 between the
+:math:`\Gamma_c` gradient through the solve and finite differences while the
+kernel derivative at fixed Boozer spectrum agrees to 1e-3; the cause is
+upstream of this module and is open.
+
+On the analytic scan of ``examples/fast_ion_proxies.py`` the forward-mode
+derivative of :math:`\Gamma_\alpha` agrees with central differences to 0.4% of
+its largest value. That of :math:`\Gamma_c` agrees to 3-25% depending on the
+point and the step, and the slope at single points changes by up to a factor 2
+between 16 and 64 lines while the value changes by 1%: the integrand has a cusp
+where the poloidal drift vanishes, which equispaced field lines resolve slowly
+in the derivative.
+
+Convergence with field lines (16, 32, 64) at s = 0.5: :math:`\Gamma_c` within
+1% on QA, QH and QI and 5% on an nfp = 4 ellipse with iota near a low-order
+rational; :math:`\Gamma_\alpha` within 0.2% on QA and 1.6% per doubling on QI.
+
+Smoothed against sharp :math:`\Gamma_\alpha` (threshold half-width 0.2
+against a Heaviside): -0.4% on QA, -9% on the nfp = 4 ellipse, +29% on QH and
++59% on QI, where many wells sit just below the threshold. No published
+:math:`\Gamma_c` or :math:`\Gamma_\alpha` value is reproduced here. DESC's
+``Gamma_c`` uses Nemov's pointwise form and is a different quantity.
+
 Bounce-integral effective ripple
 --------------------------------
 
