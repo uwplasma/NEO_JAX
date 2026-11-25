@@ -124,3 +124,24 @@ def test_effective_ripple_and_its_derivatives_are_pinned():
         direction = jnp.zeros(2).at[k].set(1.0)
         _, tangent = jax.jvp(objective, (jnp.zeros(2),), (direction,))
         np.testing.assert_allclose(tangent, expected, rtol=1e-8, atol=1e-20)
+
+
+def test_points_one_rounding_step_below_a_period_multiple():
+    """Field lines reach phi = k P - ulp for P = 2 pi / nfp. Reducing such a point by
+    floor(|phi / P|) P can give a small negative remainder and an index of -1, which takes
+    the first cell at its far end; the value there must be the periodic one, f(theta, 0)."""
+    from neo_jax.geometry import neo_eval
+    from neo_jax.grids import prepare_grids
+
+    nfp = 2
+    grid = prepare_grids(33, 33, nfp)
+    tt, pp = np.meshgrid(np.asarray(grid["theta_arr"]), np.asarray(grid["phi_arr"]), indexing="ij")
+    b = jnp.asarray(1 + 0.1*np.cos(tt - nfp*pp) + 0.05*np.sin(2*tt + nfp*pp))
+    splines = build_splines({k: b for k in ("b", "sqrg11", "kg", "pard")},
+                            grid["theta_int"], grid["phi_int"], 1, 1)
+    period = 2*np.pi/nfp
+    phi = np.nextafter(np.arange(1, 400)*period, 0.0)
+    theta = np.full_like(phi, 0.7)
+    order = [splines[k] for k in ("b_spl", "g_spl", "k_spl", "p_spl")]
+    value = jax.vmap(lambda t, p: neo_eval(t, p, *order, None, grid)[0])
+    np.testing.assert_allclose(value(theta, phi), value(theta, 0*phi), rtol=0, atol=1e-12)
