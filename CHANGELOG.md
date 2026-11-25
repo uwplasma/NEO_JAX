@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.2.0 - unreleased
+## v1.2.0 - 2026-11-24
 
 - Add `neo_jax.effective_ripple_3_2` and `RippleBudget`: Nemov's effective ripple as bounce integrals along
   Boozer field lines with exact bounce points. The value is continuous in the equilibrium and differentiable in
