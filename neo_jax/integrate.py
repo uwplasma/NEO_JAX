@@ -57,16 +57,7 @@ def rhs_bo1(phi: Array, y: Array, state: RhsState, env: RhsEnv) -> Tuple[Array, 
     """Right-hand side for the field-line ODE (port of rhs_bo1.f90)."""
     theta = y[0]
 
-    bmod, gval, geodcu, pardeb, _qval = neo_eval(
-        theta,
-        phi,
-        env.splines["b_spl"],
-        env.splines["g_spl"],
-        env.splines["k_spl"],
-        env.splines["p_spl"],
-        env.splines.get("q_spl"),
-        env.grid,
-    )
+    bmod, gval, geodcu, pardeb, _qval = neo_eval(theta, phi, env.splines, env.grid)
 
     bmodm2 = 1.0 / (bmod * bmod)
     bmodm3 = bmodm2 / bmod
@@ -298,16 +289,7 @@ def flint_bo(
     )
 
     # Initialize pard0
-    _bmod, _gval, _geodcu, pard0, _qval = neo_eval(
-        surface.theta_bmax,
-        surface.phi_bmax,
-        env.splines["b_spl"],
-        env.splines["g_spl"],
-        env.splines["k_spl"],
-        env.splines["p_spl"],
-        env.splines.get("q_spl"),
-        env.grid,
-    )
+    _bmod, _gval, _geodcu, pard0, _qval = neo_eval(surface.theta_bmax, surface.phi_bmax, env.splines, env.grid)
     state = RhsState(state.isw, state.ipa, state.icount, state.ipmax, pard0)
 
     # Main accumulators
@@ -528,16 +510,7 @@ def flint_bo(
 
             for _n in range(1, nfp_rat + 1):
                 # Update pard0 at the start of each field period
-                _bmod, _gval, _geodcu, pard0, _qval = neo_eval(
-                    y[0],
-                    phi,
-                    env.splines["b_spl"],
-                    env.splines["g_spl"],
-                    env.splines["k_spl"],
-                    env.splines["p_spl"],
-                    env.splines.get("q_spl"),
-                    env.grid,
-                )
+                _bmod, _gval, _geodcu, pard0, _qval = neo_eval(y[0], phi, env.splines, env.grid)
                 state = RhsState(state.isw, state.ipa, state.icount, state.ipmax, pard0)
 
                 for _j1 in range(1, params.nstep_per + 1):
@@ -712,16 +685,7 @@ def flint_bo_jax(
         pard0=jnp.array(0.0),
     )
 
-    _bmod, _gval, _geodcu, pard0, _qval = neo_eval(
-        surface.theta_bmax,
-        surface.phi_bmax,
-        env.splines["b_spl"],
-        env.splines["g_spl"],
-        env.splines["k_spl"],
-        env.splines["p_spl"],
-        env.splines.get("q_spl"),
-        env.grid,
-    )
+    _bmod, _gval, _geodcu, pard0, _qval = neo_eval(surface.theta_bmax, surface.phi_bmax, env.splines, env.grid)
     state = RhsState(state.isw, state.ipa, state.icount, state.ipmax, pard0)
 
     iswst = jnp.zeros(npart, dtype=jnp.int32)
@@ -762,16 +726,7 @@ def flint_bo_jax(
             """Inline RHS evaluation to help XLA fuse neo_eval + RK4."""
             theta = y_local[0]
 
-            bmod, gval, geodcu, pardeb, _qval = neo_eval(
-                theta,
-                phi_local,
-                env.splines["b_spl"],
-                env.splines["g_spl"],
-                env.splines["k_spl"],
-                env.splines["p_spl"],
-                env.splines.get("q_spl"),
-                env.grid,
-            )
+            bmod, gval, geodcu, pardeb, _qval = neo_eval(theta, phi_local, env.splines, env.grid)
 
             bmodm2 = 1.0 / (bmod * bmod)
             bmodm3 = bmodm2 / bmod
@@ -1298,16 +1253,7 @@ def flint_bo_jax(
             def n_body(ncarry):
                 n_idx, phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s = ncarry
 
-                _bmod, _gval, _geodcu, pard0, _qval = neo_eval(
-                    y_l[0],
-                    phi_l,
-                    env.splines["b_spl"],
-                    env.splines["g_spl"],
-                    env.splines["k_spl"],
-                    env.splines["p_spl"],
-                    env.splines.get("q_spl"),
-                    env.grid,
-                )
+                _bmod, _gval, _geodcu, pard0, _qval = neo_eval(y_l[0], phi_l, env.splines, env.grid)
                 state_l = RhsState(state_l.isw, state_l.ipa, state_l.icount, state_l.ipmax, pard0)
 
                 phi_l, y_l, state_l, iswst_l, bigint_s, adimax_s, aditot_s = integrate_period(

@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from neo_jax.integrate import NPQ, RhsEnv, RhsState, rhs_bo1
-from neo_jax.splines import spl2d
+from neo_jax.surface import build_splines
 
 
 def test_rhs_bo1_constant_field():
@@ -18,12 +18,8 @@ def test_rhs_bo1_constant_field():
     theta_int = float(theta_arr[1] - theta_arr[0])
     phi_int = float(phi_arr[1] - phi_arr[0])
 
-    splines = {
-        "b_spl": spl2d(b, theta_int, phi_int, 1, 1),
-        "g_spl": spl2d(gval, theta_int, phi_int, 1, 1),
-        "k_spl": spl2d(kg, theta_int, phi_int, 1, 1),
-        "p_spl": spl2d(pard, theta_int, phi_int, 1, 1),
-    }
+    splines = build_splines({"b": b, "sqrg11": gval, "kg": kg, "pard": pard},
+                            theta_int, phi_int, 1, 1)
 
     grid = {
         "theta_int": theta_int,

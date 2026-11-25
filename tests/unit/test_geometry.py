@@ -3,7 +3,13 @@ import pytest
 import jax.numpy as jnp
 
 from neo_jax.geometry import neo_zeros2d
-from neo_jax.splines import spl2d
+from neo_jax.surface import build_splines
+
+
+def _spline(f, hx, hy, periodic):
+    f = jnp.asarray(f)
+    fields = {k: f for k in ("b", "sqrg11", "kg", "pard")}
+    return build_splines(fields, hx, hy, periodic, periodic)["b_spl"]
 
 
 def test_neo_zeros2d_finds_quadratic_minimum():
@@ -17,7 +23,7 @@ def test_neo_zeros2d_finds_quadratic_minimum():
     hx = float(x[1] - x[0])
     hy = float(y[1] - y[0])
 
-    b_spl = spl2d(jnp.asarray(f), hx, hy, mx=0, my=0)
+    b_spl = _spline(f, hx, hy, 0)
 
     grid = {
         "theta_int": hx,
@@ -44,7 +50,7 @@ def test_neo_zeros2d_phi_invariant(amplitude):
     angle = np.linspace(0, 2 * np.pi, 33)
     field = np.broadcast_to((2 + amplitude * np.cos(angle))[:, None], (33, 33))
     step = angle[1] - angle[0]
-    spline = spl2d(jnp.asarray(field), step, step, mx=1, my=1)
+    spline = _spline(field, step, step, 1)
     grid = dict(theta_int=step, phi_int=step, mt=1, mp=1,
                 theta_start=0.0, theta_end=2*np.pi, phi_start=0.0, phi_end=2*np.pi)
     theta, phi, _, error = neo_zeros2d(jnp.array(2.8), jnp.array(0.7), 1e-10, 50,

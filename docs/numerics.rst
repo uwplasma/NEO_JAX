@@ -70,11 +70,10 @@ After Fourier reconstruction, the fields are converted into periodic 2D cubic
 splines. This is the main interpolation layer used during field-line
 integration:
 
-- ``b_spl`` for :math:`B`
-- ``g_spl`` for :math:`\sqrt{g^{11}}`
-- ``k_spl`` for :math:`K_G`
-- ``p_spl`` for :math:`\partial_\parallel B`
-- ``q_spl`` for the current-related path when needed
+- ``fields``: :math:`B`, :math:`\sqrt{g^{11}}`, :math:`K_G`, :math:`\partial_\parallel B`
+  and, for the current-related path, the current term, along a trailing axis, so that one
+  index search per point serves all of them
+- ``b_spl``: the :math:`B` slice, for its first and second partial derivatives
 
 This split is important numerically:
 

@@ -30,6 +30,7 @@ dependencies = [
   "numpy",
   "netCDF4",
   "scipy",
+  "solvax>=0.37.0",
 ]
 
 [project.urls]

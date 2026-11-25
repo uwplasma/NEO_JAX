@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 
 from neo_jax.integrate import flint_bo_jax
-from neo_jax.splines import splper, splreg
+from neo_jax.geometry import neo_bderiv
+from neo_jax.surface import build_splines
 from test_flint_bo_jax_smoke import _constant_case
 
 pytestmark = pytest.mark.gpu
@@ -19,18 +20,15 @@ def test_default_backend_array_is_float64():
     assert x.devices() == {jax.devices()[0]}
 
 
-def test_splreg_linear_on_default_backend():
-    x = jnp.linspace(0.0, 1.0, 6)
-    _, ci, di = splreg(2.5 * x + 1.0, float(x[1] - x[0]))
-    assert np.allclose(np.asarray(ci[:-1]), 0.0, atol=1e-10)
-    assert np.allclose(np.asarray(di[:-1]), 0.0, atol=1e-10)
-
-
-def test_splper_periodic_on_default_backend():
-    x = jnp.linspace(0.0, 2.0 * np.pi, 9)
-    bi, ci, _ = splper(jnp.sin(x), float(x[1] - x[0]))
-    assert np.isclose(np.asarray(bi[-1]), np.asarray(bi[0]))
-    assert np.isclose(np.asarray(ci[-1]), np.asarray(ci[0]))
+def test_surface_spline_on_default_backend():
+    step = 2*np.pi/8
+    angle = step*jnp.arange(9)
+    b = jnp.broadcast_to(jnp.sin(angle)[:, None], (9, 9))
+    spline = build_splines({k: b for k in ("b", "sqrg11", "kg", "pard")}, step, step, 1, 1)
+    grid = dict(theta_int=step, phi_int=step, mt=1, mp=1, theta_start=0.0, phi_start=0.0)
+    f, g, *_ = neo_bderiv(jnp.array(0.0), jnp.array(0.3), spline["b_spl"], grid)
+    assert spline["b_spl"].devices() == {jax.devices()[0]}
+    assert abs(float(f) - 1.0) < 1e-2 and abs(float(g)) < 1e-12
 
 
 def test_flint_bo_jax_constant_field_on_default_backend():

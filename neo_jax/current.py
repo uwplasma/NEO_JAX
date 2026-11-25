@@ -98,16 +98,7 @@ def _current_env(surface, env, *, npart_cur: int, alpha_cur: float, nfp: int) ->
 
 def rhs_cur(phi: jax.Array, y: jax.Array, env: CurrentEnv) -> jax.Array:
     theta = y[0]
-    bmod, gval, geodcu, pardeb, qval = neo_eval(
-        theta,
-        phi,
-        env.splines["b_spl"],
-        env.splines["g_spl"],
-        env.splines["k_spl"],
-        env.splines["p_spl"],
-        env.splines.get("q_spl"),
-        env.grid,
-    )
+    bmod, gval, geodcu, pardeb, qval = neo_eval(theta, phi, env.splines, env.grid)
 
     bra = bmod / env.bmod0
     bmodm2 = 1.0 / (bra * bra)
