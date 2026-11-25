@@ -24,10 +24,16 @@ The bounce machinery is that of :mod:`neo_jax.ripple` (Hermite cubics along Booz
 monotone-piece roots, pitch panels between the critical values of ``|B|``, sine-mapped well Gauss rule,
 smooth window weights); only the integrands differ.  ``Gamma_alpha`` follows Velasco et al.
 section 4.2 (ripple wells ignored): an orbit is lost when its precession meets an outward
-superbanana (``gamma* > 0.2``) before an inward one; each well takes the label ``alpha + 2 pi iota k / nfp``
-of its field period ``k``, and the signed ``gamma*`` and precession direction ``-sign(dJ/ds)`` of the
-wells are binned on a periodic ``alpha`` grid with cubic B-spline weights (C2); thresholds are smoothsteps of half-width
-``threshold_width`` (0.05 gave 5 % value jumps on QA, 0.2 about 3 %; above 0.2 an omnigenous field loses particles).
+superbanana (``gamma* > 0.2``) before an inward one.  Each well is an event at its own poloidal position
+``theta = alpha + iota phi_mid`` (continuous: a period label would jump by ``2 pi iota / nfp`` when a well
+midpoint crosses a period boundary), present with its smooth window weight and outward or inward through smoothstep
+thresholds of half-width ``threshold_width`` around ``gamma* = 0.2`` (zero for ``|gamma*| < 0.2 - width``, so an
+omnigenous field loses nothing).  Events are deposited with cubic B-spline weights on a periodic ``alpha`` grid as
+event mass, and a bin of mass ``m`` is crossed with probability ``exp(-hazard m)``; the probability that the first
+event met going up or down in ``alpha`` is outward follows from the competing hazards (the continuous form of a
+first-passage sweep), and each well mixes the two directions with its own smooth precession direction.  Averaging
+``gamma*`` per bin before the threshold, as an earlier version did, made any sliver of a well a full-strength event
+and the value jumped by 5-10 % between field steps of 1e-4.
 """
 
 from __future__ import annotations
@@ -62,13 +68,15 @@ class FastIonBudget:
     n_well: int = 64               # Gauss nodes on each piece of a well
     n_split: int = 2               # interior stationary points at which a well is cut (n_split + 1 pieces)
     n_level: int = 32              # uniform pitch panels of Gamma_alpha (besides the critical levels)
-    n_pitch_alpha: int = 2
+    n_pitch_alpha: int = 4
+    n_dense_alpha: int = 16
     n_bin: int = 32                # alpha bins of the Gamma_alpha maps
     n_surface: int = 64
     n_dense: int = 128
     n_fit: int = 5                 # rows of the radial polynomial fit (3: central differences)
     max_wells: int | None = None
     max_critical: int | None = None
+    hazard: float = 5.0            # event survival exp(-hazard m): a full well in the way blocks with e^-5
     threshold_width: float = 0.2   # half-width in gamma* of the smoothstep around 0.2; wider gives Gamma_alpha > 0 at gamma* = 0
     rho_units: bool = False        # ratio in (rho, alpha) instead of Velasco's (s, alpha); for cross-checks
 
@@ -125,25 +133,25 @@ def _wells(cs, pcs, h, b, iota, dG, ip, nstart, ramp, nwell, nquad, sign, scale,
             jnp.where(ok, Dn, 0.0), mid), down.sum() > nwell
 
 
-def _lost_fraction(gamma, direction, width):
-    """Probability that precession meets an outward superbanana before an inward one (eq. 25)."""
-    n = gamma.shape[0]
-    def step(g):
-        u = jnp.clip((g - _GAMMA_TH) / (2 * width) + 0.5, 0.0, 1.0)
-        return u * u * (3 - 2 * u)
+def _step(g, width):
+    u = jnp.clip((g - _GAMMA_TH) / (2 * width) + 0.5, 0.0, 1.0)
+    return u * u * (3 - 2 * u)
 
-    out, inw = step(gamma), step(-gamma)
-    free = jnp.clip(1.0 - out - inw, 0.0, 1.0)
+
+def _first_event(mo, mi, rate):
+    """Competing hazards along the periodic alpha grid.  ``mo``, ``mi`` (bin, level) are the outward and inward event
+    mass; crossing a bin of mass ``m`` survives with ``exp(-rate m)``.  Returns the probability that the first event met
+    going up (down) in alpha is outward, and the probability that an inward event exists anywhere."""
+    n = mo.shape[0]
+    tot = rate * (mo + mi)
+    first = rate * mo * jnp.where(tot > 1e-8, -jnp.expm1(-tot) / jnp.where(tot > 1e-8, tot, 1.0), 1.0 - 0.5 * tot)
     ar = jnp.arange(n)
 
     def sweep(sg):
         k = (ar[:, None] + sg * ar[None, :]) % n
-        alive = jnp.cumprod(free[k], axis=1)
-        alive = jnp.concatenate([jnp.ones_like(alive[:, :1]), alive[:, :-1]], 1)
-        return jnp.sum(out[k] * alive, axis=1)
+        return jnp.sum(first[k] * jnp.exp(-(jnp.cumsum(tot[k], axis=1) - tot[k])), axis=1)
 
-    plus = 0.5 * (1.0 + direction)
-    return (plus * sweep(1) + (1.0 - plus) * sweep(-1)) * (1.0 - jnp.prod(1.0 - inw, axis=0))
+    return sweep(1), sweep(-1), 1.0 - jnp.exp(-rate * mi.sum(0))
 
 
 def _fit_derivative(s, f, rows=5):
@@ -236,6 +244,8 @@ def _surface(amp, damp, xm, xn, iota, diota, Ghat, dGhat, nfp, bud, srow, ramp=0
     # Gamma_alpha: the panels are bounded by the critical levels of every line (so the well topology of all
     # lines is constant on each panel and the b integrand is smooth) and a global uniform grid
     nb, nl = bud.n_bin, bud.n_level
+    td_a, wd_a = _gl(bud.n_dense_alpha)
+    sd_a, dsd_a = td_a * td_a * (3 - 2 * td_a), 6 * td_a * (1 - td_a)
     def line_levels(a):
         cs, _, Bn, ta, tb = line_data(a)
         return levels(cs[0], Bn, ta, tb, False)[0]
@@ -245,24 +255,35 @@ def _surface(amp, damp, xm, xn, iota, diota, Ghat, dGhat, nfp, bud, srow, ramp=0
     edges = jnp.sort(jnp.concatenate([crit.ravel(), bmin + (bmax - bmin) * jnp.arange(nl + 1) / nl]))
     lo, hi = edges[:-1, None], edges[1:, None]
     live = hi - lo > 1e-9 * (bmax - bmin)
-    xa, wa = _gl(bud.n_pitch_alpha)
-    sa, dsa = xa * xa * (3 - 2 * xa), 6 * xa * (1 - xa)
+    xa = _gl(bud.n_pitch_alpha)[0]
+    sa = xa * xa * (3 - 2 * xa)
+    npan, nA, nd = lo.shape[0], bud.n_pitch_alpha, bud.n_dense_alpha
     bl = jnp.where(live, lo + (hi - lo) * sa, jax.lax.stop_gradient(0.5 * (bmin + bmax))).ravel()
-    wl = (jnp.where(live, hi - lo, 0.0) * dsa * wa).ravel() / bl**2
-    nlev = bl.shape[0]
+    PA = np.ones((nd, nA))
+    for q in range(nA):
+        for j in range(nA):
+            if j != q:
+                PA[:, q] *= (td_a - xa[j]) / (xa[q] - xa[j])
+    PA = jnp.asarray(PA)
+    bd = lo + (hi - lo) * sd_a                                   # (panel, dense) pitch values
+    wl = (jnp.where(live, hi - lo, 0.0) * dsd_a * wd_a / bd**2).ravel()
+    nlev = npan * nd
 
     def alpha_line(a):
+        # wells at the panel nodes, then the dense pitch rule: gamma_c* has narrow resonances where D = 0
         cs, pcs, *_ = line_data(a)
         (win, vt, Nn, Dn, mid), over = jax.vmap(lambda b: _wells(cs, pcs, h, b, iota, dG, diota, nstart,
                                                                   ramp * L, nwell, nquad, sign, scale, bud.n_split))(bl)
-        k = jnp.floor(mid * nfp / (2 * jnp.pi))
-        return win * vt, Nn, Dn, a + 2 * jnp.pi * iota * k / nfp, over.any()
+        sh = lambda x: x.reshape(npan, nA, nwell)
+        okp = jnp.all(sh(vt) > 0, axis=1)
+        dn = lambda x: (jnp.einsum("mq,pqw->pmw", PA, sh(x)) * okp[:, None, :]).reshape(nlev, nwell)
+        return dn(win * vt), dn(Nn), dn(Dn), a + iota * dn(mid), over.any(), dn(win)
 
-    wv, Nn, Dn, lab, over_a = jax.lax.map(jax.checkpoint(alpha_line), alpha)      # (line, level, well)
+    wv, Nn, Dn, lab, over_a, wn = jax.lax.map(jax.checkpoint(alpha_line), alpha)      # (line, level, well)
     on = wv > 0
     gam = jnp.where(on, (2 / jnp.pi) * jnp.arctan2(jnp.where(on, Nn, 1.0), jnp.abs(jnp.where(on, Dn, 1.0))), 0.0)
     # smooth sign of the precession: a hard sign would drop the jump at D = 0 from the gradient
-    direction = jnp.where(wv > 0, -sign * Dn / jnp.sqrt(jnp.where(wv > 0, Dn**2 + Nn**2, 1.0)), 0.0)
+    direction = jnp.where(on, -sign * Dn / jnp.sqrt(jnp.where(on, Dn**2 + Nn**2, 1.0)), 0.0)
     u = jnp.mod(lab / (2 * jnp.pi) * nb, nb)
     i0 = jnp.floor(u).astype(int)
     t = u - i0
@@ -273,11 +294,11 @@ def _surface(amp, damp, xm, xn, iota, diota, Ghat, dGhat, nfp, bud, srow, ramp=0
     def binned(v):          # summed over lines and wells
         return sum(jnp.zeros((nlev, nb)).at[lv, i].add(v * c) for i, c in zip(ij, cub))
 
-    mass = binned(wv)
-    ref = 0.05 * mass.mean(1, keepdims=True) + 1e-30        # a bin holding a sliver of a well must not carry its full gamma
-    maps = [binned(wv * v) / (mass + ref) for v in (gam, direction)]
-    lost = _lost_fraction(maps[0].T, maps[1].T, bud.threshold_width)                # (bin, level)
-    per_well = sum(lost[i, lv] * c for i, c in zip(ij, cub))
+    present = jnp.where(on, wn, 0.0)
+    fw, bw, anyin = _first_event(binned(present * _step(gam, bud.threshold_width)).T,
+                                 binned(present * _step(-gam, bud.threshold_width)).T, bud.hazard)
+    plus = 0.5 * (1.0 + direction)
+    per_well = (plus * sum(fw[i, lv] * c for i, c in zip(ij, cub)) + (1.0 - plus) * sum(bw[i, lv] * c for i, c in zip(ij, cub))) * anyin[lv]
     scale_a = 0.25 / (bud.n_lines * norm)
     gamma_alpha = scale_a * jnp.sum(wl * jnp.sum(wv * per_well, (0, 2)))
     f_trapped = scale_a * jnp.sum(wl * jnp.sum(wv, (0, 2)))
