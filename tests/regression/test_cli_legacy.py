@@ -406,11 +406,11 @@ def test_cli_prefers_neo_param_in_over_neo_in_extension(tmp_path: Path) -> None:
 
 def test_cli_progress_logging_and_quiet_flag(tmp_path: Path) -> None:
     extension = "LOG_MINI"
-    control_text = _make_control(
+    control_text = _make_control(  # periodic splines need four knots per axis
         out_file=f"neo_out.{extension}",
         surfaces=[96],
-        theta_n=2,
-        phi_n=2,
+        theta_n=4,
+        phi_n=4,
         npart=2,
         multra=1,
         nstep_per=2,

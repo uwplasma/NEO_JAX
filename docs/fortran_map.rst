@@ -40,11 +40,11 @@ Integration
 
 Splines
 -------
-- ``spl2d.f90`` -> ``neo_jax.splines.spl2d``
-- ``eva2d.f90`` -> ``neo_jax.splines.eva2d``
-- ``eva2d_fd.f90`` -> ``neo_jax.splines.eva2d_fd``
-- ``eva2d_sd.f90`` -> ``neo_jax.splines.eva2d_sd``
-- ``poi2d.f90`` -> ``neo_jax.splines.poi2d``
+- ``spl2d.f90``, ``splper.f90``, ``splreg.f90`` -> ``neo_jax.surface.build_splines``
+  (``solvax.tensor_spline_coefficients``, periodic or natural axes)
+- ``poi2d.f90``, ``eva2d.f90``, ``eva2d_fd.f90``, ``eva2d_sd.f90`` ->
+  ``neo_jax.geometry.neo_eval`` and ``neo_jax.geometry.neo_bderiv``
+  (``solvax.piecewise_bicubic_evaluate``)
 
 Output
 ------

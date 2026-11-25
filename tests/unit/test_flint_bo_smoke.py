@@ -2,7 +2,6 @@ import numpy as np
 import jax.numpy as jnp
 
 from neo_jax.integrate import FlintParams, RhsEnv, flint_bo
-from neo_jax.splines import spl2d
 from neo_jax.surface import SurfaceData, build_splines
 
 

@@ -9,10 +9,10 @@ from typing import Dict, Optional, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
+from solvax import tensor_spline_coefficients
 
 from .fourier import derived_quantities, fourier_sums
 from .geometry import neo_zeros2d
-from .splines import spl2d
 
 Array = jax.Array
 
@@ -48,13 +48,18 @@ def build_splines(
     mp: int,
     calc_cur: bool = False,
 ) -> Dict[str, Array]:
+    """Tensor-product cubic splines of the surface fields, periodic (``mt``, ``mp`` = 1) or
+    natural (0) along theta and phi, as ``spl2d.f90``; each of shape
+    ``(4, theta_n - 1, 4, phi_n - 1)`` in the layout of ``solvax.tensor_spline_coefficients``."""
     names = ["b", "sqrg11", "kg", "pard"]
     keys = ["b_spl", "g_spl", "k_spl", "p_spl"]
     if calc_cur and "bqtphi" in fields:
         names.append("bqtphi")
         keys.append("q_spl")
-    coefficients = jax.vmap(lambda f: spl2d(f, theta_int, phi_int, mt, mp))(
-        jnp.stack([fields[name] for name in names]))
+    data = jnp.stack([fields[name] for name in names], axis=-1)
+    knots = [step * jnp.arange(n) for step, n in zip((theta_int, phi_int), data.shape)]
+    bc = tuple("periodic" if m else "natural" for m in (mt, mp))
+    coefficients = jnp.moveaxis(tensor_spline_coefficients(*knots, data, bc=bc), -1, 0)
     return dict(zip(keys, coefficients))
 
 

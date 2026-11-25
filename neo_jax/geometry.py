@@ -6,10 +6,24 @@ from typing import Tuple
 
 import jax
 import jax.numpy as jnp
-
-from .splines import eva2d_fd_jax, eva2d_jax, eva2d_sd_jax, poi2d_jax
+from solvax import piecewise_bicubic_evaluate
 
 Array = jax.Array
+
+
+def _evaluate(spline: Array, theta: Array, phi: Array, grid: dict, derivative):
+    """Evaluate the surface spline of :func:`neo_jax.surface.build_splines` on its grid.
+
+    ``grid["mt"]`` and ``grid["mp"]`` may be traced, so a periodic axis reduces its
+    points here instead of through the static ``periodic`` flag of SOLVAX."""
+    knots, points = [], []
+    for axis, flag, n, p in (("theta", "mt", spline.shape[1], theta),
+                             ("phi", "mp", spline.shape[3], phi)):
+        start, step = grid[f"{axis}_start"], grid[f"{axis}_int"]
+        points.append(jnp.where(grid[flag] == 0, p, start + jnp.mod(p - start, step * n)))
+        knots.append(start + step * jnp.arange(n + 1))
+    return piecewise_bicubic_evaluate(*knots, spline, *points, derivative=derivative,
+                                      uniform=(True, True))
 
 
 def neo_eval(
@@ -26,28 +40,12 @@ def neo_eval(
 
     Returns (bval, gval, kval, pval, qval).
     """
-    ix, iy, dx, dy, ierr = poi2d_jax(
-        grid["theta_int"],
-        grid["phi_int"],
-        grid["mt"],
-        grid["mp"],
-        grid["theta_start"],
-        grid["theta_end"],
-        grid["phi_start"],
-        grid["phi_end"],
-        theta,
-        phi,
-    )
-    _ = ierr
-
-    bval = eva2d_jax(b_spl, ix, iy, dx, dy)
-    gval = eva2d_jax(g_spl, ix, iy, dx, dy)
-    kval = eva2d_jax(k_spl, ix, iy, dx, dy)
-    pval = eva2d_jax(p_spl, ix, iy, dx, dy)
+    bval, gval, kval, pval = (_evaluate(s, theta, phi, grid, (0, 0))
+                              for s in (b_spl, g_spl, k_spl, p_spl))
     if q_spl is None:
         qval = jnp.array(0.0, dtype=bval.dtype)
     else:
-        qval = eva2d_jax(q_spl, ix, iy, dx, dy)
+        qval = _evaluate(q_spl, theta, phi, grid, (0, 0))
     return bval, gval, kval, pval, qval
 
 
@@ -57,31 +55,11 @@ def neo_bderiv(
     b_spl: Array,
     grid: dict,
 ) -> Tuple[Array, Array, Array, Array, Array, Array]:
-    """Compute first and second derivatives of B using spline coefficients."""
-    ix, iy, dx, dy, ierr = poi2d_jax(
-        grid["theta_int"],
-        grid["phi_int"],
-        grid["mt"],
-        grid["mp"],
-        grid["theta_start"],
-        grid["theta_end"],
-        grid["phi_start"],
-        grid["phi_end"],
-        theta,
-        phi,
-    )
-    _ = ierr
-
-    fderiv = eva2d_fd_jax(b_spl, ix, iy, dx, dy)
-    sderiv = eva2d_sd_jax(b_spl, ix, iy, dx, dy)
-
-    f = fderiv[0]
-    g = fderiv[1]
-    dfdx = sderiv[0]
-    dfdy = sderiv[1]
-    dgdx = sderiv[1]
-    dgdy = sderiv[2]
-    return f, g, dfdx, dfdy, dgdx, dgdy
+    """First and second derivatives of B: (f, g, df/dx, df/dy, dg/dx, dg/dy) with f = dB/dtheta
+    and g = dB/dphi."""
+    f, g, dfdx, dfdy, dgdy = _evaluate(b_spl, theta, phi, grid,
+                                       ((1, 0), (0, 1), (2, 0), (1, 1), (0, 2)))
+    return f, g, dfdx, dfdy, dfdy, dgdy
 
 
 def neo_zeros2d(

@@ -73,12 +73,6 @@ Fourier
 .. automodule:: neo_jax.fourier
    :members:
 
-Splines
--------
-
-.. automodule:: neo_jax.splines
-   :members:
-
 Grids
 -----
 
